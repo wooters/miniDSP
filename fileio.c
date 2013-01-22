@@ -1,10 +1,19 @@
+/**
+ * @file fileio.c
+ */
+#include "fileio.h"
 
-#include "utils.h"
+typedef struct FIO_HTKheader {
+  uint32_t nvecs;
+  uint32_t sampperiod;
+  uint16_t vecsize;
+  uint16_t parmkind;
+} FIO_HTKheader;
 
 const int _i = 1;
 #define is_bigendian() ( (*(char*)&_i) == 0 )
 
-void SwapBytes(void* pv, size_t n) {
+void _SwapBytes(void* pv, size_t n) {
   char *p = pv;
   size_t lo, hi;
   for(lo=0, hi=n-1; hi>lo; lo++, hi--) {
@@ -13,14 +22,50 @@ void SwapBytes(void* pv, size_t n) {
     p[hi] = tmp;
   }
 }
-#define SWAP(x) SwapBytes(&x, sizeof(x));
+#define SWAP(x) _SwapBytes(&x, sizeof(x));
 
-/* Function to read an audio file */
-void  read_audio(const char* infile, 
-		 float** indata, 
-		 size_t* datalen, 
-		 unsigned* samprate, 
-		 unsigned donorm) {
+/* these two pragma's stop the warnings that gcc gives */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+#pragma GCC diagnostic ignored "-Wformat-security"
+void* _malloc_or_die(size_t nbytes, const char* const msg) {
+
+    void* tmp = malloc(nbytes);
+    if (tmp == NULL) {
+      printf(msg);
+      exit(1);
+    }
+    return tmp;
+}
+#pragma GCC diagnostic pop
+
+
+/** 
+ * Read an audio file from disk.
+ *
+ * @param infile Then name of the file to read from.
+ *
+ * @param indata A pointer to a float pointer. The address of the
+ * read-in audio data will be stored at this location.
+ *
+ * @param datalen A pointer to a size_t variable in which to store the
+ * length (in samples) of the input data.
+ *
+ * @param samprate A pointer to an unsigned variable in which to store
+ * the sampling rate of the audio data.
+ *
+ * @param donorm Either a 1 or 0 to indicate if the audio should be
+ * normalized when read. If \a donorm == 1, then the audio data will
+ * have a range of [-1.0, 1.0]
+ *
+ * @note Currently only handles single-channel audio files. You can use the 'sox' 
+ * utility to split a multi-channel file into multiple single-channel files.
+ */
+void  FIO_read_audio(const char* const infile, 
+		     float** indata, 
+		     size_t* datalen, 
+		     unsigned* samprate, 
+		     unsigned donorm) {
 
   /* The libsndfile file structure */
   SF_INFO sfinfo;
@@ -28,7 +73,7 @@ void  read_audio(const char* infile,
   /* Open and read the audio file info */
   SNDFILE* sf = sf_open(infile, SFM_READ, &sfinfo);
   if (sfinfo.channels != 1) {
-    printf("Input file has %u channels. We can only handle 1-channel data\n",
+    printf("Input file has %u channels. We only handle 1-channel data at this point\n",
 	   sfinfo.channels);
     exit(1);
   }
@@ -41,8 +86,8 @@ void  read_audio(const char* infile,
     sf_command(sf, SFC_SET_NORM_FLOAT, NULL, SF_FALSE);
 
   /* Allocate space for the audio data and read it in */
-  float* tmpdata = malloc_or_die(nsamps*sizeof(float), 
-				 "Error allocating memory for audio data\n");
+  float* tmpdata = _malloc_or_die(nsamps*sizeof(float), 
+				  "Error allocating memory for audio data\n");
   sf_count_t nread  = sf_read_float(sf, tmpdata, nsamps);
   if (nread != nsamps) {
     printf("Error reading from %s, expected to read %d, instead read %d\n",
@@ -59,11 +104,14 @@ void  read_audio(const char* infile,
   *samprate = (unsigned) sfinfo.samplerate;
 }
 
-void write_feats(const char* outfile, 
-		 float** outvecs, 
-		 size_t nvecs, 
-		 size_t veclen, 
-		 unsigned vecsamprate) {
+/**
+ * Write an HTK feature file.
+ */
+void FIO_write_htk_feats(const char* outfile, 
+			 const float** const outvecs,
+			 const size_t nvecs, 
+			 const size_t veclen, 
+			 const unsigned vecsamprate) {
 
   HTKheader hdr;
   hdr.nvecs = nvecs;
@@ -101,21 +149,6 @@ void write_feats(const char* outfile,
   }
   fclose(f);
 }
-
-/* these two pragma's stop the warnings that gcc gives */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-#pragma GCC diagnostic ignored "-Wformat-security"
-void* malloc_or_die(size_t nbytes, const char* msg) {
-
-    void* tmp = malloc(nbytes);
-    if (tmp == NULL) {
-      printf(msg);
-      exit(1);
-    }
-    return tmp;
-}
-#pragma GCC diagnostic pop
 
 
 

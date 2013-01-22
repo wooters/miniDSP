@@ -1,12 +1,12 @@
 /**
- * @file localaudio.c
- * Implementation of local play/record system. This is basically a wrapper
+ * @file liveio.c
+ * Implementation of live audio play/record system. This is basically a wrapper
  *  the PortAudio library (http://portaudio.com)
  *
  * @author Chuck Wooters <wooters@icsi.berkeley.edu>
  */
 
-#include "localaudio.h"
+#include "liveio.h"
 
 typedef struct
 {

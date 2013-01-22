@@ -1,10 +1,10 @@
 /**
- * @file localaudio.h
+ * @file liveio.h
  *
- * @brief Routines for recording and playing sounds on the local host.
+ * @brief Routines for recording and playing live audio on the local host.
  */
-#ifndef LOCALAUDIO_H
-#define LOCALAUDIO_H
+#ifndef LIVEIO_H
+#define LIVEIO_H
 
 #include <stdio.h>
 #include <stdlib.h>

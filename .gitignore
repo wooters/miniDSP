@@ -10,3 +10,9 @@ tests/testlocalaudio
 tests/sinedriver
 
 tests/multisinedriver
+
+tests/gcc_phat_multi_test
+
+tests/gcc_phat_test
+
+tests/testliveio

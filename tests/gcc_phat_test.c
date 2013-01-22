@@ -1,5 +1,5 @@
 /**
- * @file sinedriver.c
+ * @file gcc_phat_test.c
  *
  * Example code showing how to run GCC-PHAT in order to determine the delay between two signals.
  * @ingroup GCC
@@ -48,8 +48,7 @@ int main()
   unsigned margin = 50;
   int delay = MD_get_delay(siga, sigb, nsamps, margin, PHAT); /* SIMP or PHAT */
 
-  printf("gcc:\n");
-  printf("  estimated delay: %d\n",delay);
+  printf("delay: %d, expected %d\n",delay,true_delay);
 
   /* Set up for plotting with GNUplot */
   //gnuplot_ctrl* h = gnuplot_init();

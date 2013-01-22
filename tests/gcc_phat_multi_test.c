@@ -1,5 +1,5 @@
 /**
- * @file sinedriver.c
+ * @file gcc_phat_multi_test.c
  *
  * Example code showing how to run GCC-PHAT in order to determine the delay between several signals.
  * @ingroup GCC

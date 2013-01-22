@@ -1,5 +1,5 @@
 /**
- * @file testlocalaudio.c
+ * @file testliveio.c
  *
  * This program will test the localaudio functions by starting a 
  * continuously-running recording from the local microphone. 
@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <inttypes.h>
-#include "localaudio.h"
+#include "liveio.h"
 
 const unsigned sampFreq = 16000;
 const unsigned nSecs    = 5; /* number of seconds in buffer */
