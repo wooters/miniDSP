@@ -114,7 +114,7 @@ void _gcc_setup(const unsigned N) {
  * The index of the mid-point in the output will be located at: ceil(_N/2)
  * @ingroup GCC
  */
-void _fftshift(double const * const in, double* const out, const unsigned N) {
+void _fftshift(const double* const in, double* const out, const unsigned N) {
   /* mid-point of out[] will be located at index ceil(N/2) */
   unsigned xx = (unsigned) floor((double) N/2.0);
 
@@ -148,11 +148,11 @@ void _max_index(const double* const a, const unsigned N,
 }
 
 /**
- * Compute the delays between multiple signals. This function performs
- * a generalized cross-correlation (via the ::gcc() function) for
- * multiple input vectors using the specified weighting function. The
- * delays (in samples) between the signals will be returned in 
- * the \a outdelays array.
+ * Compute the delays between a reference signal and several other
+ * signals. This function performs a generalized cross-correlation
+ * (via the ::gcc() function) across multiple input vectors using the
+ * specified weighting function. The delays (in samples) between the
+ * signals will be returned in the \a outdelays array.
  * 
  * @param sigs An array of pointers to vectors of doubles containing
  * the signals. The first signal in this array will be considered the
@@ -173,7 +173,7 @@ void _max_index(const double* const a, const unsigned N,
  *
  */
 void MD_get_multiple_delays(const double** const sigs, const unsigned M, const unsigned N, 
-			    const unsigned margin, const int weightfunc, int* outdelays) 
+			    const unsigned margin, const int weightfunc, int* const outdelays) 
 {
   if (M < 2) return;
   for (unsigned i=0;i<M-1;i++) {
@@ -182,10 +182,10 @@ void MD_get_multiple_delays(const double** const sigs, const unsigned M, const u
 }
 
 /**
- * Compute the delay between two signals. This function performs a
- * generalized cross-correlation (via the ::gcc() function) between two
- * input vectors using the specified weighting funciton. The delay (in
- * samples) between the two signals will be returned.
+ * Compute the delay between a pair of signals. This function performs
+ * a generalized cross-correlation (via the ::gcc() function) between
+ * two input vectors using the specified weighting funciton. The delay
+ * (in samples) between the two signals will be returned.
  * 
  * @param siga first vector of doubles
  * @param sigb second vector of doubles
@@ -235,7 +235,7 @@ int MD_get_delay(const double* const siga, const double* const sigb, const unsig
 /**
  * Perform generalized cross-correlation. This function performs a
  * generalized cross-correlation (GCC) between two input vectors using
- * a specified weighting funciton and fills an output arraw with 
+ * a specified weighting funciton and fills an output array with 
  * cross-correlation values. 
  * 
  * @param siga first vector of doubles
