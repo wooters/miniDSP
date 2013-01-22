@@ -6,3 +6,7 @@
 *.a
 
 tests/testlocalaudio
+
+tests/sinedriver
+
+tests/multisinedriver
