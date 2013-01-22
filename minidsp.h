@@ -22,6 +22,9 @@ enum MD_GCC_WEIGHTING_TYPE {
   PHAT  /**< Phase Transform (PHAT) weighting */
 };
 
+void MD_get_multiple_delays(const double** const sigs, const unsigned M, const unsigned N, 
+			    const unsigned margin, const int weightfunc, int* outdelays);
+ 
 int MD_get_delay(const double* const siga, const double* const sigb, const unsigned N,
 		 const unsigned margin, const int weightfunc);
 

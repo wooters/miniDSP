@@ -46,13 +46,14 @@ static fftw_plan px = NULL; /**< FFTW plan for IFFT(xspec) */
  * @ingroup GCC
  */
 void _xcorr_free() {
-  if (siga_loc) free(siga_loc);
-  if (ffta) fftw_free(ffta);
-  if (sigb_loc) free(sigb_loc);
-  if (fftb) fftw_free(fftb);
   if (xspec)  fftw_free(xspec);
-  if (xcorr) free(xcorr);
+  if (fftb)   fftw_free(fftb);
+  if (ffta)   fftw_free(ffta);
+
   if (lags_loc) free(lags_loc);
+  if (xcorr)    free(xcorr);
+  if (sigb_loc) free(sigb_loc);
+  if (siga_loc) free(siga_loc);
 }
 
 /**
@@ -60,10 +61,11 @@ void _xcorr_free() {
  * @ingroup GCC
  */
 void _xcorr_malloc() {
-  siga_loc     = malloc(sizeof(double)*_N);
-  sigb_loc     = malloc(sizeof(double)*_N);
-  xcorr        = malloc(sizeof(double)*_N);
-  lags_loc     = malloc(sizeof(double)*_N);
+  siga_loc     = calloc(_N, sizeof(double));
+  sigb_loc     = calloc(_N, sizeof(double));
+  xcorr        = calloc(_N+1, sizeof(double));
+  lags_loc     = calloc(_N, sizeof(double));
+
   ffta         = fftw_alloc_complex(_N);
   fftb         = fftw_alloc_complex(_N);
   xspec        = fftw_alloc_complex(_N);
@@ -89,9 +91,9 @@ void _xcorr_setup() {
   _xcorr_teardown();
   _xcorr_malloc();
 
-  pa = fftw_plan_dft_r2c_1d(_N, siga_loc, ffta,  FFTW_MEASURE);
-  pb = fftw_plan_dft_r2c_1d(_N, sigb_loc, fftb,  FFTW_MEASURE);
-  px = fftw_plan_dft_c2r_1d(_N, xspec,    xcorr, FFTW_MEASURE);
+  pa = fftw_plan_dft_r2c_1d(_N, siga_loc, ffta,  FFTW_ESTIMATE|FFTW_DESTROY_INPUT);
+  pb = fftw_plan_dft_r2c_1d(_N, sigb_loc, fftb,  FFTW_ESTIMATE|FFTW_DESTROY_INPUT);
+  px = fftw_plan_dft_c2r_1d(_N, xspec,    xcorr, FFTW_ESTIMATE|FFTW_DESTROY_INPUT);
 }
 
 /**
@@ -146,6 +148,40 @@ void _max_index(const double* const a, const unsigned N,
 }
 
 /**
+ * Compute the delays between multiple signals. This function performs
+ * a generalized cross-correlation (via the ::gcc() function) for
+ * multiple input vectors using the specified weighting function. The
+ * delays (in samples) between the signals will be returned in 
+ * the \a outdelays array.
+ * 
+ * @param sigs An array of pointers to vectors of doubles containing
+ * the signals. The first signal in this array will be considered the
+ * reference signal.
+ * @param M The number of vectors in \a sigs
+ * @param N The length of each of the vectors in \a sigs
+ * @param margin Search for the delay over a window of \f$\pm\f$\a
+ * margin samples centered around the 0-lag
+ * @param weightfunc A ::GCC_WEIGHTING_TYPE value to specify the
+ * weighting function type to use in the GCC
+ * @param outdelays A pointer to an array of length \a N-1 ints in which to store the delays
+ *
+ * @see ::MD_gcc() ::MD_get_delay()
+ * @ingroup GCC
+ *
+ * @warning This function assumes that the memory for \a outdelays has already
+ * been allocated and that it has enough space to store \a N-1 int values.
+ *
+ */
+void MD_get_multiple_delays(const double** const sigs, const unsigned M, const unsigned N, 
+			    const unsigned margin, const int weightfunc, int* outdelays) 
+{
+  if (M < 2) return;
+  for (unsigned i=0;i<M-1;i++) {
+    outdelays[i] = MD_get_delay(sigs[0],sigs[i+1], N, margin, weightfunc);
+  }
+}
+
+/**
  * Compute the delay between two signals. This function performs a
  * generalized cross-correlation (via the ::gcc() function) between two
  * input vectors using the specified weighting funciton. The delay (in
@@ -160,9 +196,6 @@ void _max_index(const double* const a, const unsigned N,
  *
  * @see ::MD_gcc()
  * @ingroup GCC
- *
- * @warning This function assumes that the memory for \a lagvals has been already
- * been allocated and that it has enough space to store \a N doubles.
  *
  */
 int MD_get_delay(const double* const siga, const double* const sigb, const unsigned N,
