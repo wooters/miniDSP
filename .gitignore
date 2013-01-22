@@ -3,3 +3,6 @@
 
 # C files
 *.o
+*.a
+
+tests/testlocalaudio
