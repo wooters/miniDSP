@@ -1,5 +1,5 @@
 
-MD_SRCS = minidsp.c biquad.c localaudio.c
+MD_SRCS = minidsp.c biquad.c liveio.c fileio.c
 MD_OBJS = $(MD_SRCS:.c=.o)
 
 default : libminidsp.a
