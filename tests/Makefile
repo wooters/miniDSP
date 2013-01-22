@@ -11,7 +11,10 @@ GPMT_OBJS = $(GPMT_SRCS:.c=.o)
 TLA_SRCS = testliveio.c
 TLA_OBJS = $(TLA_SRCS:.c=.o)
 
-CFLAGS = -std=c99 -O3 -Wall
+TLR_SRCS = testliverec.c $(GP_OBJ)
+TLR_OBJS = $(TLR_SRCS:.c=.o)
+
+CFLAGS = -O3 -Wall
 
 %.o:%.c
 	$(CC) $(CFLAGS) -I $(GP) -I .. -c $*.c -o $@ 
@@ -25,8 +28,11 @@ gcc_phat_multi_test: $(GPMT_OBJS) ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $(GPMT_OBJS) $(LDFLAGS) -L.. -lminidsp -lfftw3
 
 testliveio: $(TLA_OBJS) ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $(TLA_OBJS) $(LDFLAGS) -L.. -lminidsp -lfftw3 -lportaudio
+	$(CC) $(CFLAGS) -o $@ $(TLA_OBJS) $(LDFLAGS) -L.. -lminidsp -lportaudio
+
+testliverec: $(TLR_OBJS) ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ $(TLR_OBJS) $(LDFLAGS) -L.. -lminidsp -lportaudio
 
 .PHONY:	clean
 clean:
-	-rm *.o gcc_phat_test gcc_phat_multi_test testliveio
+	-rm *.o gcc_phat_test gcc_phat_multi_test testliveio testliverec

@@ -16,3 +16,7 @@ tests/gcc_phat_multi_test
 tests/gcc_phat_test
 
 tests/testliveio
+
+tests/testliverec
+
+gnuplot_tmpdatafile_*

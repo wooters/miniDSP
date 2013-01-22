@@ -1,11 +1,10 @@
 /**
  * @file testliveio.c
  *
- * This program will test the localaudio functions by starting a 
- * continuously-running recording from the local microphone. 
- * When a key is hit (and Return or Enter is pressed), the recording
- * will stop and whatever is in the buffer will be played
- * out the local speaker. 
+ * This program will test the liveio functions by starting a
+ * continuously-running recording from the local microphone.  When a
+ * key is hit, the recording will stop and whatever is in the buffer
+ * will be played out the speaker.
  */
 #include <stdio.h>
 #include <stdlib.h>

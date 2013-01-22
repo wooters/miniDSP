@@ -4,7 +4,7 @@ MD_OBJS = $(MD_SRCS:.c=.o)
 
 default : libminidsp.a
 
-CFLAGS = -std=c99 -O3 -Wall
+CFLAGS = -O3 -Wall
 
 %.o:%.c
 	$(CC) $(CFLAGS) -c $*.c -o $@ 
