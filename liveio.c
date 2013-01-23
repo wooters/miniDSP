@@ -184,6 +184,59 @@ int LA_is_playing(void) {
 /**
  * Record from the mic and save into a buffer.
  *
+ * @param samprate Sampling rate of the audio
+ * @param cb A callback function to pass to Pa_OpenStream()
+ * @param cb_data A pointer to a data structure to be passed to the callback function
+ *
+ * @returns A value of type ::LaError_t where LA_OK indicates there were no problems, and a value of LA_ERROR
+ * indicates that some error occurred. Use ::LA_print_last_error() to print the error.
+ * 
+ * @note This function is non-blocking and will return immediately (i.e. while it is still
+ * recording. So use ::LA_is_recording() to determine when the sound is finished playing.
+ *
+ */
+LaError_t LA_record_callback(unsigned samprate, PaStreamCallback* cb, void* cb_data) {
+
+  if (LA_InitDone == 0) { /* initialize portaudio system, if needed */
+    int failed = LA_init();
+    if (failed) return LA_ERROR;
+  }
+  if (LA_is_recording() == 1) return LA_ERROR;
+
+  PaStreamParameters inputParameters;
+  inputParameters.device = Pa_GetDefaultInputDevice();
+  if (inputParameters.device == paNoDevice) {
+    LA_LastError = paNoDevice;
+    return LA_ERROR;
+  }
+
+  inputParameters.channelCount = 1;
+  inputParameters.sampleFormat = paInt16; /* 16 bit ints */
+  inputParameters.suggestedLatency = Pa_GetDeviceInfo( inputParameters.device )->defaultHighInputLatency;
+  inputParameters.hostApiSpecificStreamInfo = NULL;
+
+  PaError err;
+
+  err = Pa_OpenStream(&LA_RecordStream,
+		      &inputParameters,
+		      NULL,
+		      samprate,
+		      paFramesPerBufferUnspecified,
+		      paClipOff,
+		      cb,
+		      cb_data );
+
+  if( err != paNoError ) return LA_ERROR;
+
+  err = Pa_StartStream(LA_RecordStream);
+  if (err != paNoError) return LA_ERROR;
+
+  return LA_OK;
+}
+
+/**
+ * Record from the mic and save into a buffer.
+ *
  * @param buffer A buffer of 16-bit ints
  * @param bufsize Size of the \a buffer
  * @param samprate Sampling rate of the audio
