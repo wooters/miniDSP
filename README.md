@@ -4,10 +4,10 @@ A small C-lib containing a few basic DSP routines, and other helpful functions f
 
 ##Dependencies
 
-* FFTW - http://www.fftw.org/ (TODO: allow for use of other FFT libs.)
+* FFTW - http://www.fftw.org/ (TODO: allow for use of other FFT libs)
 * Portaudio - http://portaudio.com/ (for live audio input/output)
 * libsndfile - http://www.mega-nerd.com/libsndfile/ (for file-based input/output)
-* gnuplot_i - http://ndevilla.free.fr/gnuplot/ (for plotting with gnuplot)
+* gnuplot_i - http://ndevilla.free.fr/gnuplot/ (for plotting with gnuplot, assumes you have gnuplot installed)
 
 ##Examples
 ### Record from the mic at a rate of 16kHz and plot the data with gnuplot:
