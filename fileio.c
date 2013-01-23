@@ -113,7 +113,7 @@ void FIO_write_htk_feats(const char* outfile,
 			 const size_t veclen, 
 			 const unsigned vecsamprate) {
 
-  HTKheader hdr;
+  FIO_HTKheader hdr;
   hdr.nvecs = nvecs;
   /* HTK uses 100ns units for the sampling period */
   hdr.sampperiod = (uint32_t)(1.0 / (float)vecsamprate * 1e7);
@@ -133,7 +133,7 @@ void FIO_write_htk_feats(const char* outfile,
     SWAP(hdr.parmkind);
   }
   /* Write the 12-byte HTK header */
-  fwrite(&hdr,sizeof(HTKheader),1,f);
+  fwrite(&hdr,sizeof(FIO_HTKheader),1,f);
 
   /* Write the feature vectors */
   for(size_t i=0; i<nvecs; i++) {
