@@ -2,6 +2,23 @@
 
 A small C-lib containing a few basic DSP routines, and other helpful functions for dealing with audio.
 
+##Features
+
+###Signal Processing Functions
+* Compute the cross-correlation between two signals [MD_gcc()]
+* Get the delay between signals using Generalized Cross-Correlation with Phase Transform (GCC-PHAT) [MD_get_delay(), MD_get_multiple_delays()]
+
+###Plotting
+* Plot using gnuplot_i
+
+###Live I/O Functions
+* Record from the mic on the local host [LA_record()]
+* Play a signal to the speakers on the local host [LA_play()]
+
+###File I/O Functions
+* Read audio data files in any format supported by libsndfile [FIO_read_audio()]
+* Write data in HTK feature file format [FIO_write_htk_feats()]
+
 ##Dependencies
 
 * FFTW - http://www.fftw.org/ (TODO: allow for use of other FFT libs)
@@ -9,7 +26,7 @@ A small C-lib containing a few basic DSP routines, and other helpful functions f
 * libsndfile - http://www.mega-nerd.com/libsndfile/ (for file-based input/output)
 * gnuplot_i - http://ndevilla.free.fr/gnuplot/ (for plotting with gnuplot, assumes you have gnuplot installed)
 
-##Examples
+##Code Examples
 ### Record from the mic at a rate of 16kHz and plot the data with gnuplot:
 
 ```c
