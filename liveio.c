@@ -182,7 +182,7 @@ int LA_is_playing(void) {
 }
 
 /**
- * Record from the mic and save into a buffer.
+ * Record from the mic using the user-specified callback and data structure.
  *
  * @param samprate Sampling rate of the audio
  * @param cb A callback function to pass to Pa_OpenStream()
@@ -195,7 +195,7 @@ int LA_is_playing(void) {
  * recording. So use ::LA_is_recording() to determine when the sound is finished playing.
  *
  */
-LaError_t LA_record_callback(unsigned samprate, PaStreamCallback* cb, void* cb_data) {
+LaError_t LA_record_callback(const unsigned samprate, PaStreamCallback* cb, void* cb_data) {
 
   if (LA_InitDone == 0) { /* initialize portaudio system, if needed */
     int failed = LA_init();
@@ -216,7 +216,6 @@ LaError_t LA_record_callback(unsigned samprate, PaStreamCallback* cb, void* cb_d
   inputParameters.hostApiSpecificStreamInfo = NULL;
 
   PaError err;
-
   err = Pa_OpenStream(&LA_RecordStream,
 		      &inputParameters,
 		      NULL,
@@ -310,6 +309,57 @@ LaError_t LA_record(void* const buffer, unsigned long bufsize, unsigned samprate
 }
 
 /**
+ * Play sound to the speakers using the user-specified callback and data structure.
+ *
+ * @param samprate Sampling rate of the audio
+ * @param cb A callback function to pass to Pa_OpenStream()
+ * @param cb_data A pointer to a data structure to be passed to the callback function
+ *
+ * @returns A value of type ::LaError_t where LA_OK indicates there were no problems, and a value of LA_ERROR
+ * indicates that some error occurred. Use ::LA_print_last_error() to print the error.
+ * 
+ * @note This function is non-blocking and will return immediately (i.e. before the sound has 
+ * finished playing. So use ::LA_is_playing() to determine when the sound is finished playing.
+ *
+ */
+LaError_t LA_play_callback(const unsigned samprate, PaStreamCallback* cb, void* cb_data) {
+
+  if (LA_InitDone == 0) { /* initialize portaudio system, if needed */
+    int failed = LA_init();
+    if (failed) return LA_ERROR;
+  }
+  if (LA_is_playing() == 1) return LA_ERROR;
+
+  PaStreamParameters outputParameters;
+  outputParameters.device = Pa_GetDefaultOutputDevice();
+  if (outputParameters.device == paNoDevice) {
+    LA_LastError = paNoDevice;
+    return LA_ERROR;
+  }
+
+  outputParameters.channelCount = 2;       /* stereo output */
+  outputParameters.sampleFormat = paInt16; /* 16 bit int output */
+  outputParameters.suggestedLatency = Pa_GetDeviceInfo( outputParameters.device )->defaultHighOutputLatency;
+  outputParameters.hostApiSpecificStreamInfo = NULL;
+
+  PaError err;
+  err = Pa_OpenStream(&LA_PlayStream,
+		      NULL,
+		      &outputParameters,
+		      samprate,
+		      paFramesPerBufferUnspecified,
+		      paNoFlag,
+		      cb,
+		      cb_data );
+  if( err != paNoError ) return LA_ERROR;
+
+  err = Pa_StartStream(LA_PlayStream);
+  if (err != paNoError) return LA_ERROR;
+
+  return LA_OK;
+}
+
+/**
  * Play sound from a buffer of audio data.
  *
  * @param buffer A buffer of 16-bit ints
@@ -341,9 +391,9 @@ LaError_t LA_play(const void* const buffer, unsigned long bufsize, unsigned samp
     LA_LastError = paNoDevice;
     return LA_ERROR;
   }
-  printf( "Output device # %d.\n", outputParameters.device );
-  printf( "Output LL: %g s\n", Pa_GetDeviceInfo( outputParameters.device )->defaultLowOutputLatency );
-  printf( "Output HL: %g s\n", Pa_GetDeviceInfo( outputParameters.device )->defaultHighOutputLatency );
+  //printf( "Output device # %d.\n", outputParameters.device );
+  //printf( "Output LL: %g s\n", Pa_GetDeviceInfo( outputParameters.device )->defaultLowOutputLatency );
+  //printf( "Output HL: %g s\n", Pa_GetDeviceInfo( outputParameters.device )->defaultHighOutputLatency );
 
   outputParameters.channelCount = 2;       /* stereo output */
   outputParameters.sampleFormat = paInt16; /* 16 bit int output */
