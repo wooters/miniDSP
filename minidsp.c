@@ -229,6 +229,7 @@ int MD_get_delay(const double* const siga, const double* const sigb, const unsig
   /* Search within the desired region (+-margin) for the max lag */
   _max_index(lags_loc+start_i,len,&maxval,&max_i);
 
+  printf("%d %f\n",(max_i-newmargin),maxval);
   return (int)(max_i - newmargin);
 }
 

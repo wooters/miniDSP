@@ -22,9 +22,32 @@ static PaStream* LA_PlayStream = NULL;    /**< Currently active play stream */
 static PaStream* LA_RecordStream = NULL;  /**< Currently active record stream */
 static LA_simpleData LA_data;             /**< Communication structure */
 
-void LA_stop_recording() {
+/**
+ * Return the current time (in seconds) according the record stream.
+ */
+double LA_get_cur_record_time(void) {
+  if (Pa_IsStreamActive(LA_RecordStream) == 1) {
+    return Pa_GetStreamTime(LA_RecordStream);
+  }
+  return -1.0;
+}
+
+double LA_get_cur_play_time(void) {
+  if (Pa_IsStreamActive(LA_PlayStream) == 1) {
+    return Pa_GetStreamTime(LA_PlayStream);
+  }
+  return -1.0;
+}
+
+void LA_stop_recording(void) {
   if (LA_is_recording() == 1) {
     Pa_CloseStream(LA_RecordStream);
+  }
+}
+
+void LA_stop_playing(void) {
+  if (LA_is_playing() == 1) {
+    Pa_CloseStream(LA_PlayStream);
   }
 }
 
