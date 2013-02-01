@@ -200,8 +200,30 @@ double MD_power_db(const double* const a, const unsigned N) {
 
 
 /**
- * Scale an array of doubles such that it fits within the specified
- * range. Note that if the range of values in the input already fit
+ * Scale an input array of doubles having the range of [oldmin,
+ * oldmax] into the range [newmin, newmax].
+ */
+void MD_scale(double* const in, double* const out, 
+	      const unsigned N, 
+	      const double oldmin,
+	      const double oldmax,
+	      const double newmin, 
+	      const double newmax)
+{
+  assert(in!=NULL);
+  assert(out!=NULL);
+  assert(oldmin<oldmax);
+  assert(newmin<newmax);
+  if(N==0) return;
+
+  for(unsigned i=0;i<N;i++)
+    out[i] = (in[i]-oldmin) * (newmax-newmin)/(oldmax-oldmin) + newmin;
+
+}
+
+/**
+ * Modify a set of input values so that they fit within the specified
+ * range. Note that if all of the values in the input already fit
  * within the given range, they will be copied without modification to
  * the output array i.e. they will not be scaled up to completely fit
  * the specified range.
@@ -227,8 +249,7 @@ void MD_fit_within_range(double* const in, double* const out,
   if ((in_min>newmin) && (in_max<newmax)) { /* old range fits in new range */
     for(i=0;i<N;i++) out[i] = in[i]; /* no scaling needed */
   } else {
-    for(i=0;i<N;i++)
-      out[i] = (in[i]-in_min) * (newmax-newmin)/(in_max-in_min) + newmin;
+    MD_scale(in, out, N, in_min, in_max, newmin, newmax);
   }
 }
 
