@@ -131,6 +131,7 @@ void _fftshift(const double* const in, double* const out, const unsigned N) {
  */
 void _max_index(const double* const a, const unsigned N,
 	      double* const max, unsigned* const maxi) {
+  assert(a!=NULL);
 
   if (N <= 1) {
     *max = a[0]; *maxi = 0;
@@ -145,6 +146,177 @@ void _max_index(const double* const a, const unsigned N,
     *max = max_t;
     *maxi = maxi_t;
   }
+}
+
+/**
+ * Compute the energy of the given signal.
+ * 
+ *           N-1     
+ *          ----     
+ *          \        2
+ *  E    =  /    a[n]
+ *          ---- 
+ *          n = 0  
+ *
+ */
+double MD_energy(const double* const a, const unsigned N) {
+  assert(a!=NULL);
+  if (N==1) return a[0]*a[0];
+  double e = 0.0;
+  for (unsigned i=0;i<N;i++)
+    e += a[i]*a[i];
+
+  return e;
+}
+
+/**
+ * Compute the power of the given signal.
+ *
+ *           N-1     
+ *          ----     
+ *      1   \        2
+ * P = ---  /    a[n]
+ *      N   ---- 
+ *          n = 0  
+ */
+double MD_power(const double* const a, const unsigned N) {
+  assert(a!=NULL);
+  assert(N>0);
+  return MD_energy(a,N)/(double)N;
+}
+
+/**
+ * Compute the power in db of the given signal.
+ *
+ * P_db = 10*log10(p)
+ *
+ */
+double MD_power_db(const double* const a, const unsigned N) {
+  assert(a!=NULL);
+  assert(N>0);
+  double p = fmax(1.0e-10,MD_power(a, N));
+  return 10.0*log10(p);
+}
+
+
+/**
+ * Scale an array of doubles such that it fits within the specified
+ * range. Note that if the range of values in the input already fit
+ * within the given range, they will be copied without modification to
+ * the output array i.e. they will not be scaled up to completely fit
+ * the specified range.
+ */
+void MD_fit_within_range(double* const in, double* const out, 
+			 const unsigned N, 
+			 const double newmin, 
+			 const double newmax)
+{
+  assert(in!=NULL);
+  assert(out!=NULL);
+  assert(newmin<newmax);
+  if(N==0) return;
+
+  unsigned i;
+  double in_min=in[0], in_max=in[0];
+
+  for(i=0;i<N;i++) {
+    in_min = fmin(in_min,in[i]);
+    in_max = fmax(in_max,in[i]);
+  }
+
+  if ((in_min>newmin) && (in_max<newmax)) { /* old range fits in new range */
+    for(i=0;i<N;i++) out[i] = in[i]; /* no scaling needed */
+  } else {
+    for(i=0;i<N;i++)
+      out[i] = (in[i]-in_min) * (newmax-newmin)/(in_max-in_min) + newmin;
+  }
+}
+
+/**
+ * Convert an input signal to an output signal that has the
+ * specified dB level.
+ *
+ * @param in The array of input values, assumed to be in the range -1.0 to 1.0
+ * @param out The output array, will have values in the range -1.0 to 1.0
+ * @param N The number if items in \a in
+ * @param dblevel The desired dB level of the output array.
+ *
+ * This is based on Jaydeep Dhole's automatic gain control code
+ * for matlab, which can be found here:
+ *
+ * http://www.mathworks.com/matlabcentral/fileexchange/11202-automatic-gain-control/content/AGC.m
+ *
+ * but with modifications to ensure that the output values are indeed
+ * within the range of -1.0 to 1.0. The possible scaling down of the
+ * values in the output array to fit within this range may make it
+ * impossible to achieve the desired target dB level.
+ * 
+ */
+void MD_adjust_dblevel(const double* const in, double* const out, 
+		       const unsigned N, const double dblevel) {
+
+  double desiredOutputPower = pow(10.0,(dblevel/10.0));
+  double inputEnergy = MD_energy(in, N); /* energy of input signal */
+  double scale = sqrt((desiredOutputPower*(double)N)/inputEnergy);
+
+  bool out_of_range = false;
+  for(unsigned i=0;i<N;i++) {
+    out[i] = in[i] * scale;
+    if ((out[i] > 1.0) || (out[i] < -1.0))
+      out_of_range = true; /* detect out of range values */
+  }
+  if (out_of_range)
+    MD_fit_within_range(out,out,N,-1.0,1.0);
+}
+
+/**
+ * Compute the entropy of the given vector of values. This actually
+ * returns a "normalized" entropy value in which the entropy of the
+ * distribution is divided by the maximum entropy possible for that
+ * distribution. That away, the return value is always between 0.0 and
+ * 1.0.
+ *
+ * @param a Pointer to an array of doubles representing the distribution.
+ * @param N The length of the array \a a[]
+ * @param clip Since negative values in the input array can cause
+ * problems when computing the entropy, we need to decide how to
+ * handle them. If \a clip is true, then negative values in \a a[] will
+ * be ignored. If it is false, then all values in \a a[] will be squared
+ * and the entropy will be computed over the a^2.
+ *
+ */
+double MD_entropy(const double* const a, const unsigned N, const bool clip) {
+  assert(a!=NULL);
+
+  if (N <= 1) return 0.0;
+
+  double maxe = -log2(1.0/(double)N); /* max entropy */
+  double ent = 0.0;
+  double tot = 0.0;
+  unsigned i;
+  double p;
+
+  if (clip) {
+    for (i=0;i<N;i++) tot += (a[i]<0.0) ? 0.0 : a[i];
+  } else {
+    for (i=0;i<N;i++) tot += a[i]*a[i]; /* use a^2 */
+  }
+
+  if (tot==0.0) return maxe;
+
+  for (i=0;i<N;i++){
+    if (a[i] == 0.0) continue;
+    if (clip && (a[i] < 0.0)) continue;
+
+    if (clip)
+      p = a[i]/tot; /* prob of a[i] */
+    else
+      p = (a[i]*a[i])/tot; /* no clipping, so prob a[i]^2 */
+
+    ent += p * log2(p);
+  }
+
+  return -ent/maxe;
 }
 
 /**
@@ -177,7 +349,7 @@ void MD_get_multiple_delays(const double** const sigs, const unsigned M, const u
 {
   if (M < 2) return;
   for (unsigned i=0;i<M-1;i++) {
-    outdelays[i] = MD_get_delay(sigs[0],sigs[i+1], N, margin, weightfunc);
+    outdelays[i] = MD_get_delay(sigs[0],sigs[i+1], N, (double*)NULL, margin, weightfunc);
   }
 }
 
@@ -190,8 +362,16 @@ void MD_get_multiple_delays(const double** const sigs, const unsigned M, const u
  * @param siga first vector of doubles
  * @param sigb second vector of doubles
  * @param N length of vectors \a siga and \a sigb
- * @param margin the max delay will be searched for over a window of \f$\pm\f$\a margin samples centered around the 0-lag
- * @param weightfunc a ::GCC_WEIGHTING_TYPE value to specify the weighting function type to use in the GCC
+ * @param ent If \a ent is not NULL, store the entropy of the
+ * distribution of the lag values into the location pointed to by \a
+ * ent. The entropy will be a value between 0.0 and 1.0. The closer
+ * the value to 1.0, the "flatter" the distribution (i.e. higher the
+ * entropy.) This may be used to decide whether to trust the delay
+ * value.
+ * @param margin the max delay will be searched for over a window of
+ * \f$\pm\f$\a margin samples centered around the 0-lag
+ * @param weightfunc a ::GCC_WEIGHTING_TYPE value to specify the
+ * weighting function type to use in the GCC
  * @return An integer value indicating the delay between \a siga and \a sigb.
  *
  * @see ::MD_gcc()
@@ -199,7 +379,9 @@ void MD_get_multiple_delays(const double** const sigs, const unsigned M, const u
  *
  */
 int MD_get_delay(const double* const siga, const double* const sigb, const unsigned N,
-		 const unsigned margin, const int weightfunc)
+		 double* const ent,
+		 const unsigned margin, 
+		 const int weightfunc)
 {
   _gcc_setup(N);
 
@@ -229,7 +411,12 @@ int MD_get_delay(const double* const siga, const double* const sigb, const unsig
   /* Search within the desired region (+-margin) for the max lag */
   _max_index(lags_loc+start_i,len,&maxval,&max_i);
 
-  printf("%d %f\n",(max_i-newmargin),maxval);
+  /* If user requested the entropy, compute entropy over the lag
+     search interval, ignoring any negative values. */
+  if (ent != NULL) {
+    *ent = MD_entropy(lags_loc+start_i,len, true);
+  }
+
   return (int)(max_i - newmargin);
 }
 
