@@ -15,19 +15,28 @@
 #include <complex.h>
 #include <fftw3.h>
 
+double MD_dot(const double* const a, const double* const b, const unsigned N);
+
 double MD_entropy(const double* const a, const unsigned N, const bool clip);
 double MD_energy(const double* const a, const unsigned N);
 double MD_power(const double* const a, const unsigned N);
 double MD_power_db(const double* const a, const unsigned N);
 
-void   MD_scale(double* const in, double* const out, const unsigned N, 
-		const double oldmin, const double oldmax,
+
+double MD_scale(const double in, const double oldmin, const double oldmax,
 		const double newmin, const double newmax);
+void   MD_scale_vec(double* const in, double* const out, const unsigned N, 
+		    const double oldmin, const double oldmax,
+		    const double newmin, const double newmax);
 void   MD_fit_within_range(double* const in, double* const out, 
 			   const unsigned N, const double newmin, 
 			   const double newmax);
 void   MD_adjust_dblevel(const double* const in, double* const out, 
 			 const unsigned N, const double dblevel);
+
+void   MD_Gen_Hann_Win(double* out, unsigned n);
+
+void   MD_shutdown(void);
 
 /** 
  * Possible weighting types for Generalized Cross Correlation.

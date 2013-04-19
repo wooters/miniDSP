@@ -148,6 +148,21 @@ void _max_index(const double* const a, const unsigned N,
   }
 }
 
+void MD_shutdown(void) {
+  _xcorr_teardown(); // in case we used any GCC routines
+}
+
+/**
+ * Compute the dot product of two vectors a & b, each
+ * of length N.
+ *
+ */
+double MD_dot(const double* const a, const double* const b, const unsigned N) {
+  double d = 0.0;
+  for (unsigned i=0;i<N;i++) d += a[i]*b[i];
+  return d;
+}
+
 /**
  * Compute the energy of the given signal.
  * 
@@ -162,11 +177,7 @@ void _max_index(const double* const a, const unsigned N,
 double MD_energy(const double* const a, const unsigned N) {
   assert(a!=NULL);
   if (N==1) return a[0]*a[0];
-  double e = 0.0;
-  for (unsigned i=0;i<N;i++)
-    e += a[i]*a[i];
-
-  return e;
+  return MD_dot(a,a,N);
 }
 
 /**
@@ -198,17 +209,25 @@ double MD_power_db(const double* const a, const unsigned N) {
   return 10.0*log10(p);
 }
 
+/**
+ * Scale a number to have a range of [oldmin,oldmax] into the range
+ * [newmin, newmax].
+ */
+double MD_scale(const double in, const double oldmin, const double oldmax,
+		const double newmin, const double newmax) {
+  return (in-oldmin) * (newmax-newmin)/(oldmax-oldmin) + newmin;
+}
 
 /**
  * Scale an input array of doubles having the range of [oldmin,
  * oldmax] into the range [newmin, newmax].
  */
-void MD_scale(double* const in, double* const out, 
-	      const unsigned N, 
-	      const double oldmin,
-	      const double oldmax,
-	      const double newmin, 
-	      const double newmax)
+void MD_scale_vec(double* const in, double* const out, 
+		  const unsigned N, 
+		  const double oldmin,
+		  const double oldmax,
+		  const double newmin, 
+		  const double newmax)
 {
   assert(in!=NULL);
   assert(out!=NULL);
@@ -249,7 +268,7 @@ void MD_fit_within_range(double* const in, double* const out,
   if ((in_min>newmin) && (in_max<newmax)) { /* old range fits in new range */
     for(i=0;i<N;i++) out[i] = in[i]; /* no scaling needed */
   } else {
-    MD_scale(in, out, N, in_min, in_max, newmin, newmax);
+    MD_scale_vec(in, out, N, in_min, in_max, newmin, newmax);
   }
 }
 
@@ -341,6 +360,16 @@ double MD_entropy(const double* const a, const unsigned N, const bool clip) {
 }
 
 /**
+ * Generate a Hanning window of length n.
+ */
+void MD_Gen_Hann_Win(double* out, unsigned n) {
+  double n1 = (double)(n - 1);
+  for (unsigned i = 0; i < n; i++) {
+    out[i] = 0.5 * (1.0 - cos(2.0*M_PI*(double)i/n1));
+  }
+}
+
+/**
  * Compute the delays between a reference signal and several other
  * signals. This function performs a generalized cross-correlation
  * (via the ::gcc() function) across multiple input vectors using the
@@ -368,9 +397,39 @@ double MD_entropy(const double* const a, const unsigned N, const bool clip) {
 void MD_get_multiple_delays(const double** const sigs, const unsigned M, const unsigned N, 
 			    const unsigned margin, const int weightfunc, int* const outdelays) 
 {
+  static unsigned last_N=0;
+  static double* hann_win=NULL;
+  static double* t_ref=NULL;
+  static double* t_sig=NULL;
   if (M < 2) return;
+
+  if (last_N != N) {
+    if (hann_win != NULL) free(hann_win);
+    if (t_ref != NULL) free(t_ref);
+    if (t_sig != NULL) free(t_sig);
+    hann_win = malloc(N*sizeof(double)); // Hanning window
+    assert(hann_win != NULL);
+    MD_Gen_Hann_Win(hann_win, N);        // Reference signal
+    t_ref = malloc(N*sizeof(double));
+    assert(t_ref != NULL);
+    t_sig = malloc(N*sizeof(double));    // Other signals
+    assert(t_sig != NULL);
+
+    last_N = N; // remember length for next call
+  }
+
+  /* Window the ref signal */
+  for (unsigned i=0;i<N;i++)
+    t_ref[i] = sigs[0][i] * hann_win[i];
+
+  /* Get the delay for all of the signals */
   for (unsigned i=0;i<M-1;i++) {
-    outdelays[i] = MD_get_delay(sigs[0],sigs[i+1], N, (double*)NULL, margin, weightfunc);
+
+    /* window the comparison signal */
+    for (unsigned j=0;j<N;j++)  
+      t_sig[j] = sigs[i+1][j] * hann_win[j];
+
+    outdelays[i] = MD_get_delay(t_ref, t_sig, N, (double*)NULL, margin, weightfunc);
   }
 }
 

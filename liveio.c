@@ -355,6 +355,7 @@ LaError_t LA_play_callback(const unsigned samprate, PaStreamCallback* cb, void* 
 
   PaStreamParameters outputParameters;
   outputParameters.device = Pa_GetDefaultOutputDevice();
+  //outputParameters.device = 4; // Soundflower (2ch)
   if (outputParameters.device == paNoDevice) {
     LA_LastError = paNoDevice;
     return LA_ERROR;
