@@ -1,4 +1,4 @@
-#MiniDSP
+# MiniDSP
 
 A small C-lib containing a few basic DSP routines, and other helpful functions for dealing with audio.
 
