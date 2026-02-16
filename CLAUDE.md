@@ -7,7 +7,8 @@ A small C library for audio DSP: signal measurement, biquad filtering, GCC-PHAT 
 ```bash
 make              # Build libminidsp.a
 make test         # Build and run the test suite (tests/test_minidsp)
-make clean        # Remove all build artifacts
+make docs         # Generate HTML documentation (requires Doxygen)
+make clean        # Remove all build artifacts (including generated docs)
 ```
 
 To build and run just the test binary directly:

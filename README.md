@@ -34,6 +34,7 @@ Install the following libraries before building:
 | [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
 | [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
 | [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
+| [Doxygen](https://www.doxygen.nl/) | API docs generation (optional) | `apt install doxygen` | `brew install doxygen` |
 
 The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
 
@@ -47,6 +48,12 @@ make            # builds libminidsp.a
 
 ```sh
 make test       # builds and runs all 47 tests
+```
+
+### Generate API documentation
+
+```sh
+make docs       # generates HTML docs in docs/html
 ```
 
 ## Quick example: detect the delay between two signals

@@ -3,6 +3,7 @@
 #
 # Build the static library:    make
 # Build and run tests:         make test
+# Generate documentation:      make docs
 # Clean everything:            make clean
 
 CC = gcc
@@ -31,7 +32,13 @@ libminidsp.a: $(MD_OBJS)
 test: libminidsp.a
 	$(MAKE) -C tests test
 
+# Generate HTML documentation with Doxygen
+.PHONY: docs
+docs:
+	doxygen Doxyfile
+
 .PHONY: clean
 clean:
 	-rm -f *.o libminidsp.a
+	-rm -rf docs
 	$(MAKE) -C tests clean

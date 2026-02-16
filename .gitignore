@@ -22,3 +22,6 @@ tests/testliveio
 tests/testliverec
 
 gnuplot_tmpdatafile_*
+
+# Generated documentation
+docs/
