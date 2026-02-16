@@ -27,6 +27,8 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's Audio EQ
 
 ### Dependencies
 
+Install the following libraries before building:
+
 | Library | Purpose | Debian/Ubuntu | macOS (Homebrew) |
 |---------|---------|--------------|------------------|
 | [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
