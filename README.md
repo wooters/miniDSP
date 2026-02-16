@@ -9,25 +9,25 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 
 ## What's in the box?
 
-### Signal Processing (`minidsp.h`)
+### Signal Processing (minidsp.h)
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
 
-### Biquad Filters (`biquad.h`)
+### Biquad Filters (biquad.h)
 Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/Audio-EQ-Cookbook.txt):
 - Low-pass, High-pass, Band-pass, Notch
 - Peaking EQ, Low shelf, High shelf
 
-### File I/O (`fileio.h`)
+### File I/O (fileio.h)
 - Read audio files in any format supported by libsndfile (WAV, FLAC, AIFF, OGG, etc.)
 - Write audio to WAV (IEEE float for lossless DSP round-trips)
 - Write feature vectors in NumPy `.npy` format (for Python interop)
 - Write feature vectors in safetensors format (for ML pipelines)
 - Write feature vectors in HTK binary format (deprecated)
 
-### Live Audio I/O (`liveio.h`)
+### Live Audio I/O (liveio.h)
 - Record from the microphone and play back to speakers via PortAudio
 - Non-blocking API with callback support
 
