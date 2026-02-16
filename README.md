@@ -16,7 +16,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Hanning window** -- smooth windowing function for FFT analysis.
 
 ### Biquad Filters (`biquad.h`)
-Seven classic audio filter types, all based on Robert Bristow-Johnson's Audio EQ Cookbook:
+Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/Audio-EQ-Cookbook.txt):
 - Low-pass, High-pass, Band-pass, Notch
 - Peaking EQ, Low shelf, High shelf
 
