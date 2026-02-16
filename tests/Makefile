@@ -28,9 +28,9 @@ GP_OBJ = $(GP)/gnuplot_i.o
 # --- Primary test target ---
 
 test_minidsp: test_minidsp.o ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lfftw3 -lm
+	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lfftw3 -lsndfile -lm
 
-test_minidsp.o: test_minidsp.c ../minidsp.h ../biquad.h
+test_minidsp.o: test_minidsp.c ../minidsp.h ../biquad.h ../fileio.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Convenience target: build and run

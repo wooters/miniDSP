@@ -22,7 +22,10 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's Audio EQ
 
 ### File I/O (`fileio.h`)
 - Read audio files in any format supported by libsndfile (WAV, FLAC, AIFF, OGG, etc.)
-- Write feature vectors in HTK binary format (for speech recognition pipelines)
+- Write audio to WAV (IEEE float for lossless DSP round-trips)
+- Write feature vectors in NumPy `.npy` format (for Python interop)
+- Write feature vectors in safetensors format (for ML pipelines)
+- Write feature vectors in HTK binary format (deprecated)
 
 ### Live Audio I/O (`liveio.h`)
 - Record from the microphone and play back to speakers via PortAudio
@@ -52,7 +55,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 47 tests
+make test       # builds and runs all 50 tests
 ```
 
 ### Generate API documentation
@@ -106,6 +109,7 @@ The test suite (`tests/test_minidsp.c`) covers every public function:
 - **Hanning window** -- endpoints, peak, symmetry, range
 - **GCC-PHAT** -- positive/negative/zero delays, SIMP vs PHAT weighting, multi-signal delays, FFT plan caching
 - **Biquad filters** -- LPF, HPF, BPF, Notch, PEQ, Low shelf, High shelf, DC rejection
+- **File I/O writers** -- .npy round-trip, safetensors round-trip, WAV round-trip
 
 ## License
 

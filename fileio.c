@@ -1,10 +1,10 @@
 /**
  * @file fileio.c
- * @brief Audio file I/O and HTK feature file writing.
+ * @brief Audio file I/O and feature vector writing.
  *
  * This module reads audio using libsndfile (which supports dozens of
- * formats including WAV, FLAC, AIFF, and Ogg) and writes feature
- * vectors in HTK binary format for speech-processing pipelines.
+ * formats including WAV, FLAC, AIFF, and Ogg), writes audio to WAV,
+ * and writes feature vectors in NumPy .npy, safetensors, and HTK formats.
  */
 #include "fileio.h"
 
@@ -151,6 +151,152 @@ void FIO_read_audio(const char *infile,
     *datalen = (size_t)nsamps;
     *samprate = (unsigned)sfinfo.samplerate;
 }
+
+/* -----------------------------------------------------------------------
+ * NumPy .npy v1.0 writer
+ *
+ * The .npy format is NumPy's native binary format.  It consists of:
+ *   - 6-byte magic: \x93NUMPY
+ *   - 2-byte version: 1.0
+ *   - 2-byte LE u16: header string length
+ *   - ASCII header: Python dict with dtype, order, shape
+ *   - Raw data (little-endian)
+ *
+ * The total prefix (10 bytes + header string) must be divisible by 64.
+ * -----------------------------------------------------------------------*/
+
+void FIO_write_npy(const char *outfile,
+                   const float **outvecs,
+                   size_t nvecs,
+                   size_t veclen)
+{
+    FILE *f = fopen(outfile, "wb");
+    if (f == NULL) {
+        fprintf(stderr, "Error opening output file: %s\n", outfile);
+        exit(1);
+    }
+
+    /* Build the ASCII header dict (without padding) */
+    char dict[256];
+    int dict_len = snprintf(dict, sizeof(dict),
+        "{'descr': '<f4', 'fortran_order': False, 'shape': (%zu, %zu), }",
+        nvecs, veclen);
+
+    /* Pad so that (10 + header_string_len) is divisible by 64.
+     * header_string includes the dict, spaces, and trailing newline. */
+    size_t prefix = 10;
+    size_t unpadded = prefix + (size_t)dict_len + 1;  /* +1 for trailing \n */
+    size_t padded = ((unpadded + 63) / 64) * 64;
+    size_t header_len = padded - prefix;
+
+    /* Build the padded header string */
+    char *header = malloc_or_die(header_len, "Error allocating npy header\n");
+    memcpy(header, dict, (size_t)dict_len);
+    memset(header + dict_len, ' ', header_len - (size_t)dict_len);
+    header[header_len - 1] = '\n';
+
+    /* Write the 10-byte prefix */
+    unsigned char magic[10];
+    magic[0] = 0x93;
+    magic[1] = 'N'; magic[2] = 'U'; magic[3] = 'M'; magic[4] = 'P'; magic[5] = 'Y';
+    magic[6] = 1;   /* major version */
+    magic[7] = 0;   /* minor version */
+    uint16_t hlen = (uint16_t)header_len;
+    magic[8] = (unsigned char)(hlen & 0xFF);
+    magic[9] = (unsigned char)((hlen >> 8) & 0xFF);
+
+    fwrite(magic, 1, 10, f);
+    fwrite(header, 1, header_len, f);
+    free(header);
+
+    /* Write raw float32 data, row-major */
+    for (size_t i = 0; i < nvecs; i++) {
+        fwrite(outvecs[i], sizeof(float), veclen, f);
+    }
+
+    fclose(f);
+}
+
+/* -----------------------------------------------------------------------
+ * Safetensors writer
+ *
+ * The safetensors format is:
+ *   - 8-byte LE u64: JSON header size
+ *   - JSON header: metadata describing tensors
+ *   - Raw tensor data (little-endian)
+ *
+ * Data offsets in the JSON are [start, end) — exclusive end.
+ * -----------------------------------------------------------------------*/
+
+void FIO_write_safetensors(const char *outfile,
+                           const float **outvecs,
+                           size_t nvecs,
+                           size_t veclen)
+{
+    FILE *f = fopen(outfile, "wb");
+    if (f == NULL) {
+        fprintf(stderr, "Error opening output file: %s\n", outfile);
+        exit(1);
+    }
+
+    size_t nbytes = nvecs * veclen * sizeof(float);
+
+    /* Build JSON header */
+    char json[512];
+    int json_len = snprintf(json, sizeof(json),
+        "{\"features\":{\"dtype\":\"F32\",\"shape\":[%zu,%zu],\"data_offsets\":[0,%zu]}}",
+        nvecs, veclen, nbytes);
+
+    /* Write 8-byte LE u64 header size */
+    uint64_t hsize = (uint64_t)json_len;
+    unsigned char hsize_bytes[8];
+    for (int i = 0; i < 8; i++) {
+        hsize_bytes[i] = (unsigned char)((hsize >> (i * 8)) & 0xFF);
+    }
+    fwrite(hsize_bytes, 1, 8, f);
+
+    /* Write JSON header */
+    fwrite(json, 1, (size_t)json_len, f);
+
+    /* Write raw float32 data */
+    for (size_t i = 0; i < nvecs; i++) {
+        fwrite(outvecs[i], sizeof(float), veclen, f);
+    }
+
+    fclose(f);
+}
+
+/* -----------------------------------------------------------------------
+ * WAV writer (via libsndfile)
+ *
+ * Writes mono IEEE float WAV, preserving full precision for DSP
+ * round-trips (unlike PCM_16 which quantises to 16-bit integers).
+ * -----------------------------------------------------------------------*/
+
+void FIO_write_wav(const char *outfile,
+                   const float *data,
+                   size_t datalen,
+                   unsigned samprate)
+{
+    SF_INFO sfinfo;
+    memset(&sfinfo, 0, sizeof(sfinfo));
+    sfinfo.samplerate = (int)samprate;
+    sfinfo.channels = 1;
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_FLOAT;
+
+    SNDFILE *sf = sf_open(outfile, SFM_WRITE, &sfinfo);
+    if (sf == NULL) {
+        fprintf(stderr, "Error opening output WAV file: %s\n", outfile);
+        exit(1);
+    }
+
+    sf_writef_float(sf, data, (sf_count_t)datalen);
+    sf_close(sf);
+}
+
+/* -----------------------------------------------------------------------
+ * HTK writer (deprecated — use FIO_write_npy or FIO_write_safetensors)
+ * -----------------------------------------------------------------------*/
 
 /**
  * Write feature vectors in HTK binary file format.

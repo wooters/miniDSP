@@ -25,7 +25,7 @@ Legacy demo programs in `tests/` (gcc_phat_test, testliveio, etc.) require gnupl
 - **libsndfile** (`<sndfile.h>`) — used by fileio for reading WAV/FLAC/AIFF
 - **PortAudio** (`<portaudio.h>`, `-lportaudio`) — used by liveio for live recording/playback
 
-The primary test suite (`test_minidsp`) only links FFTW3 and math. PortAudio and libsndfile are only needed if you build the liveio/fileio-dependent programs.
+The primary test suite (`test_minidsp`) links FFTW3, math, and libsndfile. PortAudio is only needed if you build the liveio-dependent programs.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ Four modules, each a `.c`/`.h` pair:
 |--------|--------|---------|
 | `minidsp` | `MD_` | Signal math (energy, entropy, scaling, Hanning window) and GCC-PHAT delay estimation |
 | `biquad` | `BiQuad` / `BiQuad_` | Second-order IIR filter (LPF, HPF, BPF, notch, PEQ, shelving) |
-| `fileio` | `FIO_` | Read audio files via libsndfile; write HTK feature files |
+| `fileio` | `FIO_` | Read/write audio via libsndfile; write feature vectors (.npy, safetensors, HTK) |
 | `liveio` | `LA_` | Record/play audio via PortAudio callbacks |
 
 Key patterns:
