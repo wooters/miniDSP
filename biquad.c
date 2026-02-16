@@ -111,7 +111,11 @@ biquad *BiQuad_new(int type, smp_type dbGain,
     sn    = sin(omega);
     cs    = cos(omega);
     alpha = sn * sinh(M_LN2 / 2.0 * bandwidth * omega / sn);
-    beta  = sqrt(A + A);  /* = sqrt(2*A), used only by shelf filters */
+    /* beta * sn substitutes for the cookbook's 2*sqrt(A)*alpha in shelf
+     * filters (LSH/HSH).  This is mathematically equivalent to fixing the
+     * shelf slope parameter S = 1 (steepest slope without resonance).
+     * Because of this, the 'bandwidth' parameter has no effect on LSH/HSH. */
+    beta  = sqrt(A + A);  /* = sqrt(2*A) */
 
     switch (type) {
 
