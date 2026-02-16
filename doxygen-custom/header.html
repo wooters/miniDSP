@@ -59,12 +59,21 @@ window.addEventListener("load", function() {
         svg.appendChild(path);
         a.appendChild(svg);
         li.appendChild(a);
-        menu.appendChild(li);
+        var searchLi = document.getElementById("searchBoxPos2");
+        if (searchLi) {
+            menu.insertBefore(li, searchLi);
+        } else {
+            menu.appendChild(li);
+        }
     }
 });
 </script>
 <style>
 #github-link {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 6px;
     color: var(--primary-color);
     opacity: 0.5;
     transition: opacity 0.2s;
