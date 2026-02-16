@@ -36,17 +36,17 @@
  * -----------------------------------------------------------------------*/
 
 static unsigned      _N        = 0;    /* Current cached signal length        */
-static double       *siga_loc  = NULL; /* Local copy of input signal A        */
-static double       *sigb_loc  = NULL; /* Local copy of input signal B        */
-static double       *lags_loc  = NULL; /* Shifted cross-correlation output    */
-static fftw_complex *ffta      = NULL; /* FFT of signal A                     */
-static fftw_complex *fftb      = NULL; /* FFT of signal B                     */
-static fftw_complex *xspec     = NULL; /* Cross-spectrum (FFT_B * conj(FFT_A))*/
-static double       *xcorr     = NULL; /* Raw cross-correlation (time domain) */
+static double       *siga_loc  = nullptr; /* Local copy of input signal A        */
+static double       *sigb_loc  = nullptr; /* Local copy of input signal B        */
+static double       *lags_loc  = nullptr; /* Shifted cross-correlation output    */
+static fftw_complex *ffta      = nullptr; /* FFT of signal A                     */
+static fftw_complex *fftb      = nullptr; /* FFT of signal B                     */
+static fftw_complex *xspec     = nullptr; /* Cross-spectrum (FFT_B * conj(FFT_A))*/
+static double       *xcorr     = nullptr; /* Raw cross-correlation (time domain) */
 
-static fftw_plan     pa = NULL;        /* FFTW plan: signal A -> FFT          */
-static fftw_plan     pb = NULL;        /* FFTW plan: signal B -> FFT          */
-static fftw_plan     px = NULL;        /* FFTW plan: cross-spectrum -> IFFT   */
+static fftw_plan     pa = nullptr;        /* FFTW plan: signal A -> FFT          */
+static fftw_plan     pb = nullptr;        /* FFTW plan: signal B -> FFT          */
+static fftw_plan     px = nullptr;        /* FFTW plan: cross-spectrum -> IFFT   */
 
 /* -----------------------------------------------------------------------
  * Internal helpers for FFT buffer management
@@ -64,8 +64,8 @@ static void _xcorr_free(void)
     if (sigb_loc) free(sigb_loc);
     if (siga_loc) free(siga_loc);
 
-    xspec = NULL;   fftb = NULL;    ffta = NULL;
-    lags_loc = NULL; xcorr = NULL;  sigb_loc = NULL; siga_loc = NULL;
+    xspec = nullptr;   fftb = nullptr;    ffta = nullptr;
+    lags_loc = nullptr; xcorr = nullptr;  sigb_loc = nullptr; siga_loc = nullptr;
 }
 
 /** Allocate all buffers needed for cross-correlation of length _N. */
@@ -90,7 +90,7 @@ static void _xcorr_teardown(void)
     if (pa) fftw_destroy_plan(pa);
     if (pb) fftw_destroy_plan(pb);
     if (px) fftw_destroy_plan(px);
-    pa = NULL; pb = NULL; px = NULL;
+    pa = nullptr; pb = nullptr; px = nullptr;
 
     _xcorr_free();
     fftw_cleanup();
@@ -170,7 +170,7 @@ static void _fftshift(const double *in, double *out, unsigned N)
 static void _max_index(const double *a, unsigned N,
                        double *max, unsigned *maxi)
 {
-    assert(a != NULL);
+    assert(a != nullptr);
     assert(N >= 1);
 
     unsigned best_i = 0;
@@ -231,7 +231,7 @@ double MD_dot(const double *a, const double *b, unsigned N)
  */
 double MD_energy(const double *a, unsigned N)
 {
-    assert(a != NULL);
+    assert(a != nullptr);
     if (N == 1) return a[0] * a[0];
     return MD_dot(a, a, N);
 }
@@ -246,7 +246,7 @@ double MD_energy(const double *a, unsigned N)
  */
 double MD_power(const double *a, unsigned N)
 {
-    assert(a != NULL);
+    assert(a != nullptr);
     assert(N > 0);
     return MD_energy(a, N) / (double)N;
 }
@@ -262,7 +262,7 @@ double MD_power(const double *a, unsigned N)
  */
 double MD_power_db(const double *a, unsigned N)
 {
-    assert(a != NULL);
+    assert(a != nullptr);
     assert(N > 0);
     double p = fmax(1.0e-10, MD_power(a, N));
     return 10.0 * log10(p);
@@ -294,8 +294,8 @@ void MD_scale_vec(double *in, double *out, unsigned N,
                   double oldmin, double oldmax,
                   double newmin, double newmax)
 {
-    assert(in != NULL);
-    assert(out != NULL);
+    assert(in != nullptr);
+    assert(out != nullptr);
     assert(oldmin < oldmax);
     assert(newmin < newmax);
     if (N == 0) return;
@@ -316,8 +316,8 @@ void MD_scale_vec(double *in, double *out, unsigned N,
 void MD_fit_within_range(double *in, double *out, unsigned N,
                          double newmin, double newmax)
 {
-    assert(in != NULL);
-    assert(out != NULL);
+    assert(in != nullptr);
+    assert(out != nullptr);
     assert(newmin < newmax);
     if (N == 0) return;
 
@@ -396,7 +396,7 @@ void MD_adjust_dblevel(const double *in, double *out,
  */
 double MD_entropy(const double *a, unsigned N, bool clip)
 {
-    assert(a != NULL);
+    assert(a != nullptr);
 
     if (N <= 1) return 0.0;
 
@@ -487,27 +487,27 @@ void MD_get_multiple_delays(const double **sigs, unsigned M, unsigned N,
     /* Static buffers are reused across calls for efficiency.
      * They are only re-allocated when the signal length changes. */
     static unsigned last_N   = 0;
-    static double  *hann_win = NULL;
-    static double  *t_ref    = NULL;
-    static double  *t_sig    = NULL;
+    static double  *hann_win = nullptr;
+    static double  *t_ref    = nullptr;
+    static double  *t_sig    = nullptr;
 
     if (M < 2) return;
 
     /* Re-allocate if the signal length has changed */
     if (last_N != N) {
-        free(hann_win);  /* free(NULL) is safe in C */
+        free(hann_win);  /* free(nullptr) is safe in C */
         free(t_ref);
         free(t_sig);
 
         hann_win = malloc(N * sizeof(double));
-        assert(hann_win != NULL);
+        assert(hann_win != nullptr);
         MD_Gen_Hann_Win(hann_win, N);
 
         t_ref = malloc(N * sizeof(double));
-        assert(t_ref != NULL);
+        assert(t_ref != nullptr);
 
         t_sig = malloc(N * sizeof(double));
-        assert(t_sig != NULL);
+        assert(t_sig != nullptr);
 
         last_N = N;
     }
@@ -523,7 +523,7 @@ void MD_get_multiple_delays(const double **sigs, unsigned M, unsigned N,
         for (unsigned j = 0; j < N; j++) {
             t_sig[j] = sigs[i + 1][j] * hann_win[j];
         }
-        outdelays[i] = MD_get_delay(t_ref, t_sig, N, NULL, margin, weightfunc);
+        outdelays[i] = MD_get_delay(t_ref, t_sig, N, nullptr, margin, weightfunc);
     }
 }
 
@@ -537,7 +537,7 @@ void MD_get_multiple_delays(const double **sigs, unsigned M, unsigned N,
  * @param siga        First signal (reference).
  * @param sigb        Second signal.
  * @param N           Length of both signals.
- * @param ent         If non-NULL, receives the normalised entropy of the
+ * @param ent         If non-null, receives the normalised entropy of the
  *                    lag values in the search window.  High entropy (~1.0)
  *                    means a flat, unreliable correlation; low entropy (~0.0)
  *                    means a sharp, trustworthy peak.
@@ -574,7 +574,7 @@ int MD_get_delay(const double *siga, const double *sigb, unsigned N,
     _max_index(lags_loc + start, len, &peak_val, &peak_i);
 
     /* Optionally compute the entropy of the search window */
-    if (ent != NULL) {
+    if (ent != nullptr) {
         *ent = MD_entropy(lags_loc + start, len, true);
     }
 

@@ -46,7 +46,7 @@ Key patterns:
 
 ## Code conventions
 
-- **C11** (`-std=c11 -Wall -Wextra -pedantic`)
+- **C23** (`-std=c23 -Wall -Wextra -pedantic`)
 - All modules compile into a single static library `libminidsp.a`
 - Public functions use module prefixes: `MD_`, `BiQuad_`, `FIO_`, `LA_`
 - `smp_type` is `typedef double` in biquad.h (could be changed to `float`)

@@ -12,7 +12,7 @@
 #   make gcc_phat_multi_test
 
 CC = gcc
-CFLAGS = -std=c11 -Wall -Wextra -pedantic -g -I..
+CFLAGS = -std=c23 -Wall -Wextra -pedantic -g -I..
 
 # Homebrew on Apple Silicon installs to /opt/homebrew; on Intel to /usr/local.
 BREW_PREFIX := $(shell brew --prefix 2>/dev/null)

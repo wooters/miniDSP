@@ -18,10 +18,9 @@
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <math.h>
 
-/* M_PI is not guaranteed by C11.  Define it if the system didn't. */
+/* M_PI is not guaranteed by the C standard.  Define it if the system didn't. */
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -149,7 +148,7 @@ void MD_get_multiple_delays(const double **sigs, unsigned M, unsigned N,
  * @param siga        First signal.
  * @param sigb        Second signal.
  * @param N           Length of both signals.
- * @param ent         If non-NULL, receives the normalised entropy of the
+ * @param ent         If non-null, receives the normalised entropy of the
  *                    correlation peak region (closer to 1.0 = less trustworthy).
  * @param margin      Search +/- this many samples around zero-lag.
  * @param weightfunc  SIMP or PHAT.

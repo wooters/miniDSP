@@ -429,7 +429,7 @@ static int test_gcc_phat_positive_delay(void)
     }
     delay_signal(siga, sigb, N, true_delay);
 
-    int delay = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+    int delay = MD_get_delay(siga, sigb, N, nullptr, 50, PHAT);
     free(sigb);
     free(siga);
 
@@ -449,7 +449,7 @@ static int test_gcc_phat_negative_delay(void)
     }
     delay_signal(siga, sigb, N, true_delay);
 
-    int delay = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+    int delay = MD_get_delay(siga, sigb, N, nullptr, 50, PHAT);
     free(sigb);
     free(siga);
 
@@ -467,7 +467,7 @@ static int test_gcc_phat_zero_delay(void)
     }
 
     /* Both signals are identical -- delay should be 0 */
-    int delay = MD_get_delay(siga, siga, N, NULL, 50, PHAT);
+    int delay = MD_get_delay(siga, siga, N, nullptr, 50, PHAT);
     free(siga);
 
     return (delay == 0);
@@ -486,14 +486,14 @@ static int test_gcc_simp_delay(void)
     }
     delay_signal(siga, sigb, N, true_delay);
 
-    int delay = MD_get_delay(siga, sigb, N, NULL, 50, SIMP);
+    int delay = MD_get_delay(siga, sigb, N, nullptr, 50, SIMP);
     free(sigb);
     free(siga);
 
     return (delay == true_delay);
 }
 
-/** MD_get_delay should return entropy when ent is not NULL. */
+/** MD_get_delay should return entropy when ent is not null. */
 static int test_gcc_returns_entropy(void)
 {
     unsigned N = 4096;
@@ -560,7 +560,7 @@ static int test_gcc_multiple_delays(void)
             w_ref[i] = siga[i] * hann[i];
             w_sig[i] = other[k][i] * hann[i];
         }
-        manual_results[k] = MD_get_delay(w_ref, w_sig, N, NULL, 50, PHAT);
+        manual_results[k] = MD_get_delay(w_ref, w_sig, N, nullptr, 50, PHAT);
     }
 
     int ok = 1;
@@ -626,7 +626,7 @@ static int test_gcc_different_lengths(void)
         for (unsigned i = 0; i < N; i++)
             siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
         delay_signal(siga, sigb, N, true_delay);
-        int d = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+        int d = MD_get_delay(siga, sigb, N, nullptr, 50, PHAT);
         ok &= (d == true_delay);
         free(sigb);
         free(siga);
@@ -641,7 +641,7 @@ static int test_gcc_different_lengths(void)
         for (unsigned i = 0; i < N; i++)
             siga[i] = sin(2.0 * M_PI * (double)i / 32.0);
         delay_signal(siga, sigb, N, true_delay);
-        int d = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+        int d = MD_get_delay(siga, sigb, N, nullptr, 50, PHAT);
         ok &= (d == true_delay);
         free(sigb);
         free(siga);
@@ -683,11 +683,11 @@ static double measure_filter_response(biquad *b, double freq, double srate,
     return sqrt(sum_sq / (double)count);
 }
 
-/** BiQuad_new should return NULL for an invalid filter type. */
+/** BiQuad_new should return nullptr for an invalid filter type. */
 static int test_biquad_invalid_type(void)
 {
     biquad *b = BiQuad_new(999, 0.0, 1000.0, 44100.0, 1.0);
-    return (b == NULL);
+    return (b == nullptr);
 }
 
 /** Low-pass filter: should pass low frequencies, attenuate high. */
@@ -904,8 +904,8 @@ static int test_write_npy(void)
 
     /* Check header contains shape string */
     char *header = (char *)(buf + 10);
-    ok &= (strstr(header, "'shape': (3, 4)") != NULL);
-    ok &= (strstr(header, "'descr': '<f4'") != NULL);
+    ok &= (strstr(header, "'shape': (3, 4)") != nullptr);
+    ok &= (strstr(header, "'descr': '<f4'") != nullptr);
 
     /* Check raw float data */
     size_t data_offset = 10 + hlen;
@@ -966,9 +966,9 @@ static int test_write_safetensors(void)
     memcpy(json, buf + 8, (size_t)hsize);
     json[hsize] = '\0';
 
-    ok &= (strstr(json, "\"dtype\":\"F32\"") != NULL);
-    ok &= (strstr(json, "\"shape\":[2,3]") != NULL);
-    ok &= (strstr(json, "\"data_offsets\":[0,24]") != NULL);  /* 2*3*4 = 24 */
+    ok &= (strstr(json, "\"dtype\":\"F32\"") != nullptr);
+    ok &= (strstr(json, "\"shape\":[2,3]") != nullptr);
+    ok &= (strstr(json, "\"data_offsets\":[0,24]") != nullptr);  /* 2*3*4 = 24 */
 
     free(json);
 
@@ -1010,7 +1010,7 @@ static int test_write_wav(void)
     FIO_write_wav(fname, data, datalen, samprate);
 
     /* Read it back */
-    float *readback = NULL;
+    float *readback = nullptr;
     size_t readlen = 0;
     unsigned readrate = 0;
     FIO_read_audio(fname, &readback, &readlen, &readrate, 0);

@@ -7,7 +7,7 @@
 # Clean everything:            make clean
 
 CC = gcc
-CFLAGS = -std=c11 -Wall -Wextra -pedantic -O2 -g
+CFLAGS = -std=c23 -Wall -Wextra -pedantic -O2 -g
 
 # Homebrew on Apple Silicon installs to /opt/homebrew; on Intel to /usr/local.
 # If Homebrew isn't present, these lines are skipped and system paths are used.

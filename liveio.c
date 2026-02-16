@@ -38,8 +38,8 @@ typedef struct {
 
 static int           LA_InitDone     = 0;         /**< Has PA been initialised?  */
 static PaError       LA_LastError    = paNoError;  /**< Most recent PA error code */
-static PaStream     *LA_PlayStream   = NULL;       /**< Active playback stream    */
-static PaStream     *LA_RecordStream = NULL;       /**< Active recording stream   */
+static PaStream     *LA_PlayStream   = nullptr;       /**< Active playback stream    */
+static PaStream     *LA_RecordStream = nullptr;       /**< Active recording stream   */
 static LA_simpleData LA_data;                      /**< Shared buffer descriptor  */
 
 /* -----------------------------------------------------------------------
@@ -128,7 +128,7 @@ static int _ContinuousRecordCallback(const void *inputBuffer,
     (void)statusFlags;
 
     for (unsigned long i = 0; i < framesPerBuffer; i++) {
-        data->audiodata[data->pos_w] = (inputBuffer != NULL) ? *rptr++ : 0;
+        data->audiodata[data->pos_w] = (inputBuffer != nullptr) ? *rptr++ : 0;
         data->pos_w++;
         if (data->pos_w >= data->len) {
             data->pos_w = 0;  /* Wrap around */
@@ -172,9 +172,9 @@ static int _RecordCallback(const void *inputBuffer,
         finished    = paContinue;
     }
 
-    /* Copy samples (or write silence if input is NULL) */
+    /* Copy samples (or write silence if input is nullptr) */
     for (unsigned long i = 0; i < framesToRec; i++) {
-        *wptr++ = (inputBuffer != NULL) ? *rptr++ : 0;
+        *wptr++ = (inputBuffer != nullptr) ? *rptr++ : 0;
     }
     data->pos_w += framesToRec;
 
@@ -265,10 +265,10 @@ LaError_t LA_record_callback(unsigned samprate, PaStreamCallback *cb, void *cb_d
     inputParams.channelCount            = 1;       /* Mono input */
     inputParams.sampleFormat            = paInt16;
     inputParams.suggestedLatency        = Pa_GetDeviceInfo(inputParams.device)->defaultHighInputLatency;
-    inputParams.hostApiSpecificStreamInfo = NULL;
+    inputParams.hostApiSpecificStreamInfo = nullptr;
 
     PaError err;
-    err = Pa_OpenStream(&LA_RecordStream, &inputParams, NULL,
+    err = Pa_OpenStream(&LA_RecordStream, &inputParams, nullptr,
                         samprate, paFramesPerBufferUnspecified,
                         paClipOff, cb, cb_data);
     if (err != paNoError) return LA_ERROR;
@@ -300,7 +300,7 @@ LaError_t LA_record(void *buffer, unsigned long bufsize,
     inputParams.channelCount            = 1;
     inputParams.sampleFormat            = paInt16;
     inputParams.suggestedLatency        = Pa_GetDeviceInfo(inputParams.device)->defaultHighInputLatency;
-    inputParams.hostApiSpecificStreamInfo = NULL;
+    inputParams.hostApiSpecificStreamInfo = nullptr;
 
     PaError err;
     PaStreamCallback *cb;
@@ -313,7 +313,7 @@ LaError_t LA_record(void *buffer, unsigned long bufsize,
         return LA_ERROR;
     }
 
-    err = Pa_OpenStream(&LA_RecordStream, &inputParams, NULL,
+    err = Pa_OpenStream(&LA_RecordStream, &inputParams, nullptr,
                         samprate, paFramesPerBufferUnspecified,
                         paClipOff, cb, &LA_data);
     if (err != paNoError) return LA_ERROR;
@@ -350,10 +350,10 @@ LaError_t LA_play_callback(unsigned samprate, PaStreamCallback *cb, void *cb_dat
     outputParams.channelCount            = 2;       /* Stereo output */
     outputParams.sampleFormat            = paInt16;
     outputParams.suggestedLatency        = Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
-    outputParams.hostApiSpecificStreamInfo = NULL;
+    outputParams.hostApiSpecificStreamInfo = nullptr;
 
     PaError err;
-    err = Pa_OpenStream(&LA_PlayStream, NULL, &outputParams,
+    err = Pa_OpenStream(&LA_PlayStream, nullptr, &outputParams,
                         samprate, paFramesPerBufferUnspecified,
                         paNoFlag, cb, cb_data);
     if (err != paNoError) return LA_ERROR;
@@ -384,10 +384,10 @@ LaError_t LA_play(const void *buffer, unsigned long bufsize, unsigned samprate)
     outputParams.channelCount            = 2;       /* Stereo output */
     outputParams.sampleFormat            = paInt16;
     outputParams.suggestedLatency        = Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
-    outputParams.hostApiSpecificStreamInfo = NULL;
+    outputParams.hostApiSpecificStreamInfo = nullptr;
 
     PaError err;
-    err = Pa_OpenStream(&LA_PlayStream, NULL, &outputParams,
+    err = Pa_OpenStream(&LA_PlayStream, nullptr, &outputParams,
                         samprate, paFramesPerBufferUnspecified,
                         paNoFlag, _PlayCallback, &LA_data);
     if (err != paNoError) return LA_ERROR;

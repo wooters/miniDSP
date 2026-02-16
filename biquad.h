@@ -64,7 +64,7 @@ smp_type BiQuad(smp_type sample, biquad *b);
  * @param freq       Centre / corner frequency in Hz.
  * @param srate      Sampling rate in Hz (e.g. 44100, 48000).
  * @param bandwidth  Bandwidth in octaves (controls the filter's "width").
- * @return           A heap-allocated biquad, or NULL on failure.
+ * @return           A heap-allocated biquad, or nullptr on failure.
  *                   The caller must free() it when done.
  */
 biquad *BiQuad_new(int type, smp_type dbGain,

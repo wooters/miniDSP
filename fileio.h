@@ -94,9 +94,7 @@ void FIO_write_wav(const char *outfile,
  * @param veclen        Number of floats per vector.
  * @param vecsamprate   Sampling rate of the feature vectors (Hz).
  */
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((deprecated("use FIO_write_npy or FIO_write_safetensors")))
-#endif
+[[deprecated("use FIO_write_npy or FIO_write_safetensors")]]
 void FIO_write_htk_feats(const char *outfile,
                          const float **outvecs,
                          size_t nvecs,

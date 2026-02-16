@@ -69,12 +69,12 @@ static void swap_bytes(void *pv, size_t n)
 /**
  * Allocate memory or terminate the program on failure.
  * This is a safety net -- in a small CLI tool it is better to crash
- * immediately with a clear message than to limp along with NULL pointers.
+ * immediately with a clear message than to limp along with null pointers.
  */
 static void *malloc_or_die(size_t nbytes, const char *msg)
 {
     void *tmp = malloc(nbytes);
-    if (tmp == NULL) {
+    if (tmp == nullptr) {
         fprintf(stderr, "%s", msg);
         exit(1);
     }
@@ -109,7 +109,7 @@ void FIO_read_audio(const char *infile,
 
     /* Open the file and read its metadata */
     SNDFILE *sf = sf_open(infile, SFM_READ, &sfinfo);
-    if (sf == NULL) {
+    if (sf == nullptr) {
         fprintf(stderr, "Error opening audio file: %s\n", infile);
         exit(1);
     }
@@ -127,9 +127,9 @@ void FIO_read_audio(const char *infile,
 
     /* Tell libsndfile whether to normalise float output to [-1, 1] */
     if (donorm == 1)
-        sf_command(sf, SFC_SET_NORM_FLOAT, NULL, SF_TRUE);
+        sf_command(sf, SFC_SET_NORM_FLOAT, nullptr, SF_TRUE);
     else
-        sf_command(sf, SFC_SET_NORM_FLOAT, NULL, SF_FALSE);
+        sf_command(sf, SFC_SET_NORM_FLOAT, nullptr, SF_FALSE);
 
     /* Allocate and read */
     float *tmpdata = malloc_or_die((size_t)nsamps * sizeof(float),
@@ -171,7 +171,7 @@ void FIO_write_npy(const char *outfile,
                    size_t veclen)
 {
     FILE *f = fopen(outfile, "wb");
-    if (f == NULL) {
+    if (f == nullptr) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
         exit(1);
     }
@@ -234,7 +234,7 @@ void FIO_write_safetensors(const char *outfile,
                            size_t veclen)
 {
     FILE *f = fopen(outfile, "wb");
-    if (f == NULL) {
+    if (f == nullptr) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
         exit(1);
     }
@@ -285,7 +285,7 @@ void FIO_write_wav(const char *outfile,
     sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_FLOAT;
 
     SNDFILE *sf = sf_open(outfile, SFM_WRITE, &sfinfo);
-    if (sf == NULL) {
+    if (sf == nullptr) {
         fprintf(stderr, "Error opening output WAV file: %s\n", outfile);
         exit(1);
     }
@@ -326,7 +326,7 @@ void FIO_write_htk_feats(const char *outfile,
     hdr.parmkind   = 9;  /* 9 = USER (user-defined parameter type) */
 
     FILE *f = fopen(outfile, "wb");
-    if (f == NULL) {
+    if (f == nullptr) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
         exit(1);
     }

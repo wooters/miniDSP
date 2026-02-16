@@ -80,7 +80,7 @@ smp_type BiQuad(smp_type sample, biquad *b)
  * @param freq       Centre/corner frequency in Hz.
  * @param srate      Sampling rate in Hz.
  * @param bandwidth  Bandwidth in octaves.
- * @return           Pointer to a new biquad struct, or NULL on error.
+ * @return           Pointer to a new biquad struct, or nullptr on error.
  *
  * Note: the caller is responsible for calling free() on the returned
  * pointer when the filter is no longer needed.
@@ -94,8 +94,8 @@ biquad *BiQuad_new(int type, smp_type dbGain,
     smp_type a0, a1, a2, b0, b1, b2;
 
     b = malloc(sizeof(biquad));
-    if (b == NULL)
-        return NULL;
+    if (b == nullptr)
+        return nullptr;
 
     /* --- Compute intermediate variables ---
      *
@@ -205,7 +205,7 @@ biquad *BiQuad_new(int type, smp_type dbGain,
 
     default:
         free(b);
-        return NULL;
+        return nullptr;
     }
 
     /* Normalise all coefficients by dividing through by a0.
