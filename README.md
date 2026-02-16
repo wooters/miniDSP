@@ -1,97 +1,100 @@
 # MiniDSP
 
-A small C-lib containing a few basic DSP routines, and other helpful functions for dealing with audio.
+A small C library of DSP (Digital Signal Processing) routines for audio applications.
 
-## Features
+## What's in the box?
 
-### Signal Processing Functions
-* Compute the cross-correlation between two signals [MD_gcc()]
-* Get the delay between signals using Generalized Cross-Correlation with Phase Transform (GCC-PHAT) [MD_get_delay(), MD_get_multiple_delays()]
+### Signal Processing (`minidsp.h`)
+- **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
+- **Signal measurements** -- energy, power, power in dB, normalised entropy.
+- **Scaling & AGC** -- linear range mapping, automatic gain control.
+- **Hanning window** -- smooth windowing function for FFT analysis.
 
-### Plotting
-* Plot using gnuplot_i
+### Biquad Filters (`biquad.h`)
+Seven classic audio filter types, all based on Robert Bristow-Johnson's Audio EQ Cookbook:
+- Low-pass, High-pass, Band-pass, Notch
+- Peaking EQ, Low shelf, High shelf
 
-### Live I/O Functions
-* Record from the mic on the local host [LA_record()]
-* Play a signal to the speakers on the local host [LA_play()]
+### File I/O (`fileio.h`)
+- Read audio files in any format supported by libsndfile (WAV, FLAC, AIFF, OGG, etc.)
+- Write feature vectors in HTK binary format (for speech recognition pipelines)
 
-### File I/O Functions
-* Read audio data files in any format supported by libsndfile [FIO_read_audio()]
-* Write data in HTK feature file format [FIO_write_htk_feats()]
+### Live Audio I/O (`liveio.h`)
+- Record from the microphone and play back to speakers via PortAudio
+- Non-blocking API with callback support
 
-## Dependencies
+## Building
 
-* FFTW - http://www.fftw.org/ (TODO: allow for use of other FFT libs)
-* Portaudio - http://portaudio.com/ (for live audio input/output)
-* libsndfile - http://www.mega-nerd.com/libsndfile/ (for file-based input/output)
-* gnuplot_i - http://ndevilla.free.fr/gnuplot/ (for plotting with gnuplot, assumes you have gnuplot installed)
+### Dependencies
 
-## Code Examples
-### Record from the mic at a rate of 16kHz and plot the data with gnuplot:
+| Library | Purpose | Install (Debian/Ubuntu) |
+|---------|---------|------------------------|
+| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` |
+| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` |
+| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` |
+
+### Compile the library
+
+```sh
+make            # builds libminidsp.a
+```
+
+### Run the test suite
+
+```sh
+make test       # builds and runs all 47 tests
+```
+
+## Quick example: detect the delay between two signals
 
 ```c
-/**
- * @file testliverec.c
- */ 
-#include <stdio.h>
-#include <unistd.h>
-#include <inttypes.h>
-#include "gnuplot_i.h"
-#include "liveio.h"
+#include "minidsp.h"
 
-int main(void) {
-  unsigned sampRate = 16000;
-  unsigned nsamps = sampRate * 5;
-  int16_t* buffer = (int16_t*) calloc(nsamps, sizeof(int16_t));
+/* Two 4096-sample signals captured by spatially separated microphones */
+double mic_a[4096], mic_b[4096];
 
-  /* Record into the buffer */  
-  LA_record(buffer, nsamps, sampRate, LA_REC_ONCE); 
-  printf("Recording...\n");fflush(stdout);
-  while(LA_is_recording() == 1) sleep(1);
+/* Estimate the delay in samples (+/- 50 sample search window) */
+int delay = MD_get_delay(mic_a, mic_b, 4096, NULL, 50, PHAT);
 
-  /* Terminate the audio recording session */
-  LA_terminate();
+printf("Signal B is %d samples behind signal A\n", delay);
 
-  /* Convert 16-bit ints to doubles for plotting */
-  double* dbuf = calloc(nsamps, sizeof(double));
-  for (unsigned i=0;i<nsamps;i++) dbuf[i] = (double) buffer[i];
+/* Clean up FFTW resources when done */
+MD_shutdown();
+```
 
-  /* Plot with gnuplot */
-  gnuplot_ctrl* h = gnuplot_init();
-  gnuplot_setstyle(h,"lines");
-  gnuplot_plot_x(h,dbuf,nsamps,"Live Audio");
-  gnuplot_close(h);
+## Quick example: filter audio with a low-pass biquad
 
-  /* Clean up */
-  free(dbuf);
-  free(buffer);
+```c
+#include "biquad.h"
 
-  return 0;
+/* Create a 1 kHz low-pass filter at 44.1 kHz sample rate, 1-octave bandwidth */
+biquad *lpf = BiQuad_new(LPF, 0.0, 1000.0, 44100.0, 1.0);
+
+/* Process each audio sample */
+for (int i = 0; i < num_samples; i++) {
+    output[i] = BiQuad(input[i], lpf);
 }
+
+free(lpf);
 ```
 
-Compile with:
+## Test suite
 
-```make
-LMDSP= $(HOME)/src/miniDSP/libminidsp.a
-GP= $(HOME)/src/gnuplot_i/src
-GP_OBJ= $(GP)/gnuplot_i.o
+The test suite (`tests/test_minidsp.c`) covers every public function:
 
-CFLAGS = -O3 -Wall
-
-%.o:%.c
-	$(CC) $(CFLAGS) -I $(GP) -I .. -c $*.c -o $@ 
-
-testliverec: testliverec.o $(GP_OBJ) $(LMDSP)
-	$(CC) $(CFLAGS) -o $@ $(TLR_OBJS) $(LDFLAGS) -L$(HOME)/src/miniDSP -lminidsp -lportaudio
-
-```
-
+- **Dot product** -- orthogonal vectors, known values, self-dot
+- **Energy / Power / dB** -- known signals, sine wave power, dB floor
+- **Scaling** -- endpoints, midpoint, vector scaling, fit-within-range
+- **AGC** -- target dB level achievement
+- **Entropy** -- uniform, spike, zero, clip/no-clip modes
+- **Hanning window** -- endpoints, peak, symmetry, range
+- **GCC-PHAT** -- positive/negative/zero delays, SIMP vs PHAT weighting, multi-signal delays, FFT plan caching
+- **Biquad filters** -- LPF, HPF, BPF, Notch, PEQ, Low shelf, High shelf, DC rejection
 
 ## License
 
-This open-source software is licensed under the MIT License. See the
-LICENSE file for details.
+MIT License.  See [LICENSE](LICENSE) for details.
 
 ## Author
-Chuck Wooters - <wooters@hey.com>
+
+Chuck Wooters -- <wooters@hey.com>
