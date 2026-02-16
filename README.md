@@ -27,11 +27,13 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's Audio EQ
 
 ### Dependencies
 
-| Library | Purpose | Install (Debian/Ubuntu) |
-|---------|---------|------------------------|
-| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` |
-| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` |
-| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` |
+| Library | Purpose | Debian/Ubuntu | macOS (Homebrew) |
+|---------|---------|--------------|------------------|
+| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
+| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
+| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
+
+The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
 
 ### Compile the library
 
