@@ -1,38 +1,66 @@
 
-GP= $(HOME)/src/gnuplot_i/src
-GP_OBJ=$(GP)/gnuplot_i.o
+# Test Makefile for miniDSP
+#
+# Build the comprehensive test suite:
+#   make test_minidsp
+#
+# Run the tests:
+#   make test
+#
+# Build the legacy demo programs (require gnuplot_i / portaudio):
+#   make gcc_phat_test
+#   make gcc_phat_multi_test
 
-GPT_SRCS = gcc_phat_test.c 
-GPT_OBJS = $(GPT_SRCS:.c=.o) $(GP_OBJ)
+CC = gcc
+CFLAGS = -std=c11 -Wall -Wextra -pedantic -g -I..
 
-GPMT_SRCS = gcc_phat_multi_test.c 
-GPMT_OBJS = $(GPMT_SRCS:.c=.o)
+# Paths to optional dependencies (legacy demos)
+GP = $(HOME)/src/gnuplot_i/src
+GP_OBJ = $(GP)/gnuplot_i.o
 
-TLA_SRCS = testliveio.c
-TLA_OBJS = $(TLA_SRCS:.c=.o)
+# --- Primary test target ---
 
-TLR_SRCS = testliverec.c $(GP_OBJ)
-TLR_OBJS = $(TLR_SRCS:.c=.o)
+test_minidsp: test_minidsp.o ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ $^ -lfftw3 -lm
 
-CFLAGS = -O3 -Wall
+test_minidsp.o: test_minidsp.c ../minidsp.h ../biquad.h
+	$(CC) $(CFLAGS) -c $< -o $@
 
-%.o:%.c
-	$(CC) $(CFLAGS) -I $(GP) -I .. -c $*.c -o $@ 
+# Convenience target: build and run
+.PHONY: test
+test: test_minidsp
+	./test_minidsp
 
-default: gcc_phat_test
+# --- Legacy demo programs ---
 
-gcc_phat_test: $(GPT_OBJS) ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $(GPT_OBJS) $(LDFLAGS) -L.. -lminidsp -lfftw3
+gcc_phat_test: gcc_phat_test.o $(GP_OBJ) ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ gcc_phat_test.o $(GP_OBJ) -L.. -lminidsp -lfftw3 -lm
 
-gcc_phat_multi_test: $(GPMT_OBJS) ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $(GPMT_OBJS) $(LDFLAGS) -L.. -lminidsp -lfftw3
+gcc_phat_test.o: gcc_phat_test.c
+	$(CC) $(CFLAGS) -I $(GP) -c $< -o $@
 
-testliveio: $(TLA_OBJS) ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $(TLA_OBJS) $(LDFLAGS) -L.. -lminidsp -lportaudio
+gcc_phat_multi_test: gcc_phat_multi_test.o ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ $^ -lfftw3 -lm
 
-testliverec: $(TLR_OBJS) ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $(TLR_OBJS) $(LDFLAGS) -L.. -lminidsp -lportaudio
+gcc_phat_multi_test.o: gcc_phat_multi_test.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-.PHONY:	clean
+testliveio: testliveio.o ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ $^ -lportaudio -lm
+
+testliveio.o: testliveio.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+testliverec: testliverec.o $(GP_OBJ) ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ testliverec.o $(GP_OBJ) -L.. -lminidsp -lportaudio -lm
+
+testliverec.o: testliverec.c
+	$(CC) $(CFLAGS) -I $(GP) -c $< -o $@
+
+# --- Housekeeping ---
+
+.PHONY: clean
 clean:
-	-rm *.o gcc_phat_test gcc_phat_multi_test testliveio testliverec
+	-rm -f *.o test_minidsp gcc_phat_test gcc_phat_multi_test testliveio testliverec
+
+default: test_minidsp

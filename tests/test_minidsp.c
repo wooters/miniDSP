@@ -1,0 +1,946 @@
+/**
+ * @file test_minidsp.c
+ * @brief Comprehensive test suite for the miniDSP library.
+ *
+ * This file tests every public function in minidsp.h and biquad.h
+ * using known mathematical properties to verify correctness.
+ *
+ * Each test function returns 1 on success and 0 on failure.
+ * The main() function runs all tests and prints a summary.
+ *
+ * How to compile (from the tests/ directory):
+ *   make test_minidsp
+ *
+ * How to run:
+ *   ./test_minidsp
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <float.h>
+#include "minidsp.h"
+#include "biquad.h"
+
+/* -----------------------------------------------------------------------
+ * Test infrastructure
+ *
+ * These macros and counters keep track of how many tests pass and fail.
+ * -----------------------------------------------------------------------*/
+
+static int tests_run    = 0;
+static int tests_passed = 0;
+static int tests_failed = 0;
+
+/** Compare two doubles with a tolerance.  Returns 1 if close enough. */
+static int approx_equal(double a, double b, double tolerance)
+{
+    return fabs(a - b) <= tolerance;
+}
+
+/** Run a single test and print the result. */
+#define RUN_TEST(test_func)                                       \
+    do {                                                          \
+        tests_run++;                                              \
+        printf("  %-50s", #test_func);                            \
+        if (test_func()) {                                        \
+            tests_passed++;                                       \
+            printf("[PASS]\n");                                   \
+        } else {                                                  \
+            tests_failed++;                                       \
+            printf("[FAIL]\n");                                   \
+        }                                                         \
+    } while (0)
+
+/* -----------------------------------------------------------------------
+ * Helper: create a delayed copy of a signal using circular rotation.
+ *
+ * This mimics what happens when a sound reaches one microphone later
+ * than another.  A positive 'delay' shifts the signal to the right
+ * (later in time).
+ * -----------------------------------------------------------------------*/
+static void delay_signal(const double *in, double *out,
+                         unsigned n, int delay)
+{
+    for (unsigned i = 0; i < n; i++) {
+        /* Use modular arithmetic with unsigned wraparound.
+         * For negative delays, the unsigned conversion + modulus
+         * produces the correct circular shift. */
+        unsigned j = (i + (unsigned)delay) % n;
+        out[j] = in[i];
+    }
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_dot()
+ * -----------------------------------------------------------------------*/
+
+/** Dot product of orthogonal vectors should be zero. */
+static int test_dot_orthogonal(void)
+{
+    double a[] = {1.0, 0.0, 0.0};
+    double b[] = {0.0, 1.0, 0.0};
+    return approx_equal(MD_dot(a, b, 3), 0.0, 1e-15);
+}
+
+/** Dot product of a vector with itself equals the sum of squares. */
+static int test_dot_self(void)
+{
+    double a[] = {1.0, 2.0, 3.0};
+    /* 1^2 + 2^2 + 3^2 = 14 */
+    return approx_equal(MD_dot(a, a, 3), 14.0, 1e-15);
+}
+
+/** Dot product of known vectors. */
+static int test_dot_known(void)
+{
+    double a[] = {1.0, 2.0, 3.0, 4.0};
+    double b[] = {5.0, 6.0, 7.0, 8.0};
+    /* 1*5 + 2*6 + 3*7 + 4*8 = 5+12+21+32 = 70 */
+    return approx_equal(MD_dot(a, b, 4), 70.0, 1e-15);
+}
+
+/** Dot product with length 1 just returns a*b. */
+static int test_dot_single(void)
+{
+    double a[] = {3.5};
+    double b[] = {2.0};
+    return approx_equal(MD_dot(a, b, 1), 7.0, 1e-15);
+}
+
+/** Dot product with all zeros should be zero. */
+static int test_dot_zeros(void)
+{
+    double a[] = {0.0, 0.0, 0.0};
+    double b[] = {1.0, 2.0, 3.0};
+    return approx_equal(MD_dot(a, b, 3), 0.0, 1e-15);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_energy()
+ * -----------------------------------------------------------------------*/
+
+/** Energy of a zero signal is zero. */
+static int test_energy_zero(void)
+{
+    double a[] = {0.0, 0.0, 0.0};
+    return approx_equal(MD_energy(a, 3), 0.0, 1e-15);
+}
+
+/** Energy of a constant signal: N * c^2. */
+static int test_energy_constant(void)
+{
+    double a[] = {3.0, 3.0, 3.0, 3.0};
+    /* 4 * 3^2 = 36 */
+    return approx_equal(MD_energy(a, 4), 36.0, 1e-15);
+}
+
+/** Energy of a known signal. */
+static int test_energy_known(void)
+{
+    double a[] = {1.0, -2.0, 3.0};
+    /* 1 + 4 + 9 = 14 */
+    return approx_equal(MD_energy(a, 3), 14.0, 1e-15);
+}
+
+/** Energy of a single sample. */
+static int test_energy_single(void)
+{
+    double a[] = {5.0};
+    return approx_equal(MD_energy(a, 1), 25.0, 1e-15);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_power()
+ * -----------------------------------------------------------------------*/
+
+/** Power = energy / N. */
+static int test_power_known(void)
+{
+    double a[] = {1.0, -2.0, 3.0};
+    /* energy = 14, N = 3, power = 14/3 */
+    return approx_equal(MD_power(a, 3), 14.0 / 3.0, 1e-15);
+}
+
+/** Power of a unit-amplitude sine wave over full periods approaches 0.5. */
+static int test_power_sine(void)
+{
+    /* Generate exactly one full cycle of sin(x) with many samples */
+    unsigned N = 10000;
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * (double)i / (double)N);
+    }
+    /* Power of sin(x) over one full cycle = 0.5 */
+    double p = MD_power(sig, N);
+    free(sig);
+    return approx_equal(p, 0.5, 1e-4);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_power_db()
+ * -----------------------------------------------------------------------*/
+
+/** Power in dB for a known signal. */
+static int test_power_db_known(void)
+{
+    /* Create a signal with power = 1.0 -> 0 dB */
+    double a[] = {1.0, -1.0, 1.0, -1.0};
+    /* energy = 4, N = 4, power = 1.0, dB = 0.0 */
+    return approx_equal(MD_power_db(a, 4), 0.0, 1e-10);
+}
+
+/** A very quiet signal should be at the dB floor (power gets clamped to 1e-10). */
+static int test_power_db_quiet(void)
+{
+    double a[] = {1e-6, 1e-6};
+    /* power = 1e-12, but the floor of 1e-10 kicks in.
+     * dB = 10*log10(1e-10) = -100.0 */
+    double db = MD_power_db(a, 2);
+    return (db <= -100.0);
+}
+
+/** Silent signal should hit the floor (not -inf). */
+static int test_power_db_floor(void)
+{
+    double a[] = {0.0, 0.0, 0.0};
+    double db = MD_power_db(a, 3);
+    /* The floor is 1e-10, so dB = 10*log10(1e-10) = -100 */
+    return approx_equal(db, -100.0, 1e-10);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_scale() and MD_scale_vec()
+ * -----------------------------------------------------------------------*/
+
+/** Scale a midpoint value. */
+static int test_scale_midpoint(void)
+{
+    /* 5 is the midpoint of [0,10], should map to midpoint of [0,100] = 50 */
+    return approx_equal(MD_scale(5.0, 0.0, 10.0, 0.0, 100.0), 50.0, 1e-15);
+}
+
+/** Scale endpoints. */
+static int test_scale_endpoints(void)
+{
+    int ok = 1;
+    ok &= approx_equal(MD_scale(0.0, 0.0, 10.0, 0.0, 100.0), 0.0, 1e-15);
+    ok &= approx_equal(MD_scale(10.0, 0.0, 10.0, 0.0, 100.0), 100.0, 1e-15);
+    return ok;
+}
+
+/** Scale a vector. */
+static int test_scale_vec(void)
+{
+    double in[]  = {0.0, 5.0, 10.0};
+    double out[3];
+    MD_scale_vec(in, out, 3, 0.0, 10.0, -1.0, 1.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], -1.0, 1e-15);
+    ok &= approx_equal(out[1],  0.0, 1e-15);
+    ok &= approx_equal(out[2],  1.0, 1e-15);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_fit_within_range()
+ * -----------------------------------------------------------------------*/
+
+/** Values already in range should be copied unchanged. */
+static int test_fit_in_range_no_change(void)
+{
+    double in[]  = {0.1, 0.5, 0.9};
+    double out[3];
+    MD_fit_within_range(in, out, 3, 0.0, 1.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], 0.1, 1e-15);
+    ok &= approx_equal(out[1], 0.5, 1e-15);
+    ok &= approx_equal(out[2], 0.9, 1e-15);
+    return ok;
+}
+
+/** Values outside range should be rescaled. */
+static int test_fit_in_range_rescale(void)
+{
+    double in[]  = {-10.0, 0.0, 10.0};
+    double out[3];
+    MD_fit_within_range(in, out, 3, -1.0, 1.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], -1.0, 1e-15);
+    ok &= approx_equal(out[1],  0.0, 1e-15);
+    ok &= approx_equal(out[2],  1.0, 1e-15);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_adjust_dblevel()
+ * -----------------------------------------------------------------------*/
+
+/** After adjustment, the output power should match the target dB. */
+static int test_adjust_dblevel(void)
+{
+    unsigned N = 1000;
+    double *in  = malloc(N * sizeof(double));
+    double *out = malloc(N * sizeof(double));
+
+    /* Create a low-level signal */
+    for (unsigned i = 0; i < N; i++) {
+        in[i] = 0.01 * sin(2.0 * M_PI * (double)i / 100.0);
+    }
+
+    double target_db = -10.0;
+    MD_adjust_dblevel(in, out, N, target_db);
+
+    double actual_db = MD_power_db(out, N);
+
+    free(out);
+    free(in);
+
+    /* The output dB might not exactly match if clipping occurred,
+     * but for a small signal boosted to -10 dB it should be close. */
+    return approx_equal(actual_db, target_db, 0.5);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_entropy()
+ * -----------------------------------------------------------------------*/
+
+/** Uniform distribution should have maximum entropy (close to 1.0). */
+static int test_entropy_uniform(void)
+{
+    double a[] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+    double e = MD_entropy(a, 8, true);
+    return approx_equal(e, 1.0, 1e-10);
+}
+
+/** Spike distribution (all energy in one bin) should have low entropy. */
+static int test_entropy_spike(void)
+{
+    double a[] = {0.0, 0.0, 1000.0, 0.0, 0.0};
+    double e = MD_entropy(a, 5, true);
+    return approx_equal(e, 0.0, 1e-10);
+}
+
+/** All-zeros should return 0.0 (no meaningful distribution). */
+static int test_entropy_zeros(void)
+{
+    double a[] = {0.0, 0.0, 0.0};
+    double e = MD_entropy(a, 3, true);
+    return approx_equal(e, 0.0, 1e-15);
+}
+
+/** Single element should return 0.0. */
+static int test_entropy_single(void)
+{
+    double a[] = {42.0};
+    double e = MD_entropy(a, 1, true);
+    return approx_equal(e, 0.0, 1e-15);
+}
+
+/** Non-clip mode squares values (handles negatives). */
+static int test_entropy_no_clip(void)
+{
+    /* Symmetric distribution: squared values should give uniform-ish distribution */
+    double a[] = {-1.0, 1.0, -1.0, 1.0};
+    double e = MD_entropy(a, 4, false);
+    /* All squared values are 1.0, so this is a uniform distribution -> entropy = 1.0 */
+    return approx_equal(e, 1.0, 1e-10);
+}
+
+/** Entropy with clip mode should ignore negatives. */
+static int test_entropy_clip(void)
+{
+    double a[] = {-5.0, -3.0, 0.0, 1.0};
+    double e = MD_entropy(a, 4, true);
+    /* Only a[3]=1.0 contributes.  p=1.0, -p*log2(p) = 0.  Normalized: 0. */
+    return approx_equal(e, 0.0, 1e-10);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_Gen_Hann_Win()
+ * -----------------------------------------------------------------------*/
+
+/** Hanning window endpoints should be zero. */
+static int test_hann_endpoints(void)
+{
+    double win[64];
+    MD_Gen_Hann_Win(win, 64);
+    int ok = 1;
+    ok &= approx_equal(win[0], 0.0, 1e-15);
+    ok &= approx_equal(win[63], 0.0, 1e-15);
+    return ok;
+}
+
+/** Hanning window peak should be 1.0 at the centre. */
+static int test_hann_peak(void)
+{
+    unsigned n = 65;  /* odd length so there's an exact center */
+    double win[65];
+    MD_Gen_Hann_Win(win, n);
+    return approx_equal(win[32], 1.0, 1e-10);
+}
+
+/** Hanning window should be symmetric. */
+static int test_hann_symmetry(void)
+{
+    unsigned n = 128;
+    double win[128];
+    MD_Gen_Hann_Win(win, n);
+    int ok = 1;
+    for (unsigned i = 0; i < n / 2; i++) {
+        ok &= approx_equal(win[i], win[n - 1 - i], 1e-14);
+    }
+    return ok;
+}
+
+/** All Hanning window values should be in [0, 1]. */
+static int test_hann_range(void)
+{
+    unsigned n = 256;
+    double win[256];
+    MD_Gen_Hann_Win(win, n);
+    for (unsigned i = 0; i < n; i++) {
+        if (win[i] < -1e-15 || win[i] > 1.0 + 1e-15) return 0;
+    }
+    return 1;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_gcc() and MD_get_delay() -- GCC-PHAT
+ *
+ * These tests create known delayed signals and verify the algorithm
+ * correctly recovers the delay.
+ * -----------------------------------------------------------------------*/
+
+/** Detect a positive delay using PHAT weighting. */
+static int test_gcc_phat_positive_delay(void)
+{
+    int true_delay = 5;
+    unsigned N = 4096;
+    double *siga = calloc(N, sizeof(double));
+    double *sigb = calloc(N, sizeof(double));
+
+    /* Generate a test signal */
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    }
+    delay_signal(siga, sigb, N, true_delay);
+
+    int delay = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+    free(sigb);
+    free(siga);
+
+    return (delay == true_delay);
+}
+
+/** Detect a negative delay using PHAT weighting. */
+static int test_gcc_phat_negative_delay(void)
+{
+    int true_delay = -7;
+    unsigned N = 8192;
+    double *siga = calloc(N, sizeof(double));
+    double *sigb = calloc(N, sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = 10.0 * sin(2.0 * M_PI * (double)i / 128.0);
+    }
+    delay_signal(siga, sigb, N, true_delay);
+
+    int delay = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+    free(sigb);
+    free(siga);
+
+    return (delay == true_delay);
+}
+
+/** Zero delay should give zero. */
+static int test_gcc_phat_zero_delay(void)
+{
+    unsigned N = 4096;
+    double *siga = calloc(N, sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    }
+
+    /* Both signals are identical -- delay should be 0 */
+    int delay = MD_get_delay(siga, siga, N, NULL, 50, PHAT);
+    free(siga);
+
+    return (delay == 0);
+}
+
+/** Test with SIMP (non-PHAT) weighting. */
+static int test_gcc_simp_delay(void)
+{
+    int true_delay = 3;
+    unsigned N = 4096;
+    double *siga = calloc(N, sizeof(double));
+    double *sigb = calloc(N, sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    }
+    delay_signal(siga, sigb, N, true_delay);
+
+    int delay = MD_get_delay(siga, sigb, N, NULL, 50, SIMP);
+    free(sigb);
+    free(siga);
+
+    return (delay == true_delay);
+}
+
+/** MD_get_delay should return entropy when ent is not NULL. */
+static int test_gcc_returns_entropy(void)
+{
+    unsigned N = 4096;
+    double *siga = calloc(N, sizeof(double));
+    double *sigb = calloc(N, sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    }
+    delay_signal(siga, sigb, N, 3);
+
+    double ent = -1.0;
+    MD_get_delay(siga, sigb, N, &ent, 50, PHAT);
+    free(sigb);
+    free(siga);
+
+    /* Entropy should be a valid value between 0 and 1 */
+    return (ent >= 0.0 && ent <= 1.0);
+}
+
+/** Test MD_get_multiple_delays agrees with manual windowed MD_get_delay.
+ *
+ * MD_get_multiple_delays is a convenience wrapper that:
+ *   1. Applies a Hanning window to each signal.
+ *   2. Calls MD_get_delay on each windowed pair.
+ *
+ * This test verifies that its output matches what we get by doing
+ * those same steps manually.
+ */
+static int test_gcc_multiple_delays(void)
+{
+    unsigned N = 8192;
+    int delays[] = {-7, 5, -2};
+
+    double *siga = calloc(N, sizeof(double));
+    double *sigb = calloc(N, sizeof(double));
+    double *sigc = calloc(N, sizeof(double));
+    double *sigd = calloc(N, sizeof(double));
+
+    /* Generate reference signal */
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    }
+    delay_signal(siga, sigb, N, delays[0]);
+    delay_signal(siga, sigc, N, delays[1]);
+    delay_signal(siga, sigd, N, delays[2]);
+
+    /* Get results from MD_get_multiple_delays */
+    const double *sigs[] = {siga, sigb, sigc, sigd};
+    int multi_results[3];
+    MD_get_multiple_delays(sigs, 4, N, 50, PHAT, multi_results);
+
+    /* Manually window and call MD_get_delay for comparison */
+    double *hann = calloc(N, sizeof(double));
+    MD_Gen_Hann_Win(hann, N);
+
+    double *w_ref = calloc(N, sizeof(double));
+    double *w_sig = calloc(N, sizeof(double));
+
+    int manual_results[3];
+    const double *other[] = {sigb, sigc, sigd};
+    for (int k = 0; k < 3; k++) {
+        for (unsigned i = 0; i < N; i++) {
+            w_ref[i] = siga[i] * hann[i];
+            w_sig[i] = other[k][i] * hann[i];
+        }
+        manual_results[k] = MD_get_delay(w_ref, w_sig, N, NULL, 50, PHAT);
+    }
+
+    int ok = 1;
+    ok &= (multi_results[0] == manual_results[0]);
+    ok &= (multi_results[1] == manual_results[1]);
+    ok &= (multi_results[2] == manual_results[2]);
+
+    free(w_sig);
+    free(w_ref);
+    free(hann);
+    free(sigd);
+    free(sigc);
+    free(sigb);
+    free(siga);
+
+    return ok;
+}
+
+/** The gcc output array should have its peak at the right place. */
+static int test_gcc_lagvals_structure(void)
+{
+    unsigned N = 4096;
+    double *siga = calloc(N, sizeof(double));
+    double *lagvals = calloc(N, sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    }
+
+    /* Auto-correlation: the peak should be at the zero-lag position */
+    MD_gcc(siga, siga, N, lagvals, PHAT);
+
+    unsigned center = (unsigned)ceil((double)N / 2.0);
+
+    /* Find the index of the maximum */
+    unsigned max_i = 0;
+    double max_v = lagvals[0];
+    for (unsigned i = 1; i < N; i++) {
+        if (lagvals[i] > max_v) {
+            max_v = lagvals[i];
+            max_i = i;
+        }
+    }
+
+    free(lagvals);
+    free(siga);
+
+    /* The peak should be at the center (zero-lag) */
+    return (max_i == center);
+}
+
+/** Verify delay detection works after changing signal length (tests FFT plan caching). */
+static int test_gcc_different_lengths(void)
+{
+    int ok = 1;
+
+    /* First call with N=4096 */
+    {
+        int true_delay = 3;
+        unsigned N = 4096;
+        double *siga = calloc(N, sizeof(double));
+        double *sigb = calloc(N, sizeof(double));
+        for (unsigned i = 0; i < N; i++)
+            siga[i] = sin(2.0 * M_PI * (double)i / 64.0);
+        delay_signal(siga, sigb, N, true_delay);
+        int d = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+        ok &= (d == true_delay);
+        free(sigb);
+        free(siga);
+    }
+
+    /* Second call with N=2048 (forces FFT plan rebuild) */
+    {
+        int true_delay = -4;
+        unsigned N = 2048;
+        double *siga = calloc(N, sizeof(double));
+        double *sigb = calloc(N, sizeof(double));
+        for (unsigned i = 0; i < N; i++)
+            siga[i] = sin(2.0 * M_PI * (double)i / 32.0);
+        delay_signal(siga, sigb, N, true_delay);
+        int d = MD_get_delay(siga, sigb, N, NULL, 50, PHAT);
+        ok &= (d == true_delay);
+        free(sigb);
+        free(siga);
+    }
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for BiQuad filters
+ *
+ * We verify each filter type by feeding a known signal through it and
+ * checking that the expected frequency components are preserved or
+ * attenuated.
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Helper: measure the RMS amplitude of a sine wave after filtering.
+ *
+ * Generates a sine wave at the given frequency, passes it through
+ * the biquad filter, and returns the RMS of the steady-state output
+ * (skipping the initial transient).
+ */
+static double measure_filter_response(biquad *b, double freq, double srate,
+                                      unsigned total_samples, unsigned skip)
+{
+    double sum_sq = 0.0;
+    unsigned count = 0;
+
+    for (unsigned i = 0; i < total_samples; i++) {
+        double sample = sin(2.0 * M_PI * freq * (double)i / srate);
+        double out = BiQuad(sample, b);
+        if (i >= skip) {
+            sum_sq += out * out;
+            count++;
+        }
+    }
+
+    return sqrt(sum_sq / (double)count);
+}
+
+/** BiQuad_new should return NULL for an invalid filter type. */
+static int test_biquad_invalid_type(void)
+{
+    biquad *b = BiQuad_new(999, 0.0, 1000.0, 44100.0, 1.0);
+    return (b == NULL);
+}
+
+/** Low-pass filter: should pass low frequencies, attenuate high. */
+static int test_biquad_lpf(void)
+{
+    double srate = 44100.0;
+    double cutoff = 1000.0;
+    unsigned nsamples = 44100;  /* 1 second */
+    unsigned skip = 4410;       /* skip first 0.1s transient */
+
+    /* Test with a frequency well below the cutoff */
+    biquad *b_low = BiQuad_new(LPF, 0.0, cutoff, srate, 1.0);
+    double rms_low = measure_filter_response(b_low, 200.0, srate, nsamples, skip);
+    free(b_low);
+
+    /* Test with a frequency well above the cutoff */
+    biquad *b_high = BiQuad_new(LPF, 0.0, cutoff, srate, 1.0);
+    double rms_high = measure_filter_response(b_high, 10000.0, srate, nsamples, skip);
+    free(b_high);
+
+    /* The low frequency should pass through much louder than the high frequency.
+     * The input sine has RMS = 1/sqrt(2) ≈ 0.707.
+     * A good LPF should keep the low freq near that and attenuate the high freq. */
+    return (rms_low > 0.5 && rms_high < 0.1);
+}
+
+/** High-pass filter: should pass high frequencies, attenuate low. */
+static int test_biquad_hpf(void)
+{
+    double srate = 44100.0;
+    double cutoff = 1000.0;
+    unsigned nsamples = 44100;
+    unsigned skip = 4410;
+
+    biquad *b_low = BiQuad_new(HPF, 0.0, cutoff, srate, 1.0);
+    double rms_low = measure_filter_response(b_low, 100.0, srate, nsamples, skip);
+    free(b_low);
+
+    biquad *b_high = BiQuad_new(HPF, 0.0, cutoff, srate, 1.0);
+    double rms_high = measure_filter_response(b_high, 10000.0, srate, nsamples, skip);
+    free(b_high);
+
+    return (rms_high > 0.5 && rms_low < 0.1);
+}
+
+/** Band-pass filter: should pass the centre frequency, attenuate others. */
+static int test_biquad_bpf(void)
+{
+    double srate = 44100.0;
+    double center = 2000.0;
+    unsigned nsamples = 44100;
+    unsigned skip = 4410;
+
+    /* At centre frequency */
+    biquad *b_center = BiQuad_new(BPF, 0.0, center, srate, 1.0);
+    double rms_center = measure_filter_response(b_center, center, srate, nsamples, skip);
+    free(b_center);
+
+    /* Far below */
+    biquad *b_low = BiQuad_new(BPF, 0.0, center, srate, 1.0);
+    double rms_low = measure_filter_response(b_low, 100.0, srate, nsamples, skip);
+    free(b_low);
+
+    /* Far above */
+    biquad *b_high = BiQuad_new(BPF, 0.0, center, srate, 1.0);
+    double rms_high = measure_filter_response(b_high, 15000.0, srate, nsamples, skip);
+    free(b_high);
+
+    return (rms_center > rms_low && rms_center > rms_high && rms_center > 0.3);
+}
+
+/** Notch filter: should remove the centre frequency, pass others. */
+static int test_biquad_notch(void)
+{
+    double srate = 44100.0;
+    double notch_freq = 2000.0;
+    unsigned nsamples = 44100;
+    unsigned skip = 4410;
+
+    /* At the notch frequency (should be attenuated) */
+    biquad *b_notch = BiQuad_new(NOTCH, 0.0, notch_freq, srate, 1.0);
+    double rms_notch = measure_filter_response(b_notch, notch_freq, srate, nsamples, skip);
+    free(b_notch);
+
+    /* Away from the notch (should pass through) */
+    biquad *b_pass = BiQuad_new(NOTCH, 0.0, notch_freq, srate, 1.0);
+    double rms_pass = measure_filter_response(b_pass, 500.0, srate, nsamples, skip);
+    free(b_pass);
+
+    return (rms_notch < 0.1 && rms_pass > 0.5);
+}
+
+/** Peaking EQ with positive gain should boost the centre frequency. */
+static int test_biquad_peq_boost(void)
+{
+    double srate = 44100.0;
+    double center = 2000.0;
+    double gain_db = 12.0;
+    unsigned nsamples = 44100;
+    unsigned skip = 4410;
+
+    biquad *b = BiQuad_new(PEQ, gain_db, center, srate, 1.0);
+    double rms_boosted = measure_filter_response(b, center, srate, nsamples, skip);
+    free(b);
+
+    /* Input RMS is about 0.707; with +12dB boost, output should be much higher */
+    return (rms_boosted > 1.5);
+}
+
+/** Low shelf with positive gain should boost low frequencies. */
+static int test_biquad_low_shelf(void)
+{
+    double srate = 44100.0;
+    double shelf_freq = 1000.0;
+    double gain_db = 12.0;
+    unsigned nsamples = 44100;
+    unsigned skip = 4410;
+
+    /* Low frequency should be boosted */
+    biquad *b_low = BiQuad_new(LSH, gain_db, shelf_freq, srate, 1.0);
+    double rms_low = measure_filter_response(b_low, 100.0, srate, nsamples, skip);
+    free(b_low);
+
+    /* High frequency should be relatively unaffected */
+    biquad *b_high = BiQuad_new(LSH, gain_db, shelf_freq, srate, 1.0);
+    double rms_high = measure_filter_response(b_high, 10000.0, srate, nsamples, skip);
+    free(b_high);
+
+    return (rms_low > rms_high && rms_low > 1.0);
+}
+
+/** High shelf with positive gain should boost high frequencies. */
+static int test_biquad_high_shelf(void)
+{
+    double srate = 44100.0;
+    double shelf_freq = 1000.0;
+    double gain_db = 12.0;
+    unsigned nsamples = 44100;
+    unsigned skip = 4410;
+
+    /* High frequency should be boosted */
+    biquad *b_high = BiQuad_new(HSH, gain_db, shelf_freq, srate, 1.0);
+    double rms_high = measure_filter_response(b_high, 10000.0, srate, nsamples, skip);
+    free(b_high);
+
+    /* Low frequency should be relatively unaffected */
+    biquad *b_low = BiQuad_new(HSH, gain_db, shelf_freq, srate, 1.0);
+    double rms_low = measure_filter_response(b_low, 100.0, srate, nsamples, skip);
+    free(b_low);
+
+    return (rms_high > rms_low && rms_high > 1.0);
+}
+
+/** Filtering a DC signal through a HPF should output zero (steady state). */
+static int test_biquad_hpf_dc_rejection(void)
+{
+    biquad *b = BiQuad_new(HPF, 0.0, 100.0, 44100.0, 1.0);
+    double last_output = 0.0;
+
+    /* Feed a constant (DC) signal through the high-pass filter */
+    for (unsigned i = 0; i < 44100; i++) {
+        last_output = BiQuad(1.0, b);
+    }
+    free(b);
+
+    /* After settling, output should be essentially zero */
+    return approx_equal(last_output, 0.0, 1e-6);
+}
+
+/* -----------------------------------------------------------------------
+ * Main: run all tests
+ * -----------------------------------------------------------------------*/
+
+int main(void)
+{
+    printf("=== miniDSP Test Suite ===\n\n");
+
+    printf("--- MD_dot ---\n");
+    RUN_TEST(test_dot_orthogonal);
+    RUN_TEST(test_dot_self);
+    RUN_TEST(test_dot_known);
+    RUN_TEST(test_dot_single);
+    RUN_TEST(test_dot_zeros);
+
+    printf("\n--- MD_energy ---\n");
+    RUN_TEST(test_energy_zero);
+    RUN_TEST(test_energy_constant);
+    RUN_TEST(test_energy_known);
+    RUN_TEST(test_energy_single);
+
+    printf("\n--- MD_power ---\n");
+    RUN_TEST(test_power_known);
+    RUN_TEST(test_power_sine);
+
+    printf("\n--- MD_power_db ---\n");
+    RUN_TEST(test_power_db_known);
+    RUN_TEST(test_power_db_quiet);
+    RUN_TEST(test_power_db_floor);
+
+    printf("\n--- MD_scale / MD_scale_vec ---\n");
+    RUN_TEST(test_scale_midpoint);
+    RUN_TEST(test_scale_endpoints);
+    RUN_TEST(test_scale_vec);
+
+    printf("\n--- MD_fit_within_range ---\n");
+    RUN_TEST(test_fit_in_range_no_change);
+    RUN_TEST(test_fit_in_range_rescale);
+
+    printf("\n--- MD_adjust_dblevel ---\n");
+    RUN_TEST(test_adjust_dblevel);
+
+    printf("\n--- MD_entropy ---\n");
+    RUN_TEST(test_entropy_uniform);
+    RUN_TEST(test_entropy_spike);
+    RUN_TEST(test_entropy_zeros);
+    RUN_TEST(test_entropy_single);
+    RUN_TEST(test_entropy_no_clip);
+    RUN_TEST(test_entropy_clip);
+
+    printf("\n--- MD_Gen_Hann_Win ---\n");
+    RUN_TEST(test_hann_endpoints);
+    RUN_TEST(test_hann_peak);
+    RUN_TEST(test_hann_symmetry);
+    RUN_TEST(test_hann_range);
+
+    printf("\n--- GCC-PHAT delay estimation ---\n");
+    RUN_TEST(test_gcc_phat_positive_delay);
+    RUN_TEST(test_gcc_phat_negative_delay);
+    RUN_TEST(test_gcc_phat_zero_delay);
+    RUN_TEST(test_gcc_simp_delay);
+    RUN_TEST(test_gcc_returns_entropy);
+    RUN_TEST(test_gcc_multiple_delays);
+    RUN_TEST(test_gcc_lagvals_structure);
+    RUN_TEST(test_gcc_different_lengths);
+
+    printf("\n--- Biquad filters ---\n");
+    RUN_TEST(test_biquad_invalid_type);
+    RUN_TEST(test_biquad_lpf);
+    RUN_TEST(test_biquad_hpf);
+    RUN_TEST(test_biquad_bpf);
+    RUN_TEST(test_biquad_notch);
+    RUN_TEST(test_biquad_peq_boost);
+    RUN_TEST(test_biquad_low_shelf);
+    RUN_TEST(test_biquad_high_shelf);
+    RUN_TEST(test_biquad_hpf_dc_rejection);
+
+    /* Clean up FFTW resources */
+    MD_shutdown();
+
+    /* Print summary */
+    printf("\n=== Results: %d/%d passed", tests_passed, tests_run);
+    if (tests_failed > 0) {
+        printf(", %d FAILED", tests_failed);
+    }
+    printf(" ===\n");
+
+    return (tests_failed > 0) ? 1 : 0;
+}
