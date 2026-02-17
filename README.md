@@ -12,6 +12,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 ### Signal Processing (minidsp.h)
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 - **Magnitude spectrum** -- compute |X(k)| from a real signal using the FFT; the foundation of frequency-domain analysis.
+- **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
@@ -59,7 +60,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 58 tests
+make test       # builds and runs all 66 tests
 ```
 
 ### Test inside an Ubuntu container
@@ -121,6 +122,27 @@ make -C examples plot
 open examples/magnitude_spectrum.html    # interactive: zoom, pan, hover for values
 ```
 
+## Quick example: compute the power spectral density
+
+```c
+#include "minidsp.h"
+
+double signal[1024];
+// ... fill signal with audio samples ...
+
+unsigned num_bins = 1024 / 2 + 1;  /* 513 unique frequency bins */
+double *psd = malloc(num_bins * sizeof(double));
+MD_power_spectral_density(signal, 1024, psd);
+
+/* psd[k] = |X(k)|^2 / N  (power at frequency k * sample_rate / 1024) */
+
+free(psd);
+MD_shutdown();
+```
+
+A full example with Hanning windowing and one-sided PSD conversion is in
+`examples/power_spectral_density.c`.
+
 ## Quick example: filter audio with a low-pass biquad
 
 ```c
@@ -148,6 +170,7 @@ The test suite (`tests/test_minidsp.c`) covers every public function:
 - **Entropy** -- uniform, spike, zero, clip/no-clip modes
 - **Hanning window** -- endpoints, peak, symmetry, range
 - **Magnitude spectrum** -- single sine, two sines, DC signal, zeros, impulse (flat spectrum), Parseval's theorem, FFT plan re-caching, non-negativity
+- **Power spectral density** -- single sine, two sines, DC signal, zeros, impulse (flat PSD), Parseval's theorem, FFT plan re-caching, non-negativity
 - **GCC-PHAT** -- positive/negative/zero delays, SIMP vs PHAT weighting, multi-signal delays, FFT plan caching
 - **Biquad filters** -- LPF, HPF, BPF, Notch, PEQ, Low shelf, High shelf, DC rejection
 - **File I/O writers** -- .npy round-trip, safetensors round-trip, WAV round-trip

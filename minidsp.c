@@ -562,6 +562,48 @@ void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out)
     }
 }
 
+/**
+ * Compute the power spectral density (PSD) of a real-valued signal.
+ *
+ * The PSD is the "periodogram" estimator: PSD[k] = |X(k)|^2 / N.
+ * It reuses the same FFT cache as MD_magnitude_spectrum() -- both
+ * perform the same real-to-complex FFT, only the post-processing differs.
+ *
+ * We compute |X(k)|^2 = re^2 + im^2 directly from the real and imaginary
+ * parts, rather than calling cabs() (which computes sqrt(re^2 + im^2))
+ * and then squaring.  This avoids a redundant sqrt and is both faster
+ * and more numerically precise.
+ *
+ * @param signal   Input signal of length N.
+ * @param N        Number of samples (must be >= 2).
+ * @param psd_out  Output: PSD for bins 0..N/2.
+ *                 Must be pre-allocated to N/2 + 1 doubles.
+ */
+void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out)
+{
+    assert(signal != nullptr);
+    assert(psd_out != nullptr);
+    assert(N >= 2);
+
+    _spec_setup(N);
+
+    /* Copy input into the local buffer (FFTW may overwrite it) */
+    memcpy(_spec_in, signal, N * sizeof(double));
+
+    /* Execute the forward FFT (real -> complex) */
+    fftw_execute(_spec_plan);
+
+    /* Compute PSD[k] = |X(k)|^2 / N = (re^2 + im^2) / N.
+     * We use creal/cimag instead of cabs to avoid a redundant sqrt --
+     * cabs computes sqrt(re^2 + im^2), and we'd just square it again. */
+    unsigned num_bins = N / 2 + 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        double re = creal(_spec_out[k]);
+        double im = cimag(_spec_out[k]);
+        psd_out[k] = (re * re + im * im) / (double)N;
+    }
+}
+
 /* -----------------------------------------------------------------------
  * Public API: GCC-PHAT delay estimation
  * -----------------------------------------------------------------------*/

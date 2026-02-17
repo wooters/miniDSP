@@ -680,6 +680,284 @@ static int test_mag_spectrum_non_negative(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_power_spectral_density()
+ *
+ * These tests mirror the magnitude spectrum tests but verify power
+ * (|X(k)|^2 / N) instead of amplitude (|X(k)|).  Key properties:
+ *
+ *   - PSD[k] = (magnitude[k])^2 / N
+ *   - Parseval: PSD[0] + 2*sum(PSD[1..N/2-1]) + PSD[N/2] = sum(x[n]^2)
+ *   - PSD is always >= 0 for any input
+ * -----------------------------------------------------------------------*/
+
+/** A single-frequency sine should produce a PSD peak at the correct bin. */
+static int test_psd_single_sine(void)
+{
+    unsigned N = 1024;
+    double sample_rate = 1024.0; /* bin spacing = 1 Hz */
+    double freq = 100.0;        /* should peak at bin 100 */
+
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * freq * (double)i / sample_rate);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    unsigned peak_bin = (unsigned)(freq * N / sample_rate);
+
+    /* Find the actual peak bin (skip DC) */
+    unsigned actual_peak = 1;
+    for (unsigned k = 2; k < num_bins; k++) {
+        if (psd[k] > psd[actual_peak]) {
+            actual_peak = k;
+        }
+    }
+
+    free(psd);
+    free(sig);
+
+    return (actual_peak == peak_bin);
+}
+
+/** Two sinusoids at different frequencies should produce two PSD peaks. */
+static int test_psd_two_sines(void)
+{
+    unsigned N = 2048;
+    double sample_rate = 2048.0;
+    double freq1 = 200.0;  /* bin 200 */
+    double freq2 = 500.0;  /* bin 500 */
+
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * freq1 * (double)i / sample_rate)
+               + sin(2.0 * M_PI * freq2 * (double)i / sample_rate);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    unsigned bin1 = (unsigned)(freq1 * N / sample_rate);
+    unsigned bin2 = (unsigned)(freq2 * N / sample_rate);
+
+    /* Both target bins should be much larger than their neighbours */
+    int ok = 1;
+    ok &= (psd[bin1] > psd[bin1 - 2] * 10.0);
+    ok &= (psd[bin1] > psd[bin1 + 2] * 10.0);
+    ok &= (psd[bin2] > psd[bin2 - 2] * 10.0);
+    ok &= (psd[bin2] > psd[bin2 + 2] * 10.0);
+
+    free(psd);
+    free(sig);
+
+    return ok;
+}
+
+/**
+ * A DC signal (constant value) concentrates all power in bin 0.
+ * For a DC signal x[n] = A, the DFT gives X(0) = N*A and X(k) = 0 for k > 0.
+ * So PSD[0] = |N*A|^2 / N = N * A^2.
+ */
+static int test_psd_dc(void)
+{
+    unsigned N = 256;
+    double amp = 3.0;
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = amp;
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    int ok = 1;
+    /* PSD[0] = (N * A)^2 / N = N * A^2 */
+    ok &= approx_equal(psd[0], (double)N * amp * amp, 1e-10);
+
+    /* All other bins should be zero */
+    for (unsigned k = 1; k < num_bins; k++) {
+        ok &= approx_equal(psd[k], 0.0, 1e-10);
+    }
+
+    free(psd);
+    free(sig);
+
+    return ok;
+}
+
+/** An all-zeros signal should have zero PSD everywhere. */
+static int test_psd_zeros(void)
+{
+    unsigned N = 512;
+    double *sig = calloc(N, sizeof(double));
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(psd[k], 0.0, 1e-15);
+    }
+
+    free(psd);
+    free(sig);
+
+    return ok;
+}
+
+/**
+ * A unit impulse (delta function) has a flat PSD.
+ * The DFT of delta[n] = 1 for all k, so PSD[k] = 1^2 / N = 1/N.
+ */
+static int test_psd_impulse(void)
+{
+    unsigned N = 256;
+    double *sig = calloc(N, sizeof(double));
+    sig[0] = 1.0;
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    int ok = 1;
+    double expected = 1.0 / (double)N;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(psd[k], expected, 1e-15);
+    }
+
+    free(psd);
+    free(sig);
+
+    return ok;
+}
+
+/**
+ * Parseval's theorem for the periodogram:
+ *   PSD[0] + 2 * sum(PSD[1..N/2-1]) + PSD[N/2] = sum(x[n]^2)
+ *
+ * The one-sided PSD sum equals the total signal energy (not average power).
+ * This is because PSD[k] = |X(k)|^2 / N, and Parseval gives
+ * sum(|X(k)|^2) = N * sum(x[n]^2), so the one-sided reconstruction
+ * recovers the full time-domain energy.
+ */
+static int test_psd_parseval(void)
+{
+    unsigned N = 1024;
+    double *sig = malloc(N * sizeof(double));
+
+    /* Generate a signal with multiple frequency components */
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = 0.5 * sin(2.0 * M_PI * 50.0 * (double)i / (double)N)
+               + 0.3 * cos(2.0 * M_PI * 120.0 * (double)i / (double)N)
+               + 0.2;
+    }
+
+    /* Time-domain energy: sum(x[n]^2) */
+    double time_energy = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        time_energy += sig[i] * sig[i];
+    }
+
+    /* Frequency-domain energy via one-sided PSD sum */
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    double freq_energy = psd[0];                     /* DC bin */
+    for (unsigned k = 1; k < N / 2; k++) {
+        freq_energy += 2.0 * psd[k];                /* interior bins (doubled) */
+    }
+    freq_energy += psd[N / 2];                       /* Nyquist bin */
+
+    free(psd);
+    free(sig);
+
+    return approx_equal(time_energy, freq_energy, 1e-8);
+}
+
+/** Calling with different N values should work (tests FFT plan re-caching). */
+static int test_psd_different_lengths(void)
+{
+    int ok = 1;
+
+    /* First call with N = 512 */
+    {
+        unsigned N = 512;
+        double *sig = calloc(N, sizeof(double));
+        sig[0] = 1.0;
+
+        unsigned num_bins = N / 2 + 1;
+        double *psd = malloc(num_bins * sizeof(double));
+        MD_power_spectral_density(sig, N, psd);
+
+        /* Impulse: PSD[k] = 1/N for all k */
+        double expected = 1.0 / (double)N;
+        for (unsigned k = 0; k < num_bins; k++) {
+            ok &= approx_equal(psd[k], expected, 1e-15);
+        }
+
+        free(psd);
+        free(sig);
+    }
+
+    /* Second call with N = 256 (forces plan rebuild) */
+    {
+        unsigned N = 256;
+        double *sig = calloc(N, sizeof(double));
+        sig[0] = 1.0;
+
+        unsigned num_bins = N / 2 + 1;
+        double *psd = malloc(num_bins * sizeof(double));
+        MD_power_spectral_density(sig, N, psd);
+
+        double expected = 1.0 / (double)N;
+        for (unsigned k = 0; k < num_bins; k++) {
+            ok &= approx_equal(psd[k], expected, 1e-15);
+        }
+
+        free(psd);
+        free(sig);
+    }
+
+    return ok;
+}
+
+/**
+ * The PSD should be non-negative for any input.
+ * Since PSD[k] = (re^2 + im^2) / N, it is always >= 0.
+ */
+static int test_psd_non_negative(void)
+{
+    unsigned N = 512;
+    double *sig = malloc(N * sizeof(double));
+
+    /* Signal with positive and negative values */
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * 7.0 * (double)i / (double)N)
+               - 0.5 * cos(2.0 * M_PI * 13.0 * (double)i / (double)N);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(sig, N, psd);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= (psd[k] >= 0.0);
+    }
+
+    free(psd);
+    free(sig);
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_gcc() and MD_get_delay() -- GCC-PHAT
  *
  * These tests create known delayed signals and verify the algorithm
@@ -1370,6 +1648,16 @@ int main(void)
     RUN_TEST(test_mag_spectrum_parseval);
     RUN_TEST(test_mag_spectrum_different_lengths);
     RUN_TEST(test_mag_spectrum_non_negative);
+
+    printf("\n--- MD_power_spectral_density ---\n");
+    RUN_TEST(test_psd_single_sine);
+    RUN_TEST(test_psd_two_sines);
+    RUN_TEST(test_psd_dc);
+    RUN_TEST(test_psd_zeros);
+    RUN_TEST(test_psd_impulse);
+    RUN_TEST(test_psd_parseval);
+    RUN_TEST(test_psd_different_lengths);
+    RUN_TEST(test_psd_non_negative);
 
     printf("\n--- GCC-PHAT delay estimation ---\n");
     RUN_TEST(test_gcc_phat_positive_delay);

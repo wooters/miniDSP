@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
- *   - FFT-based magnitude spectrum computation
+ *   - FFT-based magnitude spectrum and power spectral density
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
  * These are the kinds of building blocks you'd use in an audio processing
@@ -134,6 +134,54 @@ void MD_adjust_dblevel(const double *in, double *out,
  * @endcode
  */
 void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out);
+
+/**
+ * Compute the power spectral density (PSD) of a real-valued signal.
+ *
+ * The PSD describes how a signal's power is distributed across frequencies.
+ * While the magnitude spectrum tells you the *amplitude* at each frequency,
+ * the PSD tells you the *power* -- useful for noise analysis, SNR estimation,
+ * and comparing signals of different lengths.
+ *
+ * This function computes the "periodogram" estimator:
+ *
+ *   PSD[k] = |X(k)|^2 / N  =  (Re(X(k))^2 + Im(X(k))^2) / N
+ *
+ * where X(k) is the DFT of the input signal (unnormalised, as computed by FFTW).
+ *
+ * **Relationship to the magnitude spectrum:**
+ *   PSD[k] = |X(k)|^2 / N  =  (magnitude[k])^2 / N
+ *
+ * **Parseval's theorem (energy conservation):**
+ *   The one-sided PSD sums to the total signal energy:
+ *   PSD[0] + 2 * sum(PSD[1..N/2-1]) + PSD[N/2] = sum(x[n]^2)
+ *
+ * @param signal   Input signal of length N.
+ * @param N        Number of samples in the signal (must be >= 2).
+ * @param psd_out  Output array, must be pre-allocated to at least N/2 + 1
+ *                 doubles.  On return, psd_out[k] = |X(k)|^2 / N.
+ *
+ * @note The caller must allocate psd_out.  The required size is
+ *       (N / 2 + 1) * sizeof(double).
+ *
+ * Example:
+ * @code
+ *   double signal[1024];
+ *   // ... fill signal with audio samples ...
+ *
+ *   unsigned num_bins = 1024 / 2 + 1;  // = 513
+ *   double *psd = malloc(num_bins * sizeof(double));
+ *   MD_power_spectral_density(signal, 1024, psd);
+ *
+ *   // psd[0]   = DC power
+ *   // psd[k]   = power at frequency k * sample_rate / 1024
+ *   // psd[512] = Nyquist frequency power
+ *
+ *   free(psd);
+ *   MD_shutdown();  // free cached FFT plans when done
+ * @endcode
+ */
+void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out);
 
 /* -----------------------------------------------------------------------
  * Window generation
