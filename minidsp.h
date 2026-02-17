@@ -6,6 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
+ *   - Signal generators (sine wave)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
@@ -324,6 +325,34 @@ void MD_stft(const double *signal, unsigned signal_len,
  * spectral leakage when you later take an FFT.
  */
 void MD_Gen_Hann_Win(double *out, unsigned n);
+
+/* -----------------------------------------------------------------------
+ * Signal generators
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Generate a sine wave.
+ *
+ * Fills `output[i] = amplitude * sin(2π * freq * i / sample_rate)`
+ * for i in [0, N).
+ *
+ * This is the simplest test signal in DSP — a pure tone at a single
+ * frequency.  Use it to verify filter responses, check FFT bin
+ * alignment, or provide a clean input for any processing chain.
+ *
+ * @param output      Output buffer of length N (caller-allocated).
+ * @param N           Number of samples to generate.  Must be > 0.
+ * @param amplitude   Peak amplitude of the sine wave (e.g. 1.0).
+ * @param freq        Frequency in Hz.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ *
+ * @code
+ * double sig[1024];
+ * MD_sine_wave(sig, 1024, 1.0, 440.0, 44100.0);  // 440 Hz A4 tone
+ * @endcode
+ */
+void MD_sine_wave(double *output, unsigned N, double amplitude,
+                  double freq, double sample_rate);
 
 /* -----------------------------------------------------------------------
  * Resource cleanup

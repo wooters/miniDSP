@@ -1596,6 +1596,81 @@ static int test_biquad_hpf_dc_rejection(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_sine_wave()
+ * -----------------------------------------------------------------------*/
+
+/** output[0] must be 0 for any amplitude/freq because sin(0) = 0. */
+static int test_sine_starts_at_zero(void)
+{
+    double out[64];
+    MD_sine_wave(out, 64, 3.7, 440.0, 44100.0);
+    return approx_equal(out[0], 0.0, 1e-12);
+}
+
+/** At i = sample_rate / (4 * freq) the sine reaches its peak (sin(π/2) = 1). */
+static int test_sine_quarter_period(void)
+{
+    double sample_rate = 16000.0;
+    double freq = 1000.0;
+    double amplitude = 2.5;
+    unsigned N = (unsigned)(sample_rate / freq) * 4;
+    double out[N];
+    MD_sine_wave(out, N, amplitude, freq, sample_rate);
+    unsigned quarter = (unsigned)(sample_rate / (4.0 * freq));
+    return approx_equal(out[quarter], amplitude, 1e-9);
+}
+
+/** At i = sample_rate / freq the sine completes one full period (sin(2π) ≈ 0). */
+static int test_sine_full_period(void)
+{
+    double sample_rate = 16000.0;
+    double freq = 500.0;
+    double amplitude = 1.0;
+    unsigned period = (unsigned)(sample_rate / freq);
+    double out[period + 1];
+    MD_sine_wave(out, period + 1, amplitude, freq, sample_rate);
+    return approx_equal(out[period], 0.0, 1e-9);
+}
+
+/** Magnitude spectrum of a 1 kHz sine (N=1024, fs=16 kHz) peaks at bin k=64. */
+static int test_sine_spectrum_peak(void)
+{
+    unsigned N = 1024;
+    double sample_rate = 16000.0;
+    double freq = 1000.0;                         /* bin 64: 64 * 16000/1024 */
+    unsigned expected_bin = (unsigned)(freq * N / sample_rate);  /* = 64 */
+
+    double sig[N];
+    MD_sine_wave(sig, N, 1.0, freq, sample_rate);
+
+    unsigned num_bins = N / 2 + 1;
+    double mag[num_bins];
+    MD_magnitude_spectrum(sig, N, mag);
+
+    unsigned peak_bin = 0;
+    for (unsigned k = 1; k < num_bins; k++) {
+        if (mag[k] > mag[peak_bin])
+            peak_bin = k;
+    }
+    return (peak_bin == expected_bin);
+}
+
+/** Negative amplitude: output[0]=0, quarter-period value ≈ amplitude. */
+static int test_sine_amplitude_negative(void)
+{
+    double sample_rate = 44100.0;
+    double freq = 441.0;
+    double amplitude = -2.0;
+    unsigned N = 1024;
+    double out[N];
+    MD_sine_wave(out, N, amplitude, freq, sample_rate);
+    unsigned quarter = (unsigned)(sample_rate / (4.0 * freq));
+    int ok = approx_equal(out[0], 0.0, 1e-12);
+    ok &= approx_equal(out[quarter], amplitude, 1e-6);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_stft() and MD_stft_num_frames()
  * -----------------------------------------------------------------------*/
 
@@ -2156,6 +2231,13 @@ int main(void)
     RUN_TEST(test_biquad_low_shelf);
     RUN_TEST(test_biquad_high_shelf);
     RUN_TEST(test_biquad_hpf_dc_rejection);
+
+    printf("\n--- MD_sine_wave ---\n");
+    RUN_TEST(test_sine_starts_at_zero);
+    RUN_TEST(test_sine_quarter_period);
+    RUN_TEST(test_sine_full_period);
+    RUN_TEST(test_sine_spectrum_peak);
+    RUN_TEST(test_sine_amplitude_negative);
 
     printf("\n--- MD_stft ---\n");
     RUN_TEST(test_stft_num_frames);

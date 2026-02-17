@@ -549,6 +549,21 @@ void MD_Gen_Hann_Win(double *out, unsigned n)
 }
 
 /* -----------------------------------------------------------------------
+ * Public API: Signal generators
+ * -----------------------------------------------------------------------*/
+
+void MD_sine_wave(double *output, unsigned N, double amplitude,
+                  double freq, double sample_rate)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+    double phase_step = 2.0 * M_PI * freq / sample_rate;
+    for (unsigned i = 0; i < N; i++)
+        output[i] = amplitude * sin(phase_step * (double)i);
+}
+
+/* -----------------------------------------------------------------------
  * Public API: FFT / Spectrum Analysis
  * -----------------------------------------------------------------------*/
 

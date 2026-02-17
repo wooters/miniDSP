@@ -18,6 +18,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
+- **Sine wave generator** -- pure tone at a given frequency and amplitude; the "hello world" of DSP.
 
 ### Biquad Filters (biquad.h)
 Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/Audio-EQ-Cookbook.txt):
@@ -62,7 +63,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 80 tests
+make test       # builds and runs all 85 tests
 ```
 
 ### Test inside an Ubuntu container

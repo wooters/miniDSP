@@ -13,6 +13,9 @@ examples/spectrogram.html
 examples/phase_spectrum
 examples/phase_spectrum.csv
 examples/phase_spectrum.html
+examples/sine_wave
+examples/sine_wave.csv
+examples/sine_wave.html
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test
