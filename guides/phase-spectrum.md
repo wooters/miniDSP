@@ -16,7 +16,7 @@ much energy is at frequency \f$k\f$.  The **phase spectrum**
 \f$\phi(k)\f$ tells you the *timing* of that frequency component:
 
 \f[
-\phi(k) = \arg X(k) = \operatorname{atan2}\!\bigl(\operatorname{Im} X(k),\,\operatorname{Re} X(k)\bigr)
+\phi(k) = \arg X(k) = \mathrm{atan2}\!\bigl(\mathrm{Im}\, X(k),\,\mathrm{Re}\, X(k)\bigr)
 \qquad \phi(k) \in [-\pi,\, \pi]
 \f]
 
