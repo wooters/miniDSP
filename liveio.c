@@ -245,27 +245,59 @@ static void _PlayStreamFinished(void *userData)
 }
 
 /* -----------------------------------------------------------------------
+ * Internal helpers for stream setup
+ * -----------------------------------------------------------------------*/
+
+/** Auto-initialise PortAudio if not already done. */
+static LaError_t _ensure_init(void)
+{
+    if (LA_InitDone == 0) {
+        if (LA_init() != LA_OK) return LA_ERROR;
+    }
+    return LA_OK;
+}
+
+/** Configure mono 16-bit input parameters for the default device. */
+static LaError_t _setup_input_params(PaStreamParameters *p)
+{
+    p->device = Pa_GetDefaultInputDevice();
+    if (p->device == paNoDevice) {
+        LA_LastError = paNoDevice;
+        return LA_ERROR;
+    }
+    p->channelCount              = 1;       /* Mono input */
+    p->sampleFormat              = paInt16;
+    p->suggestedLatency          = Pa_GetDeviceInfo(p->device)->defaultHighInputLatency;
+    p->hostApiSpecificStreamInfo = nullptr;
+    return LA_OK;
+}
+
+/** Configure stereo 16-bit output parameters for the default device. */
+static LaError_t _setup_output_params(PaStreamParameters *p)
+{
+    p->device = Pa_GetDefaultOutputDevice();
+    if (p->device == paNoDevice) {
+        LA_LastError = paNoDevice;
+        return LA_ERROR;
+    }
+    p->channelCount              = 2;       /* Stereo output */
+    p->sampleFormat              = paInt16;
+    p->suggestedLatency          = Pa_GetDeviceInfo(p->device)->defaultHighOutputLatency;
+    p->hostApiSpecificStreamInfo = nullptr;
+    return LA_OK;
+}
+
+/* -----------------------------------------------------------------------
  * Public API: recording
  * -----------------------------------------------------------------------*/
 
 LaError_t LA_record_callback(unsigned samprate, PaStreamCallback *cb, void *cb_data)
 {
-    /* Auto-initialise if needed */
-    if (LA_InitDone == 0) {
-        if (LA_init() != LA_OK) return LA_ERROR;
-    }
+    if (_ensure_init() != LA_OK) return LA_ERROR;
     if (LA_is_recording() == 1) return LA_ERROR;
 
     PaStreamParameters inputParams;
-    inputParams.device = Pa_GetDefaultInputDevice();
-    if (inputParams.device == paNoDevice) {
-        LA_LastError = paNoDevice;
-        return LA_ERROR;
-    }
-    inputParams.channelCount            = 1;       /* Mono input */
-    inputParams.sampleFormat            = paInt16;
-    inputParams.suggestedLatency        = Pa_GetDeviceInfo(inputParams.device)->defaultHighInputLatency;
-    inputParams.hostApiSpecificStreamInfo = nullptr;
+    if (_setup_input_params(&inputParams) != LA_OK) return LA_ERROR;
 
     PaError err;
     err = Pa_OpenStream(&LA_RecordStream, &inputParams, nullptr,
@@ -282,9 +314,7 @@ LaError_t LA_record_callback(unsigned samprate, PaStreamCallback *cb, void *cb_d
 LaError_t LA_record(void *buffer, unsigned long bufsize,
                     unsigned samprate, int rectype)
 {
-    if (LA_InitDone == 0) {
-        if (LA_init() != LA_OK) return LA_ERROR;
-    }
+    if (_ensure_init() != LA_OK) return LA_ERROR;
     if (LA_is_recording() == 1) return LA_ERROR;
 
     LA_data.audiodata = (int16_t *)buffer;
@@ -292,19 +322,9 @@ LaError_t LA_record(void *buffer, unsigned long bufsize,
     LA_data.pos_w     = 0;
 
     PaStreamParameters inputParams;
-    inputParams.device = Pa_GetDefaultInputDevice();
-    if (inputParams.device == paNoDevice) {
-        LA_LastError = paNoDevice;
-        return LA_ERROR;
-    }
-    inputParams.channelCount            = 1;
-    inputParams.sampleFormat            = paInt16;
-    inputParams.suggestedLatency        = Pa_GetDeviceInfo(inputParams.device)->defaultHighInputLatency;
-    inputParams.hostApiSpecificStreamInfo = nullptr;
+    if (_setup_input_params(&inputParams) != LA_OK) return LA_ERROR;
 
-    PaError err;
     PaStreamCallback *cb;
-
     if (rectype == LA_REC_ONCE) {
         cb = _RecordCallback;
     } else if (rectype == LA_REC_CONT) {
@@ -313,6 +333,7 @@ LaError_t LA_record(void *buffer, unsigned long bufsize,
         return LA_ERROR;
     }
 
+    PaError err;
     err = Pa_OpenStream(&LA_RecordStream, &inputParams, nullptr,
                         samprate, paFramesPerBufferUnspecified,
                         paClipOff, cb, &LA_data);
@@ -336,21 +357,11 @@ LaError_t LA_record(void *buffer, unsigned long bufsize,
 
 LaError_t LA_play_callback(unsigned samprate, PaStreamCallback *cb, void *cb_data)
 {
-    if (LA_InitDone == 0) {
-        if (LA_init() != LA_OK) return LA_ERROR;
-    }
+    if (_ensure_init() != LA_OK) return LA_ERROR;
     if (LA_is_playing() == 1) return LA_ERROR;
 
     PaStreamParameters outputParams;
-    outputParams.device = Pa_GetDefaultOutputDevice();
-    if (outputParams.device == paNoDevice) {
-        LA_LastError = paNoDevice;
-        return LA_ERROR;
-    }
-    outputParams.channelCount            = 2;       /* Stereo output */
-    outputParams.sampleFormat            = paInt16;
-    outputParams.suggestedLatency        = Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
-    outputParams.hostApiSpecificStreamInfo = nullptr;
+    if (_setup_output_params(&outputParams) != LA_OK) return LA_ERROR;
 
     PaError err;
     err = Pa_OpenStream(&LA_PlayStream, nullptr, &outputParams,
@@ -366,9 +377,7 @@ LaError_t LA_play_callback(unsigned samprate, PaStreamCallback *cb, void *cb_dat
 
 LaError_t LA_play(const void *buffer, unsigned long bufsize, unsigned samprate)
 {
-    if (LA_InitDone == 0) {
-        if (LA_init() != LA_OK) return LA_ERROR;
-    }
+    if (_ensure_init() != LA_OK) return LA_ERROR;
     if (LA_is_playing() == 1) return LA_ERROR;
 
     LA_data.audiodata = (int16_t *)buffer;
@@ -376,15 +385,7 @@ LaError_t LA_play(const void *buffer, unsigned long bufsize, unsigned samprate)
     LA_data.pos_r     = 0;
 
     PaStreamParameters outputParams;
-    outputParams.device = Pa_GetDefaultOutputDevice();
-    if (outputParams.device == paNoDevice) {
-        LA_LastError = paNoDevice;
-        return LA_ERROR;
-    }
-    outputParams.channelCount            = 2;       /* Stereo output */
-    outputParams.sampleFormat            = paInt16;
-    outputParams.suggestedLatency        = Pa_GetDeviceInfo(outputParams.device)->defaultHighOutputLatency;
-    outputParams.hostApiSpecificStreamInfo = nullptr;
+    if (_setup_output_params(&outputParams) != LA_OK) return LA_ERROR;
 
     PaError err;
     err = Pa_OpenStream(&LA_PlayStream, nullptr, &outputParams,
