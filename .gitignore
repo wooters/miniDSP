@@ -24,5 +24,10 @@ tests/testliverec
 
 gnuplot_tmpdatafile_*
 
+# Example build artifacts
+examples/magnitude_spectrum
+examples/magnitude_spectrum.csv
+examples/magnitude_spectrum.html
+
 # Generated documentation
 docs/
