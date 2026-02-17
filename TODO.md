@@ -8,7 +8,7 @@ ranked roughly by educational impact.
 - [x] **Magnitude spectrum** -- compute |X(k)| from a real signal; the first thing students plot after learning the DFT
 - [x] **Power spectral density (PSD)** -- power per frequency bin (|X(k)|^2 / N); essential for noise analysis
 - [x] **Spectrogram / STFT** -- sliding-window FFT producing a time-frequency matrix; the workhorse of audio visualization
-- [ ] **Phase spectrum** -- arg(X(k)); needed for phase-vocoder effects and understanding group delay
+- [x] **Phase spectrum** -- arg(X(k)); needed for phase-vocoder effects and understanding group delay
 
 ## Signal Generators
 

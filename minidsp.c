@@ -640,6 +640,45 @@ void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out
 }
 
 /**
+ * Compute the one-sided phase spectrum of a real-valued signal.
+ *
+ * The phase is the argument (angle) of each complex DFT coefficient:
+ *   phi(k) = atan2(Im(X(k)), Re(X(k)))
+ *
+ * This reuses the same FFT cache as MD_magnitude_spectrum() and
+ * MD_power_spectral_density() -- no additional plan allocation.
+ *
+ * Phase is scale-invariant (multiplying a signal by a positive constant
+ * does not change its phase), so no normalisation by N is needed.
+ *
+ * @param signal    Input signal of length N.
+ * @param N         Number of samples (must be >= 2).
+ * @param phase_out Output: phase in radians for bins 0..N/2.
+ *                  Must be pre-allocated to N/2 + 1 doubles.
+ */
+void MD_phase_spectrum(const double *signal, unsigned N, double *phase_out)
+{
+    assert(signal    != nullptr);
+    assert(phase_out != nullptr);
+    assert(N >= 2);
+
+    _spec_setup(N);
+
+    /* Copy input into the local buffer (FFTW may overwrite it) */
+    memcpy(_spec_in, signal, N * sizeof(double));
+
+    /* Execute the forward FFT (real -> complex) */
+    fftw_execute(_spec_plan);
+
+    /* Compute phi(k) = atan2(Im(X(k)), Re(X(k))) for each bin.
+     * carg() from <complex.h> does exactly this and returns [-pi, pi]. */
+    unsigned num_bins = N / 2 + 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        phase_out[k] = carg(_spec_out[k]);
+    }
+}
+
+/**
  * Compute the number of complete STFT frames for the given parameters.
  *
  * Returns (signal_len - N) / hop + 1 when signal_len >= N, else 0.

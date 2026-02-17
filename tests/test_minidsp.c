@@ -958,6 +958,195 @@ static int test_psd_non_negative(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_phase_spectrum()
+ *
+ * Phase is well-defined only at bins with significant magnitude.  All
+ * tests use exact-integer-bin frequencies (sample_rate == N) so FFTW
+ * produces bit-exact complex values with no spectral leakage.
+ * -----------------------------------------------------------------------*/
+
+/**
+ * A pure cosine at an integer bin k0 has zero phase at that bin.
+ *
+ * cos(2pi*k0*n/N) = Re[exp(j*2pi*k0*n/N)], so X(k0) is real and
+ * positive, giving atan2(0, positive) == 0.
+ */
+static int test_phase_spectrum_cosine(void)
+{
+    unsigned N = 1024;
+    unsigned k0 = 100;
+    double *sig = malloc(N * sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = cos(2.0 * M_PI * (double)k0 * (double)i / (double)N);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *phase = malloc(num_bins * sizeof(double));
+    MD_phase_spectrum(sig, N, phase);
+
+    int ok = approx_equal(phase[k0], 0.0, 1e-9);
+
+    free(phase);
+    free(sig);
+    return ok;
+}
+
+/**
+ * A pure sine at an integer bin k0 has phase -pi/2 at that bin.
+ *
+ * sin(2pi*k0*n/N) = -Im[exp(j*2pi*k0*n/N)], so X(k0) is purely
+ * negative-imaginary, giving atan2(-N/2, 0) == -pi/2.
+ */
+static int test_phase_spectrum_sine(void)
+{
+    unsigned N = 1024;
+    unsigned k0 = 100;
+    double *sig = malloc(N * sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * (double)k0 * (double)i / (double)N);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *phase = malloc(num_bins * sizeof(double));
+    MD_phase_spectrum(sig, N, phase);
+
+    int ok = approx_equal(phase[k0], -M_PI / 2.0, 1e-9);
+
+    free(phase);
+    free(sig);
+    return ok;
+}
+
+/**
+ * A unit impulse at n=0 has zero phase everywhere.
+ *
+ * The DFT of delta[n] is X(k) = 1 for all k (real, positive),
+ * so atan2(0, 1) = 0 for every bin.
+ */
+static int test_phase_spectrum_impulse_at_zero(void)
+{
+    unsigned N = 512;
+    double *sig = calloc(N, sizeof(double));
+    sig[0] = 1.0;
+
+    unsigned num_bins = N / 2 + 1;
+    double *phase = malloc(num_bins * sizeof(double));
+    MD_phase_spectrum(sig, N, phase);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(phase[k], 0.0, 1e-12);
+    }
+
+    free(phase);
+    free(sig);
+    return ok;
+}
+
+/**
+ * A unit impulse at n=1 produces linear phase: phi(k) = -2*pi*k/N.
+ *
+ * By the DFT shift theorem, delaying a signal by d samples multiplies
+ * each frequency bin by exp(-j*2*pi*k*d/N), adding a linear phase
+ * ramp of slope -2*pi*d/N radians per bin.
+ */
+static int test_phase_spectrum_impulse_at_one(void)
+{
+    unsigned N = 512;
+    double *sig = calloc(N, sizeof(double));
+    sig[1] = 1.0;   /* unit impulse at n = 1 (delay d = 1) */
+
+    unsigned num_bins = N / 2 + 1;
+    double *phase = malloc(num_bins * sizeof(double));
+    MD_phase_spectrum(sig, N, phase);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        double expected = -2.0 * M_PI * (double)k / (double)N;
+        /* Use a wrap-aware comparison: -pi and +pi are the same angle.
+         * At the Nyquist bin (k = N/2), expected = -pi.  FFTW returns +pi
+         * because the tiny floating-point imaginary part can have either
+         * sign, so carg() may land on either boundary of [-pi, pi]. */
+        double diff = fabs(phase[k] - expected);
+        if (diff > M_PI) diff = 2.0 * M_PI - diff;  /* wrap to [0, pi] */
+        ok &= (diff < 1e-12);
+    }
+
+    free(phase);
+    free(sig);
+    return ok;
+}
+
+/**
+ * An all-zeros signal should produce zero phase everywhere.
+ *
+ * carg(0 + 0j) == 0 by convention (atan2(0, 0) == 0 in C).
+ */
+static int test_phase_spectrum_zeros(void)
+{
+    unsigned N = 256;
+    double *sig = calloc(N, sizeof(double));
+
+    unsigned num_bins = N / 2 + 1;
+    double *phase = malloc(num_bins * sizeof(double));
+    MD_phase_spectrum(sig, N, phase);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(phase[k], 0.0, 1e-15);
+    }
+
+    free(phase);
+    free(sig);
+    return ok;
+}
+
+/**
+ * Calling MD_phase_spectrum() with two different N values tests
+ * that the FFT plan cache is correctly rebuilt when N changes.
+ */
+static int test_phase_spectrum_different_lengths(void)
+{
+    int ok = 1;
+
+    /* First call: cosine at bin 50 in N=512 */
+    {
+        unsigned N = 512;
+        unsigned k0 = 50;
+        double *sig = malloc(N * sizeof(double));
+        for (unsigned i = 0; i < N; i++) {
+            sig[i] = cos(2.0 * M_PI * (double)k0 * (double)i / (double)N);
+        }
+        unsigned num_bins = N / 2 + 1;
+        double *phase = malloc(num_bins * sizeof(double));
+        MD_phase_spectrum(sig, N, phase);
+        ok &= approx_equal(phase[k0], 0.0, 1e-9);
+        free(phase);
+        free(sig);
+    }
+
+    /* Second call: cosine at bin 200 in N=2048 (forces plan rebuild) */
+    {
+        unsigned N = 2048;
+        unsigned k0 = 200;
+        double *sig = malloc(N * sizeof(double));
+        for (unsigned i = 0; i < N; i++) {
+            sig[i] = cos(2.0 * M_PI * (double)k0 * (double)i / (double)N);
+        }
+        unsigned num_bins = N / 2 + 1;
+        double *phase = malloc(num_bins * sizeof(double));
+        MD_phase_spectrum(sig, N, phase);
+        ok &= approx_equal(phase[k0], 0.0, 1e-9);
+        free(phase);
+        free(sig);
+    }
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_gcc() and MD_get_delay() -- GCC-PHAT
  *
  * These tests create known delayed signals and verify the algorithm
@@ -1938,6 +2127,14 @@ int main(void)
     RUN_TEST(test_psd_parseval);
     RUN_TEST(test_psd_different_lengths);
     RUN_TEST(test_psd_non_negative);
+
+    printf("\n--- MD_phase_spectrum ---\n");
+    RUN_TEST(test_phase_spectrum_cosine);
+    RUN_TEST(test_phase_spectrum_sine);
+    RUN_TEST(test_phase_spectrum_impulse_at_zero);
+    RUN_TEST(test_phase_spectrum_impulse_at_one);
+    RUN_TEST(test_phase_spectrum_zeros);
+    RUN_TEST(test_phase_spectrum_different_lengths);
 
     printf("\n--- GCC-PHAT delay estimation ---\n");
     RUN_TEST(test_gcc_phat_positive_delay);

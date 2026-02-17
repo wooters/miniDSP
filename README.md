@@ -13,6 +13,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 - **Magnitude spectrum** -- compute |X(k)| from a real signal using the FFT; the foundation of frequency-domain analysis.
 - **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
+- **Phase spectrum** -- compute arg(X(k)) in radians; reveals the timing of each frequency component and is a prerequisite for phase-vocoder effects.
 - **Spectrogram (STFT)** -- sliding-window FFT producing a time-frequency magnitude matrix; the standard tool for visualising time-varying audio.
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
@@ -61,7 +62,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 74 tests
+make test       # builds and runs all 80 tests
 ```
 
 ### Test inside an Ubuntu container

@@ -184,6 +184,52 @@ void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out);
 void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out);
 
 /**
+ * @brief Compute the one-sided phase spectrum of a real signal.
+ *
+ * Returns the instantaneous phase angle \f$\phi(k) = \arg X(k)\f$ for each
+ * DFT bin using an unnormalised real-to-complex FFT (FFTW r2c).  The phase
+ * is expressed in **radians** in the range \f$[-\pi,\,\pi]\f$.
+ *
+ * For a real signal of length \f$N\f$, only the first \f$N/2+1\f$ bins carry
+ * unique information (bins \f$N/2+1\ldots N-1\f$ are conjugate-symmetric
+ * mirrors).  Accordingly, @p phase_out must be pre-allocated to hold at least
+ * \f$N/2+1\f$ doubles.
+ *
+ * **Interpretation:**
+ * - A pure cosine at an integer bin \f$k_0\f$ (exact period in \f$N\f$
+ *   samples) produces \f$\phi(k_0) = 0\f$.
+ * - A pure sine at the same bin produces \f$\phi(k_0) = -\pi/2\f$.
+ * - A time-delayed signal exhibits **linear phase**: \f$\phi(k) = -2\pi k d/N\f$,
+ *   where \f$d\f$ is the delay in samples.
+ *
+ * @note Phase values at bins where the magnitude is near zero are numerically
+ *       unreliable.  Always examine MD_magnitude_spectrum() alongside the
+ *       phase spectrum to identify significant bins.
+ *
+ * @param[in]  signal    Input signal of length @p N.
+ * @param[in]  N         Signal length (must be >= 2).
+ * @param[out] phase_out Pre-allocated array of at least @p N/2+1 doubles
+ *                       that receives the phase in radians.
+ *
+ * **Example**
+ * @code
+ * unsigned N = 1024;
+ * double *sig = malloc(N * sizeof(double));
+ * // ... fill sig ...
+ * unsigned num_bins = N / 2 + 1;
+ * double *phase = malloc(num_bins * sizeof(double));
+ * MD_phase_spectrum(sig, N, phase);
+ * // phase[k] in [-M_PI, M_PI]
+ * free(sig);
+ * free(phase);
+ * MD_shutdown();
+ * @endcode
+ *
+ * @see MD_magnitude_spectrum(), MD_power_spectral_density(), MD_shutdown()
+ */
+void MD_phase_spectrum(const double *signal, unsigned N, double *phase_out);
+
+/**
  * Compute the number of STFT frames for the given signal length and parameters.
  *
  * The formula is:

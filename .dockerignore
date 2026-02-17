@@ -10,6 +10,9 @@ examples/power_spectral_density.html
 examples/spectrogram
 examples/spectrogram.csv
 examples/spectrogram.html
+examples/phase_spectrum
+examples/phase_spectrum.csv
+examples/phase_spectrum.html
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test

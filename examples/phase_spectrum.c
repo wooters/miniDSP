@@ -1,0 +1,297 @@
+/**
+ * @file phase_spectrum.c
+ * @brief Example: compute and export the phase spectrum of a test signal.
+ *
+ * This program demonstrates MD_phase_spectrum() by:
+ *   1. Generating a signal with three components at exact-integer-bin
+ *      frequencies: a cosine at 50 Hz, a sine at 100 Hz, and a
+ *      phase-shifted cosine at 200 Hz.
+ *   2. Computing the phase and magnitude spectra via MD_phase_spectrum()
+ *      and MD_magnitude_spectrum().
+ *   3. Writing the results to CSV and to an interactive HTML visualisation
+ *      (Plotly.js, no server required).
+ *
+ * Why no Hanning window?
+ *   Windowing tapers the signal edges to zero, which removes spectral
+ *   leakage but also smears the phase.  For a clean phase demonstration
+ *   we choose exact integer-bin frequencies (N=1024, sample_rate=1024 Hz
+ *   so bin k corresponds to k Hz exactly).  With exact bins there is no
+ *   leakage, so windowing is unnecessary and would only complicate the
+ *   interpretation.
+ *
+ * Build and run (from the repository root):
+ *   make                        # build libminidsp.a first
+ *   make -C examples plot       # build example, run it, generate HTML
+ *   open examples/phase_spectrum.html
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
+#include "minidsp.h"
+
+/* -----------------------------------------------------------------------
+ * Write the interactive HTML visualisation.
+ *
+ * The HTML file is completely self-contained: data is embedded as
+ * JavaScript arrays, and Plotly.js is loaded from CDN.
+ * Just open the file in any modern browser -- no local server needed.
+ * -----------------------------------------------------------------------*/
+static int write_html(const char *path,
+                      const double *freqs,
+                      const double *mag,
+                      const double *phase,
+                      unsigned num_bins,
+                      double sample_rate, unsigned N,
+                      double freq1, double freq2, double freq3)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    /* ---- HTML header & styles ---- */
+    fprintf(fp,
+        "<!DOCTYPE html>\n"
+        "<html lang=\"en\">\n"
+        "<head>\n"
+        "  <meta charset=\"utf-8\">\n"
+        "  <title>Phase Spectrum \xe2\x80\x93 miniDSP</title>\n"
+        "  <script src=\"https://cdn.plot.ly/plotly-2.35.2.min.js\"></script>\n"
+        "  <style>\n"
+        "    * { box-sizing: border-box; margin: 0; padding: 0; }\n"
+        "    body {\n"
+        "      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;\n"
+        "      background: #fafafa; color: #222; padding: 1.5rem;\n"
+        "    }\n"
+        "    h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }\n"
+        "    .subtitle {\n"
+        "      color: #666; font-size: 0.9rem; margin-bottom: 1.2rem;\n"
+        "    }\n"
+        "    .plot-container { margin-bottom: 1.5rem; }\n"
+        "    .info {\n"
+        "      background: #f0f4ff; border-left: 4px solid #2563eb;\n"
+        "      padding: 0.8rem 1rem; font-size: 0.85rem; line-height: 1.6;\n"
+        "      border-radius: 0 6px 6px 0; max-width: 700px;\n"
+        "    }\n"
+        "    .info code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; }\n"
+        "  </style>\n"
+        "</head>\n"
+        "<body>\n"
+        "  <h1>Phase Spectrum</h1>\n"
+        "  <p class=\"subtitle\">\n"
+        "    cos(%.0f Hz) + sin(%.0f Hz) + cos(%.0f Hz, \xcf\x86=\xcf\x80/4)"
+        " &nbsp;|&nbsp;\n"
+        "    sample rate %.0f Hz &nbsp;|&nbsp;\n"
+        "    FFT size %u &nbsp;|&nbsp;\n"
+        "    no window (exact integer bins)\n"
+        "  </p>\n"
+        "  <div id=\"mag-plot\" class=\"plot-container\"></div>\n"
+        "  <div id=\"phase-plot\" class=\"plot-container\"></div>\n"
+        "  <div class=\"info\">\n"
+        "    <strong>How to read this plot:</strong><br>\n"
+        "    The <strong>top plot</strong> shows the magnitude spectrum\n"
+        "    so you can identify which bins carry signal energy.<br>\n"
+        "    The <strong>bottom plot</strong> shows the phase\n"
+        "    &phi;(k) = arg X(k) = atan2(Im X(k), Re X(k)) in radians.\n"
+        "    Phase is only meaningful at bins with significant magnitude.\n"
+        "    Expected values at the signal bins:<br>\n"
+        "    &bull; cos(%.0f Hz) &rarr; bin %u: &phi; = 0<br>\n"
+        "    &bull; sin(%.0f Hz) &rarr; bin %u: &phi; = &minus;&pi;/2<br>\n"
+        "    &bull; cos(%.0f Hz, &pi;/4 offset) &rarr; bin %u:"
+        " &phi; = &pi;/4\n"
+        "  </div>\n\n",
+        freq1, freq2, freq3, sample_rate, N,
+        freq1, (unsigned)freq1,
+        freq2, (unsigned)freq2,
+        freq3, (unsigned)freq3);
+
+    /* ---- Embed data as JS arrays ---- */
+    fprintf(fp, "  <script>\n");
+    fprintf(fp, "    // Data generated by phase_spectrum.c\n");
+
+    fprintf(fp, "    const freqs = [");
+    for (unsigned k = 0; k < num_bins; k++) {
+        fprintf(fp, "%.4f", freqs[k]);
+        if (k + 1 < num_bins) fprintf(fp, ",");
+    }
+    fprintf(fp, "];\n");
+
+    fprintf(fp, "    const mag = [");
+    for (unsigned k = 0; k < num_bins; k++) {
+        fprintf(fp, "%.8f", mag[k]);
+        if (k + 1 < num_bins) fprintf(fp, ",");
+    }
+    fprintf(fp, "];\n");
+
+    fprintf(fp, "    const phase = [");
+    for (unsigned k = 0; k < num_bins; k++) {
+        fprintf(fp, "%.8f", phase[k]);
+        if (k + 1 < num_bins) fprintf(fp, ",");
+    }
+    fprintf(fp, "];\n\n");
+
+    /* ---- Plotly visualisation ---- */
+    fprintf(fp,
+        "    // --- Magnitude spectrum (top) ---\n"
+        "    Plotly.newPlot('mag-plot', [{\n"
+        "      x: freqs, y: mag,\n"
+        "      type: 'scatter', mode: 'lines',\n"
+        "      line: { color: '#2563eb', width: 1.2 },\n"
+        "      name: 'Magnitude |X(k)|',\n"
+        "      hovertemplate: '%%{x:.1f} Hz<br>|X(k)|: %%{y:.2f}<extra></extra>'\n"
+        "    }], {\n"
+        "      title: { text: 'Magnitude Spectrum', font: { size: 15 } },\n"
+        "      xaxis: { title: 'Frequency (Hz)', range: [0, %.0f] },\n"
+        "      yaxis: { title: '|X(k)| (unnormalised)' },\n"
+        "      margin: { t: 50, r: 30, b: 50, l: 70 },\n"
+        "      height: 300\n"
+        "    }, { responsive: true });\n"
+        "\n"
+        "    // --- Phase spectrum (bottom) ---\n"
+        "    Plotly.newPlot('phase-plot', [{\n"
+        "      x: freqs, y: phase,\n"
+        "      type: 'scatter', mode: 'lines',\n"
+        "      line: { color: '#9333ea', width: 1.2 },\n"
+        "      name: 'Phase arg X(k)',\n"
+        "      hovertemplate: '%%{x:.1f} Hz<br>&phi;: %%{y:.4f} rad<extra></extra>'\n"
+        "    }], {\n"
+        "      title: { text: 'Phase Spectrum', font: { size: 15 } },\n"
+        "      xaxis: { title: 'Frequency (Hz)', range: [0, %.0f] },\n"
+        "      yaxis: {\n"
+        "        title: 'Phase (radians)',\n"
+        "        tickvals: [-3.14159, -1.5708, 0, 0.7854, 1.5708, 3.14159],\n"
+        "        ticktext: ['-\u03c0', '-\u03c0/2', '0', '\u03c0/4', '\u03c0/2', '\u03c0'],\n"
+        "        range: [-3.5, 3.5]\n"
+        "      },\n"
+        "      margin: { t: 50, r: 30, b: 50, l: 70 },\n"
+        "      height: 300\n"
+        "    }, { responsive: true });\n"
+        "  </script>\n"
+        "</body>\n"
+        "</html>\n",
+        freq3 * 2.0,   /* x-axis upper limit for magnitude plot */
+        freq3 * 2.0);  /* x-axis upper limit for phase plot */
+
+    fclose(fp);
+    return 0;
+}
+
+int main(void)
+{
+    /* ------------------------------------------------------------------
+     * Signal parameters.
+     *
+     * N = 1024, sample_rate = 1024 Hz: bin k corresponds to exactly k Hz.
+     * This guarantees integer-bin frequencies and avoids spectral leakage,
+     * making the phase values exact (no windowing needed).
+     * ----------------------------------------------------------------*/
+    const unsigned N           = 1024;
+    const double   sample_rate = 1024.0;  /* bin spacing = 1 Hz */
+    const unsigned num_bins    = N / 2 + 1;
+
+    /* Three signal components at exact integer bins */
+    const double freq1 =  50.0;          /* cosine at  50 Hz -> phase = 0     */
+    const double freq2 = 100.0;          /* sine   at 100 Hz -> phase = -pi/2 */
+    const double freq3 = 200.0;          /* cosine at 200 Hz with pi/4 offset */
+    const double phi3  = M_PI / 4.0;     /* initial phase offset              */
+
+    double *signal = malloc(N * sizeof(double));
+    double *mag    = malloc(num_bins * sizeof(double));
+    double *phase  = malloc(num_bins * sizeof(double));
+    double *freqs  = malloc(num_bins * sizeof(double));
+
+    if (!signal || !mag || !phase || !freqs) {
+        fprintf(stderr, "allocation failed\n");
+        return 1;
+    }
+
+    /* ------------------------------------------------------------------
+     * Step 1: Generate the test signal.
+     *
+     * Each component uses an exact integer-bin frequency so the DFT
+     * produces no spectral leakage.  The third component has an initial
+     * phase offset of pi/4 to demonstrate non-zero phase.
+     * ----------------------------------------------------------------*/
+    //! [generate-signal]
+    for (unsigned i = 0; i < N; i++) {
+        double n = (double)i;
+        signal[i] = cos(2.0 * M_PI * freq1 * n / sample_rate)
+                  + sin(2.0 * M_PI * freq2 * n / sample_rate)
+                  + cos(2.0 * M_PI * freq3 * n / sample_rate + phi3);
+    }
+    //! [generate-signal]
+
+    /* Frequency axis: freq_k = k * sample_rate / N = k Hz */
+    for (unsigned k = 0; k < num_bins; k++) {
+        freqs[k] = (double)k * sample_rate / (double)N;
+    }
+
+    /* ------------------------------------------------------------------
+     * Step 2: Compute the phase spectrum (and magnitude for context).
+     *
+     * MD_phase_spectrum() returns phi(k) = atan2(Im X(k), Re X(k))
+     * in radians, range [-pi, pi].  No windowing is applied because
+     * the signal was designed to sit exactly on integer DFT bins.
+     * ----------------------------------------------------------------*/
+    //! [compute-phase]
+    MD_magnitude_spectrum(signal, N, mag);
+    MD_phase_spectrum(signal, N, phase);
+    //! [compute-phase]
+
+    /* ------------------------------------------------------------------
+     * Print expected vs. actual phase at signal bins.
+     * ----------------------------------------------------------------*/
+    printf("Phase spectrum (exact integer bins, no window)\n");
+    printf("  N=%u, sample_rate=%.0f Hz (bin k = k Hz)\n\n", N, sample_rate);
+    printf("  %-20s  %8s  %8s  %8s\n",
+           "Component", "Bin", "Expected", "Actual");
+    printf("  %-20s  %8s  %8s  %8s\n",
+           "-------------------", "---", "--------", "------");
+    printf("  %-20s  %8u  %8.4f  %8.4f\n",
+           "cos(50 Hz)", (unsigned)freq1, 0.0, phase[(unsigned)freq1]);
+    printf("  %-20s  %8u  %8.4f  %8.4f\n",
+           "sin(100 Hz)", (unsigned)freq2, -M_PI / 2.0, phase[(unsigned)freq2]);
+    printf("  %-20s  %8u  %8.4f  %8.4f\n",
+           "cos(200 Hz, pi/4)", (unsigned)freq3, phi3, phase[(unsigned)freq3]);
+    printf("\n");
+
+    /* ------------------------------------------------------------------
+     * Write results to CSV.
+     * ----------------------------------------------------------------*/
+    const char *csv_file = "phase_spectrum.csv";
+    FILE *fp = fopen(csv_file, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", csv_file);
+        return 1;
+    }
+
+    fprintf(fp, "bin,frequency_hz,magnitude,phase_rad\n");
+    for (unsigned k = 0; k < num_bins; k++) {
+        fprintf(fp, "%u,%.4f,%.8f,%.8f\n", k, freqs[k], mag[k], phase[k]);
+    }
+    fclose(fp);
+
+    printf("Wrote %u frequency bins to %s\n", num_bins, csv_file);
+
+    /* ------------------------------------------------------------------
+     * Write interactive HTML visualisation (Plotly.js).
+     * ----------------------------------------------------------------*/
+    const char *html_file = "phase_spectrum.html";
+    if (write_html(html_file, freqs, mag, phase, num_bins,
+                   sample_rate, N, freq1, freq2, freq3) == 0) {
+        printf("Wrote interactive plot to %s\n", html_file);
+    }
+
+    /* ------------------------------------------------------------------
+     * Cleanup.
+     * ----------------------------------------------------------------*/
+    free(freqs);
+    free(phase);
+    free(mag);
+    free(signal);
+    MD_shutdown();
+
+    return 0;
+}
