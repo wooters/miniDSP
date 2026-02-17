@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "minidsp.h"
+#include "plot_html.h"
 
 /* -----------------------------------------------------------------------
  * Write the interactive HTML spectrogram heatmap.
@@ -41,39 +42,13 @@ static int write_html(const char *path,
         return -1;
     }
 
-    fprintf(fp,
-        "<!DOCTYPE html>\n"
-        "<html lang=\"en\">\n"
-        "<head>\n"
-        "  <meta charset=\"utf-8\">\n"
-        "  <title>Spectrogram – miniDSP</title>\n"
-        "  <script src=\"https://cdn.plot.ly/plotly-2.35.2.min.js\"></script>\n"
-        "  <style>\n"
-        "    * { box-sizing: border-box; margin: 0; padding: 0; }\n"
-        "    body {\n"
-        "      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;\n"
-        "      background: #fafafa; color: #222; padding: 1.5rem;\n"
-        "    }\n"
-        "    h1 { font-size: 1.4rem; margin-bottom: 0.3rem; }\n"
-        "    .subtitle {\n"
-        "      color: #666; font-size: 0.9rem; margin-bottom: 1.2rem;\n"
-        "    }\n"
-        "    .info {\n"
-        "      background: #f0f4ff; border-left: 4px solid #2563eb;\n"
-        "      padding: 0.8rem 1rem; font-size: 0.85rem; line-height: 1.6;\n"
-        "      border-radius: 0 6px 6px 0; max-width: 800px; margin-top: 1rem;\n"
-        "    }\n"
-        "    .info code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; }\n"
-        "  </style>\n"
-        "</head>\n"
-        "<body>\n"
-        "  <h1>Spectrogram</h1>\n"
-        "  <p class=\"subtitle\">\n"
-        "    Linear chirp 200 &rarr; 4000 Hz &nbsp;|&nbsp;\n"
+    plot_html_begin(fp, "Spectrogram",
+        "Linear chirp 200 &rarr; 4000 Hz &nbsp;|&nbsp;\n"
         "    2 s at 16 kHz &nbsp;|&nbsp;\n"
         "    FFT N=512 (32 ms) &nbsp;|&nbsp;\n"
-        "    hop=128 (75%% overlap)\n"
-        "  </p>\n"
+        "    hop=128 (75%% overlap)", 0);
+
+    fprintf(fp,
         "  <div id=\"spectrogram\"></div>\n"
         "  <div class=\"info\">\n"
         "    <strong>How to read this plot:</strong><br>\n"
@@ -85,20 +60,8 @@ static int write_html(const char *path,
 
     /* Embed time axis */
     fprintf(fp, "  <script>\n");
-    fprintf(fp, "    const times = [");
-    for (unsigned f = 0; f < num_frames; f++) {
-        fprintf(fp, "%.4f", times_s[f]);
-        if (f + 1 < num_frames) fprintf(fp, ",");
-    }
-    fprintf(fp, "];\n");
-
-    /* Embed frequency axis */
-    fprintf(fp, "    const freqs = [");
-    for (unsigned k = 0; k < num_bins; k++) {
-        fprintf(fp, "%.2f", freqs_hz[k]);
-        if (k + 1 < num_bins) fprintf(fp, ",");
-    }
-    fprintf(fp, "];\n");
+    plot_html_js_array(fp, "times", times_s, num_frames, "%.4f");
+    plot_html_js_array(fp, "freqs", freqs_hz, num_bins, "%.2f");
 
     /* Embed spectrogram as 2-D array: z[k][f] for Plotly heatmap
      * (Plotly heatmap: z is indexed as z[row][col] where row = y, col = x) */
@@ -132,10 +95,9 @@ static int write_html(const char *path,
         "      margin: { t: 30, r: 80, b: 50, l: 70 },\n"
         "      height: 500\n"
         "    }, { responsive: true });\n"
-        "  </script>\n"
-        "</body>\n"
-        "</html>\n");
+        "  </script>\n");
 
+    plot_html_end(fp);
     fclose(fp);
     return 0;
 }
