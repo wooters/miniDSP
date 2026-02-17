@@ -10,13 +10,9 @@
  *   4. Writing the results to CSV and to an interactive HTML visualisation
  *      (Plotly.js + D3.js, no server required).
  *
- * Build (from the repository root):
- *   gcc-14 -std=c23 -Wall -Wextra -pedantic -O2 -I.. \
- *       examples/magnitude_spectrum.c -L. -lminidsp -lfftw3 -lm \
- *       -o examples/magnitude_spectrum
- *
- * Run:
- *   ./examples/magnitude_spectrum
+ * Build and run (from the repository root):
+ *   make                          # build libminidsp.a first
+ *   make -C examples plot         # build example, run it, generate HTML
  *   open examples/magnitude_spectrum.html   # interactive spectrum plot
  */
 
