@@ -1,0 +1,16 @@
+*.o
+*.a
+tests/test_minidsp
+tests/gcc_phat_test
+tests/gcc_phat_multi_test
+tests/testliveio
+tests/testliverec
+.git
+.github
+docs/
+doxygen-awesome-css/
+doxygen-custom/
+Doxyfile
+*~
+.claude/
+CLAUDE.md

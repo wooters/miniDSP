@@ -46,6 +46,8 @@ Install the following libraries before building:
 
 The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
 
+On Ubuntu, GCC 14 or later is required for `-std=c23` support. Ubuntu 24.04 ships GCC 13 by default, so install `gcc-14` explicitly (`apt install gcc-14`).
+
 ### Compile the library
 
 ```sh
@@ -57,6 +59,16 @@ make            # builds libminidsp.a
 ```sh
 make test       # builds and runs all 50 tests
 ```
+
+### Test inside an Ubuntu container
+
+To verify the library builds and passes all tests on Linux (Ubuntu 24.04 with GCC 14):
+
+```sh
+make container-test   # builds image, then runs make test inside the container
+```
+
+This requires the Apple [container](https://github.com/apple/container) CLI on macOS 26+.
 
 ### Generate API documentation
 
