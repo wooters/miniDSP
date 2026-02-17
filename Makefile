@@ -32,6 +32,11 @@ libminidsp.a: $(MD_OBJS)
 test: libminidsp.a
 	$(MAKE) -C tests test
 
+# Build the examples
+.PHONY: examples
+examples: libminidsp.a
+	$(MAKE) -C examples
+
 # Build and test inside an Ubuntu 24.04 container (requires macOS container CLI)
 CONTAINER_TAG = minidsp-test
 
@@ -50,3 +55,4 @@ clean:
 	-rm -f *.o libminidsp.a
 	-rm -rf docs
 	$(MAKE) -C tests clean
+	$(MAKE) -C examples clean

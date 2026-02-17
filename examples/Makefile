@@ -15,6 +15,11 @@ ifneq ($(BREW_PREFIX),)
   LDFLAGS += -L$(BREW_PREFIX)/lib
 endif
 
+# Always delegate to parent Makefile to check if library needs rebuilding
+.PHONY: ../libminidsp.a
+../libminidsp.a:
+	$(MAKE) -C .. libminidsp.a
+
 default: magnitude_spectrum
 
 magnitude_spectrum: magnitude_spectrum.c ../libminidsp.a
