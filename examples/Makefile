@@ -32,4 +32,4 @@ plot: magnitude_spectrum
 
 .PHONY: clean
 clean:
-	-rm -f magnitude_spectrum magnitude_spectrum.csv magnitude_spectrum.html
+	-rm -rf magnitude_spectrum magnitude_spectrum.dSYM magnitude_spectrum.csv magnitude_spectrum.html
