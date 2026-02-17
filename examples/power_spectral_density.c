@@ -218,6 +218,7 @@ int main(void)
         return 1;
     }
 
+    //! [generate-signal]
     for (unsigned i = 0; i < N; i++) {
         double t = (double)i / sample_rate;
         signal[i] = dc
@@ -225,6 +226,7 @@ int main(void)
                   + amp2 * sin(2.0 * M_PI * freq2 * t)
                   + amp3 * sin(2.0 * M_PI * freq3 * t);
     }
+    //! [generate-signal]
 
     /* ------------------------------------------------------------------
      * Apply a Hanning window to reduce spectral leakage.
@@ -232,17 +234,21 @@ int main(void)
      * discontinuity at the FFT frame boundary from smearing energy
      * across all frequency bins.
      * ----------------------------------------------------------------*/
+    //! [apply-window]
     MD_Gen_Hann_Win(window, N);
     for (unsigned i = 0; i < N; i++) {
         windowed[i] = signal[i] * window[i];
     }
+    //! [apply-window]
 
     /* ------------------------------------------------------------------
      * Compute the power spectral density.
      * MD_power_spectral_density() returns PSD[k] = |X(k)|^2 / N.
      * The /N normalisation is already done inside the function.
      * ----------------------------------------------------------------*/
+    //! [compute-psd]
     MD_power_spectral_density(windowed, N, psd);
+    //! [compute-psd]
 
     /* Convert to one-sided PSD:
      *   - Double the interior bins (k = 1..N/2-1) because negative
@@ -250,12 +256,14 @@ int main(void)
      *   - DC (k=0) and Nyquist (k=N/2) are not doubled -- they have
      *     no mirror image.
      * Note: we do NOT divide by N again -- the function already did that. */
+    //! [one-sided-psd]
     for (unsigned k = 0; k < num_bins; k++) {
         freqs[k] = (double)k * sample_rate / (double)N;
         if (k > 0 && k < N / 2) {
             psd[k] *= 2.0;
         }
     }
+    //! [one-sided-psd]
 
     /* ------------------------------------------------------------------
      * Write results to CSV (for data interchange)

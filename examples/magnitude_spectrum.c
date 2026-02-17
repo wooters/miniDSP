@@ -212,6 +212,7 @@ int main(void)
         return 1;
     }
 
+    //! [generate-signal]
     for (unsigned i = 0; i < N; i++) {
         double t = (double)i / sample_rate;
         signal[i] = dc
@@ -219,25 +220,31 @@ int main(void)
                   + amp2 * sin(2.0 * M_PI * freq2 * t)
                   + amp3 * sin(2.0 * M_PI * freq3 * t);
     }
+    //! [generate-signal]
 
     /* ------------------------------------------------------------------
      * Apply a Hanning window to reduce spectral leakage
      * ----------------------------------------------------------------*/
+    //! [apply-window]
     MD_Gen_Hann_Win(window, N);
     for (unsigned i = 0; i < N; i++) {
         windowed[i] = signal[i] * window[i];
     }
+    //! [apply-window]
 
     /* ------------------------------------------------------------------
      * Compute the magnitude spectrum
      * ----------------------------------------------------------------*/
+    //! [compute-magnitude]
     MD_magnitude_spectrum(windowed, N, mag);
+    //! [compute-magnitude]
 
     /* Convert to single-sided amplitude spectrum:
      *   - Divide all bins by N
      *   - Multiply interior bins by 2 (because negative frequencies
      *     are folded into the positive side)
      *   - DC and Nyquist bins appear only once, so no doubling */
+    //! [one-sided-amplitude]
     for (unsigned k = 0; k < num_bins; k++) {
         freqs[k] = (double)k * sample_rate / (double)N;
         mag[k] /= (double)N;
@@ -245,6 +252,7 @@ int main(void)
             mag[k] *= 2.0;
         }
     }
+    //! [one-sided-amplitude]
 
     /* ------------------------------------------------------------------
      * Write results to CSV (for data interchange)

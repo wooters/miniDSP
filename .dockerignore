@@ -16,6 +16,7 @@ tests/testliverec
 .github
 docs/
 doxygen-awesome-css/
+guides/
 doxygen-custom/
 Doxyfile
 *~

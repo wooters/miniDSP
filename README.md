@@ -122,6 +122,9 @@ make -C examples plot
 open examples/magnitude_spectrum.html    # interactive: zoom, pan, hover for values
 ```
 
+For a step-by-step walkthrough of the DSP concepts, see the
+[Magnitude Spectrum tutorial](https://wooters.github.io/miniDSP/magnitude-spectrum.html).
+
 ## Quick example: compute the power spectral density
 
 ```c
@@ -142,6 +145,8 @@ MD_shutdown();
 
 A full example with Hanning windowing and one-sided PSD conversion is in
 `examples/power_spectral_density.c`.
+See the [PSD tutorial](https://wooters.github.io/miniDSP/power-spectral-density.html)
+for a detailed explanation.
 
 ## Quick example: filter audio with a low-pass biquad
 
