@@ -4,6 +4,7 @@
 # C files
 *.o
 *.a
+*.dSYM
 
 tests/testlocalaudio
 
