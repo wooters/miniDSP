@@ -409,6 +409,122 @@ static int test_hann_range(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Shared helpers for magnitude/PSD test pairs
+ *
+ * MD_magnitude_spectrum and MD_power_spectral_density share the same
+ * (const double *, unsigned, double *) signature.  Four tests are
+ * identical except for which function is called, so we parameterize
+ * them with a function pointer.
+ * -----------------------------------------------------------------------*/
+
+typedef void (*spectrum_fn_t)(const double *, unsigned, double *);
+
+/** A single-frequency sine should produce a peak at the correct bin. */
+static int _test_spectrum_single_sine(spectrum_fn_t fn)
+{
+    unsigned N = 1024;
+    double sample_rate = 1024.0;
+    double freq = 100.0;
+
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * freq * (double)i / sample_rate);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *out = malloc(num_bins * sizeof(double));
+    fn(sig, N, out);
+
+    unsigned peak_bin = (unsigned)(freq * N / sample_rate);
+
+    unsigned actual_peak = 1;
+    for (unsigned k = 2; k < num_bins; k++) {
+        if (out[k] > out[actual_peak]) actual_peak = k;
+    }
+
+    free(out);
+    free(sig);
+    return (actual_peak == peak_bin);
+}
+
+/** Two sinusoids should produce two peaks. */
+static int _test_spectrum_two_sines(spectrum_fn_t fn)
+{
+    unsigned N = 2048;
+    double sample_rate = 2048.0;
+    double freq1 = 200.0;
+    double freq2 = 500.0;
+
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * freq1 * (double)i / sample_rate)
+               + sin(2.0 * M_PI * freq2 * (double)i / sample_rate);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *out = malloc(num_bins * sizeof(double));
+    fn(sig, N, out);
+
+    unsigned bin1 = (unsigned)(freq1 * N / sample_rate);
+    unsigned bin2 = (unsigned)(freq2 * N / sample_rate);
+
+    int ok = 1;
+    ok &= (out[bin1] > out[bin1 - 2] * 10.0);
+    ok &= (out[bin1] > out[bin1 + 2] * 10.0);
+    ok &= (out[bin2] > out[bin2 - 2] * 10.0);
+    ok &= (out[bin2] > out[bin2 + 2] * 10.0);
+
+    free(out);
+    free(sig);
+    return ok;
+}
+
+/** An all-zeros signal should produce zero output everywhere. */
+static int _test_spectrum_zeros(spectrum_fn_t fn)
+{
+    unsigned N = 512;
+    double *sig = calloc(N, sizeof(double));
+
+    unsigned num_bins = N / 2 + 1;
+    double *out = malloc(num_bins * sizeof(double));
+    fn(sig, N, out);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(out[k], 0.0, 1e-15);
+    }
+
+    free(out);
+    free(sig);
+    return ok;
+}
+
+/** Output should be non-negative for any input. */
+static int _test_spectrum_non_negative(spectrum_fn_t fn)
+{
+    unsigned N = 512;
+    double *sig = malloc(N * sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * 7.0 * (double)i / (double)N)
+               - 0.5 * cos(2.0 * M_PI * 13.0 * (double)i / (double)N);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *out = malloc(num_bins * sizeof(double));
+    fn(sig, N, out);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= (out[k] >= 0.0);
+    }
+
+    free(out);
+    free(sig);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_magnitude_spectrum()
  *
  * These tests verify that the magnitude spectrum correctly identifies
@@ -419,72 +535,8 @@ static int test_hann_range(void)
  *   - Parseval's theorem: sum of |X(k)|^2 / N == sum of x(n)^2
  * -----------------------------------------------------------------------*/
 
-/** A single-frequency sine should produce a peak at the correct bin. */
-static int test_mag_spectrum_single_sine(void)
-{
-    unsigned N = 1024;
-    double sample_rate = 1024.0; /* convenient: bin spacing = 1 Hz */
-    double freq = 100.0;        /* should peak at bin 100 */
-
-    double *sig = malloc(N * sizeof(double));
-    for (unsigned i = 0; i < N; i++) {
-        sig[i] = sin(2.0 * M_PI * freq * (double)i / sample_rate);
-    }
-
-    unsigned num_bins = N / 2 + 1;
-    double *mag = malloc(num_bins * sizeof(double));
-    MD_magnitude_spectrum(sig, N, mag);
-
-    /* The expected peak bin for this exact frequency */
-    unsigned peak_bin = (unsigned)(freq * N / sample_rate);
-
-    /* Find the actual peak bin (skip DC) */
-    unsigned actual_peak = 1;
-    for (unsigned k = 2; k < num_bins; k++) {
-        if (mag[k] > mag[actual_peak]) {
-            actual_peak = k;
-        }
-    }
-
-    free(mag);
-    free(sig);
-
-    return (actual_peak == peak_bin);
-}
-
-/** Two sinusoids at different frequencies should produce two peaks. */
-static int test_mag_spectrum_two_sines(void)
-{
-    unsigned N = 2048;
-    double sample_rate = 2048.0;
-    double freq1 = 200.0;  /* bin 200 */
-    double freq2 = 500.0;  /* bin 500 */
-
-    double *sig = malloc(N * sizeof(double));
-    for (unsigned i = 0; i < N; i++) {
-        sig[i] = sin(2.0 * M_PI * freq1 * (double)i / sample_rate)
-               + sin(2.0 * M_PI * freq2 * (double)i / sample_rate);
-    }
-
-    unsigned num_bins = N / 2 + 1;
-    double *mag = malloc(num_bins * sizeof(double));
-    MD_magnitude_spectrum(sig, N, mag);
-
-    unsigned bin1 = (unsigned)(freq1 * N / sample_rate);
-    unsigned bin2 = (unsigned)(freq2 * N / sample_rate);
-
-    /* Both target bins should be much larger than their neighbours */
-    int ok = 1;
-    ok &= (mag[bin1] > mag[bin1 - 2] * 10.0);
-    ok &= (mag[bin1] > mag[bin1 + 2] * 10.0);
-    ok &= (mag[bin2] > mag[bin2 - 2] * 10.0);
-    ok &= (mag[bin2] > mag[bin2 + 2] * 10.0);
-
-    free(mag);
-    free(sig);
-
-    return ok;
-}
+static int test_mag_spectrum_single_sine(void) { return _test_spectrum_single_sine(MD_magnitude_spectrum); }
+static int test_mag_spectrum_two_sines(void) { return _test_spectrum_two_sines(MD_magnitude_spectrum); }
 
 /** A DC signal (constant value) should have energy only at bin 0. */
 static int test_mag_spectrum_dc(void)
@@ -514,26 +566,7 @@ static int test_mag_spectrum_dc(void)
     return ok;
 }
 
-/** An all-zeros signal should have zero magnitude everywhere. */
-static int test_mag_spectrum_zeros(void)
-{
-    unsigned N = 512;
-    double *sig = calloc(N, sizeof(double));
-
-    unsigned num_bins = N / 2 + 1;
-    double *mag = malloc(num_bins * sizeof(double));
-    MD_magnitude_spectrum(sig, N, mag);
-
-    int ok = 1;
-    for (unsigned k = 0; k < num_bins; k++) {
-        ok &= approx_equal(mag[k], 0.0, 1e-15);
-    }
-
-    free(mag);
-    free(sig);
-
-    return ok;
-}
+static int test_mag_spectrum_zeros(void) { return _test_spectrum_zeros(MD_magnitude_spectrum); }
 
 /**
  * A unit impulse (delta function) has a flat magnitude spectrum.
@@ -653,31 +686,7 @@ static int test_mag_spectrum_different_lengths(void)
  * The magnitude spectrum should be non-negative for any input.
  * Test with a signal containing both positive and negative values.
  */
-static int test_mag_spectrum_non_negative(void)
-{
-    unsigned N = 512;
-    double *sig = malloc(N * sizeof(double));
-
-    /* Signal with positive and negative values */
-    for (unsigned i = 0; i < N; i++) {
-        sig[i] = sin(2.0 * M_PI * 7.0 * (double)i / (double)N)
-               - 0.5 * cos(2.0 * M_PI * 13.0 * (double)i / (double)N);
-    }
-
-    unsigned num_bins = N / 2 + 1;
-    double *mag = malloc(num_bins * sizeof(double));
-    MD_magnitude_spectrum(sig, N, mag);
-
-    int ok = 1;
-    for (unsigned k = 0; k < num_bins; k++) {
-        ok &= (mag[k] >= 0.0);
-    }
-
-    free(mag);
-    free(sig);
-
-    return ok;
-}
+static int test_mag_spectrum_non_negative(void) { return _test_spectrum_non_negative(MD_magnitude_spectrum); }
 
 /* -----------------------------------------------------------------------
  * Tests for MD_power_spectral_density()
@@ -690,71 +699,8 @@ static int test_mag_spectrum_non_negative(void)
  *   - PSD is always >= 0 for any input
  * -----------------------------------------------------------------------*/
 
-/** A single-frequency sine should produce a PSD peak at the correct bin. */
-static int test_psd_single_sine(void)
-{
-    unsigned N = 1024;
-    double sample_rate = 1024.0; /* bin spacing = 1 Hz */
-    double freq = 100.0;        /* should peak at bin 100 */
-
-    double *sig = malloc(N * sizeof(double));
-    for (unsigned i = 0; i < N; i++) {
-        sig[i] = sin(2.0 * M_PI * freq * (double)i / sample_rate);
-    }
-
-    unsigned num_bins = N / 2 + 1;
-    double *psd = malloc(num_bins * sizeof(double));
-    MD_power_spectral_density(sig, N, psd);
-
-    unsigned peak_bin = (unsigned)(freq * N / sample_rate);
-
-    /* Find the actual peak bin (skip DC) */
-    unsigned actual_peak = 1;
-    for (unsigned k = 2; k < num_bins; k++) {
-        if (psd[k] > psd[actual_peak]) {
-            actual_peak = k;
-        }
-    }
-
-    free(psd);
-    free(sig);
-
-    return (actual_peak == peak_bin);
-}
-
-/** Two sinusoids at different frequencies should produce two PSD peaks. */
-static int test_psd_two_sines(void)
-{
-    unsigned N = 2048;
-    double sample_rate = 2048.0;
-    double freq1 = 200.0;  /* bin 200 */
-    double freq2 = 500.0;  /* bin 500 */
-
-    double *sig = malloc(N * sizeof(double));
-    for (unsigned i = 0; i < N; i++) {
-        sig[i] = sin(2.0 * M_PI * freq1 * (double)i / sample_rate)
-               + sin(2.0 * M_PI * freq2 * (double)i / sample_rate);
-    }
-
-    unsigned num_bins = N / 2 + 1;
-    double *psd = malloc(num_bins * sizeof(double));
-    MD_power_spectral_density(sig, N, psd);
-
-    unsigned bin1 = (unsigned)(freq1 * N / sample_rate);
-    unsigned bin2 = (unsigned)(freq2 * N / sample_rate);
-
-    /* Both target bins should be much larger than their neighbours */
-    int ok = 1;
-    ok &= (psd[bin1] > psd[bin1 - 2] * 10.0);
-    ok &= (psd[bin1] > psd[bin1 + 2] * 10.0);
-    ok &= (psd[bin2] > psd[bin2 - 2] * 10.0);
-    ok &= (psd[bin2] > psd[bin2 + 2] * 10.0);
-
-    free(psd);
-    free(sig);
-
-    return ok;
-}
+static int test_psd_single_sine(void) { return _test_spectrum_single_sine(MD_power_spectral_density); }
+static int test_psd_two_sines(void) { return _test_spectrum_two_sines(MD_power_spectral_density); }
 
 /**
  * A DC signal (constant value) concentrates all power in bin 0.
@@ -789,26 +735,7 @@ static int test_psd_dc(void)
     return ok;
 }
 
-/** An all-zeros signal should have zero PSD everywhere. */
-static int test_psd_zeros(void)
-{
-    unsigned N = 512;
-    double *sig = calloc(N, sizeof(double));
-
-    unsigned num_bins = N / 2 + 1;
-    double *psd = malloc(num_bins * sizeof(double));
-    MD_power_spectral_density(sig, N, psd);
-
-    int ok = 1;
-    for (unsigned k = 0; k < num_bins; k++) {
-        ok &= approx_equal(psd[k], 0.0, 1e-15);
-    }
-
-    free(psd);
-    free(sig);
-
-    return ok;
-}
+static int test_psd_zeros(void) { return _test_spectrum_zeros(MD_power_spectral_density); }
 
 /**
  * A unit impulse (delta function) has a flat PSD.
@@ -927,35 +854,7 @@ static int test_psd_different_lengths(void)
     return ok;
 }
 
-/**
- * The PSD should be non-negative for any input.
- * Since PSD[k] = (re^2 + im^2) / N, it is always >= 0.
- */
-static int test_psd_non_negative(void)
-{
-    unsigned N = 512;
-    double *sig = malloc(N * sizeof(double));
-
-    /* Signal with positive and negative values */
-    for (unsigned i = 0; i < N; i++) {
-        sig[i] = sin(2.0 * M_PI * 7.0 * (double)i / (double)N)
-               - 0.5 * cos(2.0 * M_PI * 13.0 * (double)i / (double)N);
-    }
-
-    unsigned num_bins = N / 2 + 1;
-    double *psd = malloc(num_bins * sizeof(double));
-    MD_power_spectral_density(sig, N, psd);
-
-    int ok = 1;
-    for (unsigned k = 0; k < num_bins; k++) {
-        ok &= (psd[k] >= 0.0);
-    }
-
-    free(psd);
-    free(sig);
-
-    return ok;
-}
+static int test_psd_non_negative(void) { return _test_spectrum_non_negative(MD_power_spectral_density); }
 
 /* -----------------------------------------------------------------------
  * Tests for MD_phase_spectrum()
