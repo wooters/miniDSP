@@ -1966,7 +1966,10 @@ static int test_write_npy(void)
     float row2[] = {9.0f, 10.0f, 11.0f, 12.0f};
     const float *rows[] = {row0, row1, row2};
 
-    FIO_write_npy(fname, (const float **)rows, 3, 4);
+    if (FIO_write_npy(fname, (const float **)rows, 3, 4) != 0) {
+        unlink(fname);
+        return 0;
+    }
 
     /* Read back the file */
     FILE *f = fopen(fname, "rb");
@@ -2030,7 +2033,10 @@ static int test_write_safetensors(void)
     float row1[] = {4.0f, 5.0f, 6.0f};
     const float *rows[] = {row0, row1};
 
-    FIO_write_safetensors(fname, (const float **)rows, 2, 3);
+    if (FIO_write_safetensors(fname, (const float **)rows, 2, 3) != 0) {
+        unlink(fname);
+        return 0;
+    }
 
     FILE *f = fopen(fname, "rb");
     if (!f) { unlink(fname); return 0; }
@@ -2100,13 +2106,21 @@ static int test_write_wav(void)
         data[i] = (float)sin(2.0 * M_PI * 440.0 * (double)i / (double)samprate);
     }
 
-    FIO_write_wav(fname, data, datalen, samprate);
+    if (FIO_write_wav(fname, data, datalen, samprate) != 0) {
+        free(data);
+        unlink(fname);
+        return 0;
+    }
 
     /* Read it back */
     float *readback = nullptr;
     size_t readlen = 0;
     unsigned readrate = 0;
-    FIO_read_audio(fname, &readback, &readlen, &readrate, 0);
+    if (FIO_read_audio(fname, &readback, &readlen, &readrate, 0) != 0) {
+        free(data);
+        unlink(fname);
+        return 0;
+    }
 
     int ok = 1;
 

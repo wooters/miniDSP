@@ -63,25 +63,6 @@ static void swap_bytes(void *pv, size_t n)
 #define SWAP(x) swap_bytes(&(x), sizeof(x))
 
 /* -----------------------------------------------------------------------
- * Internal helpers
- * -----------------------------------------------------------------------*/
-
-/**
- * Allocate memory or terminate the program on failure.
- * This is a safety net -- in a small CLI tool it is better to crash
- * immediately with a clear message than to limp along with null pointers.
- */
-static void *malloc_or_die(size_t nbytes, const char *msg)
-{
-    void *tmp = malloc(nbytes);
-    if (tmp == nullptr) {
-        fprintf(stderr, "%s", msg);
-        exit(1);
-    }
-    return tmp;
-}
-
-/* -----------------------------------------------------------------------
  * Public API
  * -----------------------------------------------------------------------*/
 
@@ -97,12 +78,13 @@ static void *malloc_or_die(size_t nbytes, const char *msg)
  * @param datalen   Output: total number of samples read.
  * @param samprate  Output: sample rate in Hz.
  * @param donorm    1 to normalise samples to [-1.0, 1.0]; 0 for raw values.
+ * @return 0 on success, -1 on error.
  */
-void FIO_read_audio(const char *infile,
-                    float **indata,
-                    size_t *datalen,
-                    unsigned *samprate,
-                    unsigned donorm)
+int FIO_read_audio(const char *infile,
+                   float **indata,
+                   size_t *datalen,
+                   unsigned *samprate,
+                   unsigned donorm)
 {
     SF_INFO sfinfo;
     memset(&sfinfo, 0, sizeof(sfinfo));
@@ -111,7 +93,10 @@ void FIO_read_audio(const char *infile,
     SNDFILE *sf = sf_open(infile, SFM_READ, &sfinfo);
     if (sf == nullptr) {
         fprintf(stderr, "Error opening audio file: %s\n", infile);
-        exit(1);
+        *indata = nullptr;
+        *datalen = 0;
+        *samprate = 0;
+        return -1;
     }
 
     if (sfinfo.channels != 1) {
@@ -120,7 +105,10 @@ void FIO_read_audio(const char *infile,
                 "Use 'sox' to split multi-channel files.\n",
                 sfinfo.channels);
         sf_close(sf);
-        exit(1);
+        *indata = nullptr;
+        *datalen = 0;
+        *samprate = 0;
+        return -1;
     }
 
     sf_count_t nsamps = sfinfo.frames;
@@ -132,8 +120,15 @@ void FIO_read_audio(const char *infile,
         sf_command(sf, SFC_SET_NORM_FLOAT, nullptr, SF_FALSE);
 
     /* Allocate and read */
-    float *tmpdata = malloc_or_die((size_t)nsamps * sizeof(float),
-                                   "Error allocating memory for audio data\n");
+    float *tmpdata = malloc((size_t)nsamps * sizeof(float));
+    if (tmpdata == nullptr) {
+        fprintf(stderr, "Error allocating memory for audio data\n");
+        sf_close(sf);
+        *indata = nullptr;
+        *datalen = 0;
+        *samprate = 0;
+        return -1;
+    }
 
     sf_count_t nread = sf_read_float(sf, tmpdata, nsamps);
     if (nread != nsamps) {
@@ -141,7 +136,10 @@ void FIO_read_audio(const char *infile,
                 infile, (long)nsamps, (long)nread);
         free(tmpdata);
         sf_close(sf);
-        exit(1);
+        *indata = nullptr;
+        *datalen = 0;
+        *samprate = 0;
+        return -1;
     }
 
     sf_close(sf);
@@ -150,6 +148,7 @@ void FIO_read_audio(const char *infile,
     *indata  = tmpdata;
     *datalen = (size_t)nsamps;
     *samprate = (unsigned)sfinfo.samplerate;
+    return 0;
 }
 
 /* -----------------------------------------------------------------------
@@ -165,15 +164,15 @@ void FIO_read_audio(const char *infile,
  * The total prefix (10 bytes + header string) must be divisible by 64.
  * -----------------------------------------------------------------------*/
 
-void FIO_write_npy(const char *outfile,
-                   const float **outvecs,
-                   size_t nvecs,
-                   size_t veclen)
+int FIO_write_npy(const char *outfile,
+                  const float **outvecs,
+                  size_t nvecs,
+                  size_t veclen)
 {
     FILE *f = fopen(outfile, "wb");
     if (f == nullptr) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
-        exit(1);
+        return -1;
     }
 
     /* Build the ASCII header dict (without padding) */
@@ -190,7 +189,12 @@ void FIO_write_npy(const char *outfile,
     size_t header_len = padded - prefix;
 
     /* Build the padded header string */
-    char *header = malloc_or_die(header_len, "Error allocating npy header\n");
+    char *header = malloc(header_len);
+    if (header == nullptr) {
+        fprintf(stderr, "Error allocating npy header\n");
+        fclose(f);
+        return -1;
+    }
     memcpy(header, dict, (size_t)dict_len);
     memset(header + dict_len, ' ', header_len - (size_t)dict_len);
     header[header_len - 1] = '\n';
@@ -215,6 +219,7 @@ void FIO_write_npy(const char *outfile,
     }
 
     fclose(f);
+    return 0;
 }
 
 /* -----------------------------------------------------------------------
@@ -228,15 +233,15 @@ void FIO_write_npy(const char *outfile,
  * Data offsets in the JSON are [start, end) — exclusive end.
  * -----------------------------------------------------------------------*/
 
-void FIO_write_safetensors(const char *outfile,
-                           const float **outvecs,
-                           size_t nvecs,
-                           size_t veclen)
+int FIO_write_safetensors(const char *outfile,
+                          const float **outvecs,
+                          size_t nvecs,
+                          size_t veclen)
 {
     FILE *f = fopen(outfile, "wb");
     if (f == nullptr) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
-        exit(1);
+        return -1;
     }
 
     size_t nbytes = nvecs * veclen * sizeof(float);
@@ -264,6 +269,7 @@ void FIO_write_safetensors(const char *outfile,
     }
 
     fclose(f);
+    return 0;
 }
 
 /* -----------------------------------------------------------------------
@@ -273,10 +279,10 @@ void FIO_write_safetensors(const char *outfile,
  * round-trips (unlike PCM_16 which quantises to 16-bit integers).
  * -----------------------------------------------------------------------*/
 
-void FIO_write_wav(const char *outfile,
-                   const float *data,
-                   size_t datalen,
-                   unsigned samprate)
+int FIO_write_wav(const char *outfile,
+                  const float *data,
+                  size_t datalen,
+                  unsigned samprate)
 {
     SF_INFO sfinfo;
     memset(&sfinfo, 0, sizeof(sfinfo));
@@ -287,11 +293,12 @@ void FIO_write_wav(const char *outfile,
     SNDFILE *sf = sf_open(outfile, SFM_WRITE, &sfinfo);
     if (sf == nullptr) {
         fprintf(stderr, "Error opening output WAV file: %s\n", outfile);
-        exit(1);
+        return -1;
     }
 
     sf_writef_float(sf, data, (sf_count_t)datalen);
     sf_close(sf);
+    return 0;
 }
 
 /* -----------------------------------------------------------------------
@@ -311,12 +318,13 @@ void FIO_write_wav(const char *outfile,
  * @param nvecs         Number of feature vectors.
  * @param veclen        Number of float elements per vector.
  * @param vecsamprate   Feature sampling rate in Hz.
+ * @return 0 on success, -1 on error.
  */
-void FIO_write_htk_feats(const char *outfile,
-                         const float **outvecs,
-                         size_t nvecs,
-                         size_t veclen,
-                         unsigned vecsamprate)
+int FIO_write_htk_feats(const char *outfile,
+                        const float **outvecs,
+                        size_t nvecs,
+                        size_t veclen,
+                        unsigned vecsamprate)
 {
     /* Build the 12-byte header */
     FIO_HTKheader hdr;
@@ -328,7 +336,7 @@ void FIO_write_htk_feats(const char *outfile,
     FILE *f = fopen(outfile, "wb");
     if (f == nullptr) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
-        exit(1);
+        return -1;
     }
 
     /* HTK files are big-endian, so swap bytes on little-endian machines */
@@ -357,4 +365,5 @@ void FIO_write_htk_feats(const char *outfile,
     }
 
     fclose(f);
+    return 0;
 }

@@ -26,15 +26,16 @@
  * @param datalen   Output: number of samples read.
  * @param samprate  Output: sampling rate of the file (Hz).
  * @param donorm    If 1, normalise samples to [-1.0, 1.0].
+ * @return 0 on success, -1 on error.
  *
  * @note Only single-channel (mono) files are supported.
  *       Use the 'sox' utility to split multi-channel files first.
  */
-void FIO_read_audio(const char *infile,
-                    float **indata,
-                    size_t *datalen,
-                    unsigned *samprate,
-                    unsigned donorm);
+int FIO_read_audio(const char *infile,
+                   float **indata,
+                   size_t *datalen,
+                   unsigned *samprate,
+                   unsigned donorm);
 
 /**
  * Write a 2D float32 array in NumPy .npy v1.0 format.
@@ -46,11 +47,12 @@ void FIO_read_audio(const char *infile,
  * @param outvecs  Array of nvecs pointers, each pointing to veclen floats.
  * @param nvecs    Number of feature vectors (rows).
  * @param veclen   Number of floats per vector (columns).
+ * @return 0 on success, -1 on error.
  */
-void FIO_write_npy(const char *outfile,
-                   const float **outvecs,
-                   size_t nvecs,
-                   size_t veclen);
+int FIO_write_npy(const char *outfile,
+                  const float **outvecs,
+                  size_t nvecs,
+                  size_t veclen);
 
 /**
  * Write a 2D float32 array in safetensors format.
@@ -62,11 +64,12 @@ void FIO_write_npy(const char *outfile,
  * @param outvecs  Array of nvecs pointers, each pointing to veclen floats.
  * @param nvecs    Number of feature vectors (rows).
  * @param veclen   Number of floats per vector (columns).
+ * @return 0 on success, -1 on error.
  */
-void FIO_write_safetensors(const char *outfile,
-                           const float **outvecs,
-                           size_t nvecs,
-                           size_t veclen);
+int FIO_write_safetensors(const char *outfile,
+                          const float **outvecs,
+                          size_t nvecs,
+                          size_t veclen);
 
 /**
  * Write mono float audio to a WAV file.
@@ -77,11 +80,12 @@ void FIO_write_safetensors(const char *outfile,
  * @param data      Audio samples.
  * @param datalen   Number of samples.
  * @param samprate  Sampling rate in Hz.
+ * @return 0 on success, -1 on error.
  */
-void FIO_write_wav(const char *outfile,
-                   const float *data,
-                   size_t datalen,
-                   unsigned samprate);
+int FIO_write_wav(const char *outfile,
+                  const float *data,
+                  size_t datalen,
+                  unsigned samprate);
 
 /**
  * Write feature vectors in HTK binary format.
@@ -93,12 +97,13 @@ void FIO_write_wav(const char *outfile,
  * @param nvecs         Number of feature vectors.
  * @param veclen        Number of floats per vector.
  * @param vecsamprate   Sampling rate of the feature vectors (Hz).
+ * @return 0 on success, -1 on error.
  */
 [[deprecated("use FIO_write_npy or FIO_write_safetensors")]]
-void FIO_write_htk_feats(const char *outfile,
-                         const float **outvecs,
-                         size_t nvecs,
-                         size_t veclen,
-                         unsigned vecsamprate);
+int FIO_write_htk_feats(const char *outfile,
+                        const float **outvecs,
+                        size_t nvecs,
+                        size_t veclen,
+                        unsigned vecsamprate);
 
 #endif /* FILEIO_H */
