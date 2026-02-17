@@ -182,13 +182,19 @@ int main(void)
     }
 
     //! [generate-signal]
-    for (unsigned i = 0; i < N; i++) {
-        double t = (double)i / sample_rate;
-        signal[i] = dc
-                  + amp1 * sin(2.0 * M_PI * freq1 * t)
-                  + amp2 * sin(2.0 * M_PI * freq2 * t)
-                  + amp3 * sin(2.0 * M_PI * freq3 * t);
-    }
+    double *tone = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) signal[i] = dc;
+
+    MD_sine_wave(tone, N, amp1, freq1, sample_rate);
+    for (unsigned i = 0; i < N; i++) signal[i] += tone[i];
+
+    MD_sine_wave(tone, N, amp2, freq2, sample_rate);
+    for (unsigned i = 0; i < N; i++) signal[i] += tone[i];
+
+    MD_sine_wave(tone, N, amp3, freq3, sample_rate);
+    for (unsigned i = 0; i < N; i++) signal[i] += tone[i];
+
+    free(tone);
     //! [generate-signal]
 
     /* ------------------------------------------------------------------
