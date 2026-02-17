@@ -11,15 +11,9 @@
 #   make gcc_phat_test
 #   make gcc_phat_multi_test
 
-CC = gcc
-CFLAGS = -std=c23 -Wall -Wextra -pedantic -g -I..
+include ../config.mk
 
-# Homebrew on Apple Silicon installs to /opt/homebrew; on Intel to /usr/local.
-BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
-ifneq ($(BREW_PREFIX),)
-  CFLAGS += -I$(BREW_PREFIX)/include
-  LDFLAGS += -L$(BREW_PREFIX)/lib
-endif
+CFLAGS += -g -I..
 
 # Paths to optional dependencies (legacy demos)
 GP = $(HOME)/src/gnuplot_i/src
@@ -69,5 +63,6 @@ testliverec.o: testliverec.c
 .PHONY: clean
 clean:
 	-rm -f *.o test_minidsp gcc_phat_test gcc_phat_multi_test testliveio testliverec
+	-rm -rf *.dSYM
 
 default: test_minidsp

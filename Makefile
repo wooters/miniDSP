@@ -6,15 +6,9 @@
 # Generate documentation:      make docs
 # Clean everything:            make clean
 
-CC = gcc
-CFLAGS = -std=c23 -Wall -Wextra -pedantic -O2 -g
+include config.mk
 
-# Homebrew on Apple Silicon installs to /opt/homebrew; on Intel to /usr/local.
-# If Homebrew isn't present, these lines are skipped and system paths are used.
-BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
-ifneq ($(BREW_PREFIX),)
-  CFLAGS += -I$(BREW_PREFIX)/include
-endif
+CFLAGS += -O2 -g
 
 MD_SRCS = minidsp.c biquad.c liveio.c fileio.c
 MD_OBJS = $(MD_SRCS:.c=.o)
