@@ -6,6 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
+ *   - FFT-based magnitude spectrum computation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
  * These are the kinds of building blocks you'd use in an audio processing
@@ -87,6 +88,52 @@ void MD_fit_within_range(double *in, double *out, unsigned N,
  */
 void MD_adjust_dblevel(const double *in, double *out,
                        unsigned N, double dblevel);
+
+/* -----------------------------------------------------------------------
+ * FFT / Spectrum Analysis
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Compute the magnitude spectrum of a real-valued signal.
+ *
+ * Given a signal of length N, this function computes the FFT and returns
+ * the magnitude |X(k)| for each frequency bin.  Because the input is
+ * real-valued, the FFT output is conjugate-symmetric, so only the first
+ * N/2 + 1 bins are unique (from DC through Nyquist).
+ *
+ * To convert bin index k to a frequency in Hz:
+ *   freq_k = k * sample_rate / N
+ *
+ * The output is **not** normalised by N -- divide each value by N to get
+ * the "standard" DFT magnitude, or by N/2 (except DC and Nyquist) for
+ * single-sided amplitude.
+ *
+ * @param signal   Input signal of length N.
+ * @param N        Number of samples in the signal.
+ * @param mag_out  Output array, must be pre-allocated to at least N/2 + 1
+ *                 doubles.  On return, mag_out[k] = |X(k)|.
+ *
+ * @note The caller must allocate mag_out.  The required size is
+ *       (N / 2 + 1) * sizeof(double).
+ *
+ * Example:
+ * @code
+ *   double signal[1024];
+ *   // ... fill signal with audio samples ...
+ *
+ *   unsigned num_bins = 1024 / 2 + 1;  // = 513
+ *   double *mag = malloc(num_bins * sizeof(double));
+ *   MD_magnitude_spectrum(signal, 1024, mag);
+ *
+ *   // mag[0]   = DC component magnitude
+ *   // mag[k]   = magnitude at frequency k * sample_rate / 1024
+ *   // mag[512] = Nyquist frequency magnitude
+ *
+ *   free(mag);
+ *   MD_shutdown();  // free cached FFT plans when done
+ * @endcode
+ */
+void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out);
 
 /* -----------------------------------------------------------------------
  * Window generation
