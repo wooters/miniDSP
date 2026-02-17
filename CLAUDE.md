@@ -7,6 +7,7 @@ A small C library for audio DSP: signal measurement, FFT spectrum analysis, biqu
 ```bash
 make              # Build libminidsp.a
 make test         # Build and run the test suite (tests/test_minidsp)
+make examples     # Build the example programs
 make docs         # Generate HTML documentation (requires Doxygen)
 make clean        # Remove all build artifacts (including generated docs)
 ```
