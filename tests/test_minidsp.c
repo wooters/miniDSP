@@ -409,6 +409,277 @@ static int test_hann_range(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_magnitude_spectrum()
+ *
+ * These tests verify that the magnitude spectrum correctly identifies
+ * frequency content in known signals.  The key mathematical properties:
+ *
+ *   - A pure sine at frequency f concentrates energy in bin k = f*N/sr
+ *   - DC offset appears only in bin 0
+ *   - Parseval's theorem: sum of |X(k)|^2 / N == sum of x(n)^2
+ * -----------------------------------------------------------------------*/
+
+/** A single-frequency sine should produce a peak at the correct bin. */
+static int test_mag_spectrum_single_sine(void)
+{
+    unsigned N = 1024;
+    double sample_rate = 1024.0; /* convenient: bin spacing = 1 Hz */
+    double freq = 100.0;        /* should peak at bin 100 */
+
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * freq * (double)i / sample_rate);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    /* The expected peak bin for this exact frequency */
+    unsigned peak_bin = (unsigned)(freq * N / sample_rate);
+
+    /* Find the actual peak bin (skip DC) */
+    unsigned actual_peak = 1;
+    for (unsigned k = 2; k < num_bins; k++) {
+        if (mag[k] > mag[actual_peak]) {
+            actual_peak = k;
+        }
+    }
+
+    free(mag);
+    free(sig);
+
+    return (actual_peak == peak_bin);
+}
+
+/** Two sinusoids at different frequencies should produce two peaks. */
+static int test_mag_spectrum_two_sines(void)
+{
+    unsigned N = 2048;
+    double sample_rate = 2048.0;
+    double freq1 = 200.0;  /* bin 200 */
+    double freq2 = 500.0;  /* bin 500 */
+
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * freq1 * (double)i / sample_rate)
+               + sin(2.0 * M_PI * freq2 * (double)i / sample_rate);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    unsigned bin1 = (unsigned)(freq1 * N / sample_rate);
+    unsigned bin2 = (unsigned)(freq2 * N / sample_rate);
+
+    /* Both target bins should be much larger than their neighbours */
+    int ok = 1;
+    ok &= (mag[bin1] > mag[bin1 - 2] * 10.0);
+    ok &= (mag[bin1] > mag[bin1 + 2] * 10.0);
+    ok &= (mag[bin2] > mag[bin2 - 2] * 10.0);
+    ok &= (mag[bin2] > mag[bin2 + 2] * 10.0);
+
+    free(mag);
+    free(sig);
+
+    return ok;
+}
+
+/** A DC signal (constant value) should have energy only at bin 0. */
+static int test_mag_spectrum_dc(void)
+{
+    unsigned N = 256;
+    double *sig = malloc(N * sizeof(double));
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = 3.0;
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    int ok = 1;
+    /* DC bin should have magnitude = N * amplitude = 256 * 3.0 = 768.0 */
+    ok &= approx_equal(mag[0], (double)N * 3.0, 1e-10);
+
+    /* All other bins should be zero */
+    for (unsigned k = 1; k < num_bins; k++) {
+        ok &= approx_equal(mag[k], 0.0, 1e-10);
+    }
+
+    free(mag);
+    free(sig);
+
+    return ok;
+}
+
+/** An all-zeros signal should have zero magnitude everywhere. */
+static int test_mag_spectrum_zeros(void)
+{
+    unsigned N = 512;
+    double *sig = calloc(N, sizeof(double));
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(mag[k], 0.0, 1e-15);
+    }
+
+    free(mag);
+    free(sig);
+
+    return ok;
+}
+
+/**
+ * A unit impulse (delta function) has a flat magnitude spectrum.
+ * All bins should have |X(k)| = 1.0 because the DFT of delta[n] = 1
+ * for all k.
+ */
+static int test_mag_spectrum_impulse(void)
+{
+    unsigned N = 256;
+    double *sig = calloc(N, sizeof(double));
+    sig[0] = 1.0;  /* unit impulse at sample 0 */
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(mag[k], 1.0, 1e-10);
+    }
+
+    free(mag);
+    free(sig);
+
+    return ok;
+}
+
+/**
+ * Parseval's theorem:  sum(|x[n]|^2) == sum(|X[k]|^2) / N
+ *
+ * For a real signal, the full N-point power sum in the frequency domain
+ * equals: |X[0]|^2 + 2*sum(|X[k]|^2 for k=1..N/2-1) + |X[N/2]|^2,
+ * all divided by N.
+ */
+static int test_mag_spectrum_parseval(void)
+{
+    unsigned N = 1024;
+    double *sig = malloc(N * sizeof(double));
+
+    /* Generate a signal with multiple frequency components */
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = 0.5 * sin(2.0 * M_PI * 50.0 * (double)i / (double)N)
+               + 0.3 * cos(2.0 * M_PI * 120.0 * (double)i / (double)N)
+               + 0.2;
+    }
+
+    /* Time-domain energy */
+    double time_energy = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        time_energy += sig[i] * sig[i];
+    }
+
+    /* Frequency-domain energy via Parseval's theorem */
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    double freq_energy = mag[0] * mag[0];           /* DC bin */
+    for (unsigned k = 1; k < N / 2; k++) {
+        freq_energy += 2.0 * mag[k] * mag[k];      /* interior bins appear twice */
+    }
+    freq_energy += mag[N / 2] * mag[N / 2];         /* Nyquist bin */
+    freq_energy /= (double)N;
+
+    free(mag);
+    free(sig);
+
+    return approx_equal(time_energy, freq_energy, 1e-8);
+}
+
+/** Calling with different N values should work (tests FFT plan re-caching). */
+static int test_mag_spectrum_different_lengths(void)
+{
+    int ok = 1;
+
+    /* First call with N = 512 */
+    {
+        unsigned N = 512;
+        double *sig = calloc(N, sizeof(double));
+        sig[0] = 1.0;
+
+        unsigned num_bins = N / 2 + 1;
+        double *mag = malloc(num_bins * sizeof(double));
+        MD_magnitude_spectrum(sig, N, mag);
+
+        /* Impulse: all bins should be 1.0 */
+        for (unsigned k = 0; k < num_bins; k++) {
+            ok &= approx_equal(mag[k], 1.0, 1e-10);
+        }
+
+        free(mag);
+        free(sig);
+    }
+
+    /* Second call with N = 256 (forces plan rebuild) */
+    {
+        unsigned N = 256;
+        double *sig = calloc(N, sizeof(double));
+        sig[0] = 1.0;
+
+        unsigned num_bins = N / 2 + 1;
+        double *mag = malloc(num_bins * sizeof(double));
+        MD_magnitude_spectrum(sig, N, mag);
+
+        for (unsigned k = 0; k < num_bins; k++) {
+            ok &= approx_equal(mag[k], 1.0, 1e-10);
+        }
+
+        free(mag);
+        free(sig);
+    }
+
+    return ok;
+}
+
+/**
+ * The magnitude spectrum should be non-negative for any input.
+ * Test with a signal containing both positive and negative values.
+ */
+static int test_mag_spectrum_non_negative(void)
+{
+    unsigned N = 512;
+    double *sig = malloc(N * sizeof(double));
+
+    /* Signal with positive and negative values */
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] = sin(2.0 * M_PI * 7.0 * (double)i / (double)N)
+               - 0.5 * cos(2.0 * M_PI * 13.0 * (double)i / (double)N);
+    }
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= (mag[k] >= 0.0);
+    }
+
+    free(mag);
+    free(sig);
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_gcc() and MD_get_delay() -- GCC-PHAT
  *
  * These tests create known delayed signals and verify the algorithm
@@ -1089,6 +1360,16 @@ int main(void)
     RUN_TEST(test_hann_peak);
     RUN_TEST(test_hann_symmetry);
     RUN_TEST(test_hann_range);
+
+    printf("\n--- MD_magnitude_spectrum ---\n");
+    RUN_TEST(test_mag_spectrum_single_sine);
+    RUN_TEST(test_mag_spectrum_two_sines);
+    RUN_TEST(test_mag_spectrum_dc);
+    RUN_TEST(test_mag_spectrum_zeros);
+    RUN_TEST(test_mag_spectrum_impulse);
+    RUN_TEST(test_mag_spectrum_parseval);
+    RUN_TEST(test_mag_spectrum_different_lengths);
+    RUN_TEST(test_mag_spectrum_non_negative);
 
     printf("\n--- GCC-PHAT delay estimation ---\n");
     RUN_TEST(test_gcc_phat_positive_delay);

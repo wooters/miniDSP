@@ -11,6 +11,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 
 ### Signal Processing (minidsp.h)
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
+- **Magnitude spectrum** -- compute |X(k)| from a real signal using the FFT; the foundation of frequency-domain analysis.
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
@@ -58,7 +59,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 50 tests
+make test       # builds and runs all 58 tests
 ```
 
 ### Test inside an Ubuntu container
@@ -94,6 +95,32 @@ printf("Signal B is %d samples behind signal A\n", delay);
 MD_shutdown();
 ```
 
+## Quick example: compute the magnitude spectrum
+
+```c
+#include "minidsp.h"
+
+double signal[1024];
+// ... fill signal with audio samples ...
+
+unsigned num_bins = 1024 / 2 + 1;  /* 513 unique frequency bins */
+double *mag = malloc(num_bins * sizeof(double));
+MD_magnitude_spectrum(signal, 1024, mag);
+
+/* mag[k] = |X(k)|, where frequency = k * sample_rate / 1024 */
+
+free(mag);
+MD_shutdown();
+```
+
+A full example with Hanning windowing is in `examples/magnitude_spectrum.c`.
+Run it to generate an interactive HTML plot (Plotly.js + D3.js):
+
+```sh
+make -C examples CC=gcc-14 plot
+open examples/magnitude_spectrum.html    # interactive: zoom, pan, hover for values
+```
+
 ## Quick example: filter audio with a low-pass biquad
 
 ```c
@@ -120,6 +147,7 @@ The test suite (`tests/test_minidsp.c`) covers every public function:
 - **AGC** -- target dB level achievement
 - **Entropy** -- uniform, spike, zero, clip/no-clip modes
 - **Hanning window** -- endpoints, peak, symmetry, range
+- **Magnitude spectrum** -- single sine, two sines, DC signal, zeros, impulse (flat spectrum), Parseval's theorem, FFT plan re-caching, non-negativity
 - **GCC-PHAT** -- positive/negative/zero delays, SIMP vs PHAT weighting, multi-signal delays, FFT plan caching
 - **Biquad filters** -- LPF, HPF, BPF, Notch, PEQ, Low shelf, High shelf, DC rejection
 - **File I/O writers** -- .npy round-trip, safetensors round-trip, WAV round-trip

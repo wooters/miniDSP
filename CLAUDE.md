@@ -1,6 +1,6 @@
 # miniDSP
 
-A small C library for audio DSP: signal measurement, biquad filtering, GCC-PHAT delay estimation, and audio I/O.
+A small C library for audio DSP: signal measurement, FFT spectrum analysis, biquad filtering, GCC-PHAT delay estimation, and audio I/O.
 
 ## Build commands
 
@@ -33,7 +33,7 @@ Four modules, each a `.c`/`.h` pair:
 
 | Module | Prefix | Purpose |
 |--------|--------|---------|
-| `minidsp` | `MD_` | Signal math (energy, entropy, scaling, Hanning window) and GCC-PHAT delay estimation |
+| `minidsp` | `MD_` | Signal math (energy, entropy, scaling, Hanning window), magnitude spectrum, and GCC-PHAT delay estimation |
 | `biquad` | `BiQuad` / `BiQuad_` | Second-order IIR filter (LPF, HPF, BPF, notch, PEQ, shelving) |
 | `fileio` | `FIO_` | Read/write audio via libsndfile; write feature vectors (.npy, safetensors, HTK) |
 | `liveio` | `LA_` | Record/play audio via PortAudio callbacks |

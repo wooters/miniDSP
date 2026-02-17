@@ -93,7 +93,6 @@ static void _xcorr_teardown(void)
     pa = nullptr; pb = nullptr; px = nullptr;
 
     _xcorr_free();
-    fftw_cleanup();
 }
 
 /**
@@ -130,6 +129,55 @@ static void _gcc_setup(unsigned N)
         _N = N;
         _xcorr_setup();
     }
+}
+
+/* -----------------------------------------------------------------------
+ * Static (file-scope) variables for spectrum analysis caching
+ *
+ * These are separate from the GCC cache above so that spectrum analysis
+ * and delay estimation can be used independently without invalidating
+ * each other's plans.
+ * -----------------------------------------------------------------------*/
+
+static unsigned      _spec_N       = 0;       /* Cached signal length      */
+static double       *_spec_in      = nullptr;  /* Local copy of input       */
+static fftw_complex *_spec_out     = nullptr;  /* FFT output                */
+static fftw_plan     _spec_plan    = nullptr;  /* FFTW r2c plan             */
+
+/** Free spectrum analysis buffers. */
+static void _spec_free(void)
+{
+    if (_spec_out) fftw_free(_spec_out);
+    if (_spec_in)  free(_spec_in);
+    _spec_out = nullptr;
+    _spec_in  = nullptr;
+}
+
+/** Tear down spectrum analysis plan and buffers. */
+static void _spec_teardown(void)
+{
+    if (_spec_plan) fftw_destroy_plan(_spec_plan);
+    _spec_plan = nullptr;
+    _spec_free();
+}
+
+/**
+ * Ensure the spectrum FFT cache matches the requested length.
+ * Rebuilds the plan and buffers only when N changes.
+ */
+static void _spec_setup(unsigned N)
+{
+    if (_spec_N == N) return;
+
+    _spec_teardown();
+    _spec_N = N;
+
+    _spec_in  = calloc(N, sizeof(double));
+    _spec_out = fftw_alloc_complex(N / 2 + 1);
+
+    _spec_plan = fftw_plan_dft_r2c_1d(
+        (int)N, _spec_in, _spec_out,
+        FFTW_ESTIMATE | FFTW_DESTROY_INPUT);
 }
 
 /* -----------------------------------------------------------------------
@@ -194,6 +242,9 @@ static void _max_index(const double *a, unsigned N,
 void MD_shutdown(void)
 {
     _xcorr_teardown();
+    _spec_teardown();
+    _spec_N = 0;
+    fftw_cleanup();
 }
 
 /* -----------------------------------------------------------------------
@@ -459,6 +510,55 @@ void MD_Gen_Hann_Win(double *out, unsigned n)
     double n_minus_1 = (double)(n - 1);
     for (unsigned i = 0; i < n; i++) {
         out[i] = 0.5 * (1.0 - cos(2.0 * M_PI * (double)i / n_minus_1));
+    }
+}
+
+/* -----------------------------------------------------------------------
+ * Public API: FFT / Spectrum Analysis
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Compute the magnitude spectrum of a real-valued signal.
+ *
+ * This performs a real-to-complex FFT using FFTW, then computes the
+ * absolute value (magnitude) of each complex frequency bin.
+ *
+ * For a real signal of length N, the FFT is conjugate-symmetric, so
+ * only the first N/2 + 1 bins are unique:
+ *
+ *   - Bin 0:     DC component (zero frequency)
+ *   - Bin k:     frequency = k * sample_rate / N
+ *   - Bin N/2:   Nyquist frequency (sample_rate / 2)
+ *
+ * The magnitude is computed as:
+ *   |X(k)| = sqrt( Re(X(k))^2 + Im(X(k))^2 )
+ *
+ * The FFT plan is cached and reused across calls of the same length,
+ * following the same pattern as the GCC functions.
+ *
+ * @param signal   Input signal of length N.
+ * @param N        Number of samples (must be >= 2).
+ * @param mag_out  Output: magnitudes for bins 0..N/2.
+ *                 Must be pre-allocated to N/2 + 1 doubles.
+ */
+void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out)
+{
+    assert(signal != nullptr);
+    assert(mag_out != nullptr);
+    assert(N >= 2);
+
+    _spec_setup(N);
+
+    /* Copy input into the local buffer (FFTW may overwrite it) */
+    memcpy(_spec_in, signal, N * sizeof(double));
+
+    /* Execute the forward FFT (real -> complex) */
+    fftw_execute(_spec_plan);
+
+    /* Compute magnitude |X(k)| = sqrt(re^2 + im^2) for each bin */
+    unsigned num_bins = N / 2 + 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        mag_out[k] = cabs(_spec_out[k]);
     }
 }
 
