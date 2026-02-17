@@ -117,7 +117,7 @@ A full example with Hanning windowing is in `examples/magnitude_spectrum.c`.
 Run it to generate an interactive HTML plot (Plotly.js + D3.js):
 
 ```sh
-make -C examples CC=gcc-14 plot
+make -C examples plot
 open examples/magnitude_spectrum.html    # interactive: zoom, pan, hover for values
 ```
 
