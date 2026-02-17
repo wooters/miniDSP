@@ -1,5 +1,9 @@
 *.o
 *.a
+*.dSYM
+examples/magnitude_spectrum
+examples/magnitude_spectrum.csv
+examples/magnitude_spectrum.html
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test
