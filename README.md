@@ -43,6 +43,7 @@ Install the following libraries before building:
 | [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
 | [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
 | [Doxygen](https://www.doxygen.nl/) | API docs generation (optional) | `apt install doxygen` | `brew install doxygen` |
+| [Apple container](https://github.com/apple/container) | Linux container testing (optional) | — | macOS 26+ built-in |
 
 The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
 
