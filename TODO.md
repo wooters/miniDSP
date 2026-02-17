@@ -12,7 +12,7 @@ ranked roughly by educational impact.
 
 ## Signal Generators
 
-- [ ] **Sine generator** -- constant-frequency tone at a given amplitude and sample rate; the "hello world" of DSP
+- [x] **Sine generator** -- constant-frequency tone at a given amplitude and sample rate; the "hello world" of DSP
 - [ ] **White noise generator** -- uniformly or normally distributed random samples; used to test filters and measure impulse responses
 - [ ] **Impulse generator** -- single unit-sample spike; reveals a system's impulse response directly
 - [ ] **Chirp (swept sine)** -- frequency sweeps linearly or logarithmically over time; great for testing filter magnitude response
