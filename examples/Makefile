@@ -20,12 +20,11 @@ default: magnitude_spectrum
 magnitude_spectrum: magnitude_spectrum.c ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lm
 
-# Run the example and generate the plot
+# Run the example and generate the interactive HTML plot
 .PHONY: plot
 plot: magnitude_spectrum
 	./magnitude_spectrum
-	python3 plot_spectrum.py
 
 .PHONY: clean
 clean:
-	-rm -f magnitude_spectrum magnitude_spectrum.csv magnitude_spectrum.png
+	-rm -f magnitude_spectrum magnitude_spectrum.csv magnitude_spectrum.html

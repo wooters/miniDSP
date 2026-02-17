@@ -113,10 +113,13 @@ free(mag);
 MD_shutdown();
 ```
 
-A full example with Hanning windowing and CSV export is in `examples/magnitude_spectrum.c`.
-Use `examples/plot_spectrum.py` to generate this annotated plot:
+A full example with Hanning windowing is in `examples/magnitude_spectrum.c`.
+Run it to generate an interactive HTML plot (Plotly.js + D3.js):
 
-![Magnitude Spectrum](examples/magnitude_spectrum.png)
+```sh
+make -C examples CC=gcc-14 plot
+open examples/magnitude_spectrum.html    # interactive: zoom, pan, hover for values
+```
 
 ## Quick example: filter audio with a low-pass biquad
 
