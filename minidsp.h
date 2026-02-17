@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
- *   - FFT-based magnitude spectrum and power spectral density
+ *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
  * These are the kinds of building blocks you'd use in an audio processing
@@ -182,6 +182,91 @@ void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out);
  * @endcode
  */
 void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out);
+
+/**
+ * Compute the number of STFT frames for the given signal length and parameters.
+ *
+ * The formula is:
+ *   num_frames = (signal_len - N) / hop + 1  when signal_len >= N
+ *   num_frames = 0                            when signal_len < N
+ *
+ * Use this function to size the output buffer before calling MD_stft().
+ *
+ * @param signal_len  Total number of samples in the signal.
+ * @param N           FFT window size (samples per frame).
+ * @param hop         Hop size (samples between successive frame starts).
+ * @return            Number of complete frames that fit in the signal.
+ *
+ * Example:
+ * @code
+ *   // 1 s of audio at 16 kHz, 32 ms window, 8 ms hop
+ *   unsigned signal_len = 16000;
+ *   unsigned N   = 512;   // 32 ms at 16 kHz
+ *   unsigned hop = 128;   // 8 ms (75% overlap)
+ *   unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+ *   // num_frames = (16000 - 512) / 128 + 1 = 121
+ * @endcode
+ */
+unsigned MD_stft_num_frames(unsigned signal_len, unsigned N, unsigned hop);
+
+/**
+ * Compute the Short-Time Fourier Transform (STFT) of a real-valued signal.
+ *
+ * The STFT slides a Hanning-windowed FFT over the signal in steps of
+ * @p hop samples, producing a time-frequency magnitude matrix.
+ *
+ * For each frame @p f starting at sample @p f * hop, the function:
+ *   1. Multiplies the frame by a Hanning window.
+ *   2. Computes the real-to-complex FFT using FFTW.
+ *   3. Stores the magnitudes |X(k)| for bins 0..N/2 in the output.
+ *
+ * The STFT formula for frame @p f and bin @p k is:
+ *
+ *   X_f(k) = SUM_{n=0}^{N-1}  w[n] * x[f*hop + n] * e^{-j2pi*k*n/N}
+ *
+ *   mag_out[f * (N/2+1) + k] = |X_f(k)|
+ *
+ * where @p w[n] is the Hanning window.
+ *
+ * The output is **not** normalised by N -- divide each value by N to get
+ * the "standard" DFT magnitude, consistent with MD_magnitude_spectrum().
+ *
+ * The STFT reuses the same cached FFT plan as MD_magnitude_spectrum() and
+ * MD_power_spectral_density().  Only the Hanning window buffer is separate.
+ *
+ * @param signal      Input signal.
+ * @param signal_len  Total number of samples in the signal.
+ * @param N           FFT window size (must be >= 2).
+ * @param hop         Hop size in samples (must be >= 1).
+ * @param mag_out     Output array (row-major).  Must be pre-allocated to at
+ *                    least MD_stft_num_frames(signal_len, N, hop) * (N/2+1)
+ *                    doubles.  On return, mag_out[f*(N/2+1) + k] = |X_f(k)|.
+ *
+ * @note  If signal_len < N, the function returns immediately without writing
+ *        any output (zero frames fit).  Use MD_stft_num_frames() to check
+ *        in advance.
+ *
+ * @note  The caller must allocate mag_out.  A typical pattern:
+ * @code
+ *   unsigned N   = 512;
+ *   unsigned hop = 128;
+ *   unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+ *   unsigned num_bins   = N / 2 + 1;
+ *
+ *   double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+ *   MD_stft(signal, signal_len, N, hop, mag_out);
+ *
+ *   // mag_out[f * num_bins + k] = |X_f(k)|
+ *   // Convert bin k to Hz: freq_hz = k * sample_rate / N
+ *   // Convert frame f to seconds: time_s = (double)(f * hop) / sample_rate
+ *
+ *   free(mag_out);
+ *   MD_shutdown();  // free cached FFT plans when done
+ * @endcode
+ */
+void MD_stft(const double *signal, unsigned signal_len,
+             unsigned N, unsigned hop,
+             double *mag_out);
 
 /* -----------------------------------------------------------------------
  * Window generation

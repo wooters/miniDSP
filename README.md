@@ -13,6 +13,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 - **Magnitude spectrum** -- compute |X(k)| from a real signal using the FFT; the foundation of frequency-domain analysis.
 - **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
+- **Spectrogram (STFT)** -- sliding-window FFT producing a time-frequency magnitude matrix; the standard tool for visualising time-varying audio.
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
@@ -60,7 +61,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 66 tests
+make test       # builds and runs all 74 tests
 ```
 
 ### Test inside an Ubuntu container
@@ -148,6 +149,36 @@ A full example with Hanning windowing and one-sided PSD conversion is in
 See the [PSD tutorial](https://wooters.github.io/miniDSP/power-spectral-density.html)
 for a detailed explanation.
 
+## Quick example: compute a spectrogram (STFT)
+
+```c
+#include "minidsp.h"
+
+double signal[32000];
+// ... fill signal with 2 s of audio at 16 kHz ...
+
+unsigned N   = 512;   /* 32 ms window */
+unsigned hop = 128;   /* 8 ms hop (75% overlap) */
+
+unsigned num_frames = MD_stft_num_frames(32000, N, hop);  /* 247 */
+unsigned num_bins   = N / 2 + 1;                          /* 257 */
+
+double *mag = malloc(num_frames * num_bins * sizeof(double));
+MD_stft(signal, 32000, N, hop, mag);
+
+/* mag[f * num_bins + k] = |X_f(k)|
+ * Time of frame f:   time_s  = (double)(f * hop) / 16000.0
+ * Frequency of bin k: freq_hz = (double)k * 16000.0 / N       */
+
+free(mag);
+MD_shutdown();
+```
+
+A full example generating an interactive HTML heatmap is in
+`examples/spectrogram.c`.
+See the [Spectrogram tutorial](https://wooters.github.io/miniDSP/stft-spectrogram.html)
+for a step-by-step explanation.
+
 ## Quick example: filter audio with a low-pass biquad
 
 ```c
@@ -176,6 +207,7 @@ The test suite (`tests/test_minidsp.c`) covers every public function:
 - **Hanning window** -- endpoints, peak, symmetry, range
 - **Magnitude spectrum** -- single sine, two sines, DC signal, zeros, impulse (flat spectrum), Parseval's theorem, FFT plan re-caching, non-negativity
 - **Power spectral density** -- single sine, two sines, DC signal, zeros, impulse (flat PSD), Parseval's theorem, FFT plan re-caching, non-negativity
+- **Spectrogram (STFT)** -- frame count formula, silence, pure tone peak, hop=N non-overlapping frames, non-negativity, Parseval's theorem per frame, plan re-caching across window sizes
 - **GCC-PHAT** -- positive/negative/zero delays, SIMP vs PHAT weighting, multi-signal delays, FFT plan caching
 - **Biquad filters** -- LPF, HPF, BPF, Notch, PEQ, Low shelf, High shelf, DC rejection
 - **File I/O writers** -- .npy round-trip, safetensors round-trip, WAV round-trip

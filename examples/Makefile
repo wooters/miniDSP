@@ -20,7 +20,7 @@ endif
 ../libminidsp.a:
 	$(MAKE) -C .. libminidsp.a
 
-default: magnitude_spectrum power_spectral_density
+default: magnitude_spectrum power_spectral_density spectrogram
 
 magnitude_spectrum: magnitude_spectrum.c ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lm
@@ -28,13 +28,18 @@ magnitude_spectrum: magnitude_spectrum.c ../libminidsp.a
 power_spectral_density: power_spectral_density.c ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lm
 
+spectrogram: spectrogram.c ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lm
+
 # Run the examples and generate the interactive HTML plots
 .PHONY: plot
-plot: magnitude_spectrum power_spectral_density
+plot: magnitude_spectrum power_spectral_density spectrogram
 	./magnitude_spectrum
 	./power_spectral_density
+	./spectrogram
 
 .PHONY: clean
 clean:
 	-rm -rf magnitude_spectrum magnitude_spectrum.dSYM magnitude_spectrum.csv magnitude_spectrum.html
 	-rm -rf power_spectral_density power_spectral_density.dSYM power_spectral_density.csv power_spectral_density.html
+	-rm -rf spectrogram spectrogram.dSYM spectrogram.csv spectrogram.html

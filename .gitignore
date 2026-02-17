@@ -31,6 +31,9 @@ examples/magnitude_spectrum.html
 examples/power_spectral_density
 examples/power_spectral_density.csv
 examples/power_spectral_density.html
+examples/spectrogram
+examples/spectrogram.csv
+examples/spectrogram.html
 
 # Generated documentation
 docs/

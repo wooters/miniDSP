@@ -1407,6 +1407,286 @@ static int test_biquad_hpf_dc_rejection(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_stft() and MD_stft_num_frames()
+ * -----------------------------------------------------------------------*/
+
+/** MD_stft_num_frames() formula and edge cases. */
+static int test_stft_num_frames(void)
+{
+    int ok = 1;
+    /* Standard case: 1024 samples, N=256, hop=128 -> (1024-256)/128+1 = 7 */
+    ok &= (MD_stft_num_frames(1024, 256, 128) == 7);
+    /* signal_len < N -> 0 frames */
+    ok &= (MD_stft_num_frames(128, 256, 128) == 0);
+    /* signal_len == 0 -> 0 frames */
+    ok &= (MD_stft_num_frames(0, 256, 128) == 0);
+    /* signal_len == N -> exactly 1 frame */
+    ok &= (MD_stft_num_frames(256, 256, 128) == 1);
+    /* hop == N, 4*N samples -> 4 frames */
+    ok &= (MD_stft_num_frames(4 * 256, 256, 256) == 4);
+    return ok;
+}
+
+/** All-zeros input should produce all-zero output. */
+static int test_stft_silence(void)
+{
+    unsigned N = 256, hop = 128, signal_len = 1024;
+    unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+    unsigned num_bins   = N / 2 + 1;
+
+    double *signal  = calloc(signal_len, sizeof(double));
+    double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+    MD_stft(signal, signal_len, N, hop, mag_out);
+
+    int ok = 1;
+    for (unsigned i = 0; i < num_frames * num_bins; i++) {
+        ok &= approx_equal(mag_out[i], 0.0, 1e-15);
+    }
+
+    free(mag_out);
+    free(signal);
+    return ok;
+}
+
+/** A bin-aligned pure tone should peak at the correct bin in every frame. */
+static int test_stft_pure_tone(void)
+{
+    unsigned N           = 512;
+    unsigned hop         = 256;
+    double   sample_rate = 16000.0;
+    double   freq        = 1000.0;   /* bin k0 = freq*N/sr = 32 */
+    unsigned k0          = (unsigned)(freq * N / sample_rate);  /* = 32 */
+
+    unsigned signal_len = 4 * N;
+    unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+    unsigned num_bins   = N / 2 + 1;
+
+    double *signal  = malloc(signal_len * sizeof(double));
+    double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+    /* Generate a pure tone that is bin-aligned */
+    for (unsigned i = 0; i < signal_len; i++) {
+        signal[i] = sin(2.0 * M_PI * freq * (double)i / sample_rate);
+    }
+
+    MD_stft(signal, signal_len, N, hop, mag_out);
+
+    /* In every frame the peak bin (ignoring DC) should be k0 */
+    int ok = 1;
+    for (unsigned f = 0; f < num_frames; f++) {
+        const double *row = mag_out + (size_t)f * num_bins;
+        unsigned peak = 1;
+        for (unsigned k = 2; k < num_bins; k++) {
+            if (row[k] > row[peak]) peak = k;
+        }
+        ok &= (peak == k0);
+    }
+
+    free(mag_out);
+    free(signal);
+    return ok;
+}
+
+/** The number of output rows matches MD_stft_num_frames(), verified
+ *  by checking the last row has non-trivial content. */
+static int test_stft_frame_count(void)
+{
+    unsigned N = 256, hop = 128, signal_len = 2000;
+    unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+    unsigned num_bins   = N / 2 + 1;
+
+    double *signal  = malloc(signal_len * sizeof(double));
+    double *mag_out = calloc(num_frames * num_bins, sizeof(double));
+
+    /* Use a sine so the output is non-trivial */
+    for (unsigned i = 0; i < signal_len; i++) {
+        signal[i] = sin(2.0 * M_PI * 10.0 * (double)i / (double)N);
+    }
+
+    MD_stft(signal, signal_len, N, hop, mag_out);
+
+    /* The last row should have at least one non-zero magnitude */
+    int ok = 0;
+    const double *last_row = mag_out + (size_t)(num_frames - 1) * num_bins;
+    for (unsigned k = 0; k < num_bins; k++) {
+        if (last_row[k] > 1e-10) { ok = 1; break; }
+    }
+
+    free(mag_out);
+    free(signal);
+    return ok;
+}
+
+/** Non-overlapping frames (hop == N) from a 4N-sample signal. */
+static int test_stft_hop_equal_N(void)
+{
+    unsigned N = 256, hop = 256, signal_len = 4 * N;
+    unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+    unsigned num_bins   = N / 2 + 1;
+
+    /* Verify frame count */
+    if (num_frames != 4) return 0;
+
+    double *signal  = malloc(signal_len * sizeof(double));
+    double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+    for (unsigned i = 0; i < signal_len; i++) {
+        signal[i] = sin(2.0 * M_PI * 5.0 * (double)i / (double)N);
+    }
+
+    MD_stft(signal, signal_len, N, hop, mag_out);
+
+    /* All magnitudes must be >= 0 */
+    int ok = 1;
+    for (unsigned i = 0; i < num_frames * num_bins; i++) {
+        ok &= (mag_out[i] >= 0.0);
+    }
+
+    free(mag_out);
+    free(signal);
+    return ok;
+}
+
+/** All STFT magnitudes are >= 0 for a mixed-frequency input. */
+static int test_stft_non_negative(void)
+{
+    unsigned N = 512, hop = 128, signal_len = 8192;
+    unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+    unsigned num_bins   = N / 2 + 1;
+
+    double *signal  = malloc(signal_len * sizeof(double));
+    double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+    for (unsigned i = 0; i < signal_len; i++) {
+        signal[i] = 0.6 * sin(2.0 * M_PI * 200.0 * (double)i / 16000.0)
+                  - 0.4 * cos(2.0 * M_PI * 800.0 * (double)i / 16000.0);
+    }
+
+    MD_stft(signal, signal_len, N, hop, mag_out);
+
+    int ok = 1;
+    for (unsigned i = 0; i < num_frames * num_bins; i++) {
+        ok &= (mag_out[i] >= 0.0);
+    }
+
+    free(mag_out);
+    free(signal);
+    return ok;
+}
+
+/**
+ * Parseval's theorem per frame:
+ *   (mag[0]^2 + 2*sum(mag[1..N/2-1]^2) + mag[N/2]^2) / N
+ *   == sum( (w[n]*x[n])^2 )
+ *
+ * This holds because MD_stft() returns unnormalised FFTW magnitudes,
+ * consistent with MD_magnitude_spectrum().
+ */
+static int test_stft_parseval_per_frame(void)
+{
+    unsigned N = 512, hop = 256;
+    unsigned signal_len = 4 * N;
+    unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+    unsigned num_bins   = N / 2 + 1;
+
+    double *signal  = malloc(signal_len * sizeof(double));
+    double *window  = malloc(N * sizeof(double));
+    double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+    MD_Gen_Hann_Win(window, N);
+
+    for (unsigned i = 0; i < signal_len; i++) {
+        signal[i] = 0.7 * sin(2.0 * M_PI * 50.0 * (double)i / (double)N)
+                  + 0.3 * cos(2.0 * M_PI * 130.0 * (double)i / (double)N);
+    }
+
+    MD_stft(signal, signal_len, N, hop, mag_out);
+
+    int ok = 1;
+    for (unsigned f = 0; f < num_frames; f++) {
+        const double *row = mag_out + (size_t)f * num_bins;
+        const double *src = signal  + (size_t)f * hop;
+
+        /* Time-domain energy after windowing */
+        double td_energy = 0.0;
+        for (unsigned n = 0; n < N; n++) {
+            double s = src[n] * window[n];
+            td_energy += s * s;
+        }
+
+        /* Frequency-domain energy via Parseval (unnormalised FFTW convention) */
+        double fd_energy = row[0] * row[0];
+        for (unsigned k = 1; k < N / 2; k++) {
+            fd_energy += 2.0 * row[k] * row[k];
+        }
+        fd_energy += row[N / 2] * row[N / 2];
+        fd_energy /= (double)N;
+
+        ok &= approx_equal(td_energy, fd_energy, 1e-6);
+    }
+
+    free(mag_out);
+    free(window);
+    free(signal);
+    return ok;
+}
+
+/** Calling with N=256 then N=512 should not crash and produce non-negative output. */
+static int test_stft_plan_recache(void)
+{
+    int ok = 1;
+
+    /* First call: N=256 with a sine wave (not impulse -- see plan notes) */
+    {
+        unsigned N = 256, hop = 64, signal_len = 4 * N;
+        unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+        unsigned num_bins   = N / 2 + 1;
+
+        double *signal  = malloc(signal_len * sizeof(double));
+        double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+        for (unsigned i = 0; i < signal_len; i++) {
+            signal[i] = sin(2.0 * M_PI * 10.0 * (double)i / (double)N);
+        }
+
+        MD_stft(signal, signal_len, N, hop, mag_out);
+
+        for (unsigned i = 0; i < num_frames * num_bins; i++) {
+            ok &= (mag_out[i] >= 0.0);
+        }
+
+        free(mag_out);
+        free(signal);
+    }
+
+    /* Second call: N=512 (forces plan and window rebuild) */
+    {
+        unsigned N = 512, hop = 128, signal_len = 4 * N;
+        unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
+        unsigned num_bins   = N / 2 + 1;
+
+        double *signal  = malloc(signal_len * sizeof(double));
+        double *mag_out = malloc(num_frames * num_bins * sizeof(double));
+
+        for (unsigned i = 0; i < signal_len; i++) {
+            signal[i] = sin(2.0 * M_PI * 10.0 * (double)i / (double)N);
+        }
+
+        MD_stft(signal, signal_len, N, hop, mag_out);
+
+        for (unsigned i = 0; i < num_frames * num_bins; i++) {
+            ok &= (mag_out[i] >= 0.0);
+        }
+
+        free(mag_out);
+        free(signal);
+    }
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for FIO_write_npy()
  * -----------------------------------------------------------------------*/
 
@@ -1679,6 +1959,16 @@ int main(void)
     RUN_TEST(test_biquad_low_shelf);
     RUN_TEST(test_biquad_high_shelf);
     RUN_TEST(test_biquad_hpf_dc_rejection);
+
+    printf("\n--- MD_stft ---\n");
+    RUN_TEST(test_stft_num_frames);
+    RUN_TEST(test_stft_silence);
+    RUN_TEST(test_stft_pure_tone);
+    RUN_TEST(test_stft_frame_count);
+    RUN_TEST(test_stft_hop_equal_N);
+    RUN_TEST(test_stft_non_negative);
+    RUN_TEST(test_stft_parseval_per_frame);
+    RUN_TEST(test_stft_plan_recache);
 
     printf("\n--- File I/O writers ---\n");
     RUN_TEST(test_write_npy);
