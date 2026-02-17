@@ -2,7 +2,7 @@
 
 [![Docs](https://github.com/wooters/miniDSP/actions/workflows/docs.yml/badge.svg)](https://github.com/wooters/miniDSP/actions/workflows/docs.yml)
 [![Pages](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://wooters.github.io/miniDSP/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/wooters/miniDSP/blob/master/LICENSE)
 [![Language: C](https://img.shields.io/badge/language-C23-orange)](https://en.wikipedia.org/wiki/C23_(C_standard_revision))
 
 A small C library of DSP (Digital Signal Processing) routines for audio applications.
