@@ -23,7 +23,7 @@ jobs:
           submodules: true
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y doxygen gcc-14 libc6-dev make libfftw3-dev libsndfile1-dev
+        run: sudo apt-get update && sudo apt-get install -y doxygen gcc-14 libc6-dev make libfftw3-dev libsndfile1-dev portaudio19-dev
 
       - name: Generate documentation
         run: make docs CC=gcc-14
