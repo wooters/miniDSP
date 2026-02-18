@@ -51,6 +51,9 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 
 ## Quick examples
 
+For step-by-step walkthroughs of these and other topics, see the
+[Tutorials](https://wooters.github.io/miniDSP/tutorials.html) in the full documentation.
+
 ### Detect the delay between two signals
 
 ```c
