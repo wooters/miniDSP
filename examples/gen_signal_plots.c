@@ -1,11 +1,11 @@
 /**
  * @file gen_signal_plots.c
- * @brief Docs-only utility: generate spectrum and spectrogram HTML plots
- *        for the signal generators guide.
+ * @brief Docs-only utility: generate HTML plots for docs guides.
  *
- * Generates 14 self-contained HTML files (7 magnitude spectra + 7 STFT
- * spectrograms) into guides/plots/ for embedding as iframes in the
- * Doxygen signal generators guide.
+ * Generates:
+ *   - 14 signal-generator plots (7 spectra + 7 spectrograms)
+ *   - 8 window-function plots (4 time-domain + 4 spectra)
+ * into guides/plots/ for embedding as iframes in Doxygen guides.
  *
  * It is NOT a user-facing example — it is invoked automatically by
  * `make docs`.
@@ -28,6 +28,10 @@
 /* STFT parameters: 256-point window (~31 ms at 8192 Hz), 75% overlap */
 #define N_FFT   256u
 #define HOP      64u
+
+/* Window visualisation parameters */
+#define WINDOW_N        256u
+#define WINDOW_FFT_VIS 4096u
 
 static void write_head(FILE *fp, const char *title)
 {
@@ -205,6 +209,108 @@ static int write_spectrogram_html(const char *path, const char *title,
     return 0;
 }
 
+/** Write a time-domain window plot: w[n] vs sample index n. */
+static int write_window_time_html(const char *path, const char *title,
+                                  const double *window, unsigned n)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    write_head(fp, title);
+
+    fprintf(fp, "    const idx = Array.from({length: %u}, (_, i) => i);\n", n);
+    plot_html_js_array(fp, "w", window, n, "%.8g");
+
+    fprintf(fp,
+        "    Plotly.newPlot('plot', [{\n"
+        "      x: idx, y: w,\n"
+        "      type: 'scatter', mode: 'lines',\n"
+        "      line: { color: '#2563eb', width: 1.4 },\n"
+        "      hovertemplate: 'n=%%{x}<br>w[n]=%%{y:.6f}<extra></extra>'\n"
+        "    }], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Sample Index (n)', range: [0, %u] },\n"
+        "      yaxis: { title: 'Amplitude', range: [-0.05, 1.05] },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360\n"
+        "    }, { responsive: true });\n",
+        title, n - 1);
+
+    write_foot(fp);
+    fclose(fp);
+    printf("  %s\n", path);
+    return 0;
+}
+
+/**
+ * Write a zero-padded window magnitude response:
+ * one-sided amplitude in dB vs normalized frequency (cycles/sample).
+ */
+static int write_window_spectrum_html(const char *path, const char *title,
+                                      const double *window, unsigned n_win,
+                                      unsigned n_fft_vis)
+{
+    double *signal = calloc(n_fft_vis, sizeof(double));
+    double *mag = malloc((n_fft_vis / 2 + 1) * sizeof(double));
+    if (!signal || !mag) {
+        fprintf(stderr, "allocation failed for %s\n", path);
+        free(signal);
+        free(mag);
+        return -1;
+    }
+
+    memcpy(signal, window, n_win * sizeof(double));
+    MD_magnitude_spectrum(signal, n_fft_vis, mag);
+
+    /* Single-sided amplitude normalization */
+    for (unsigned k = 0; k < n_fft_vis / 2 + 1; k++) {
+        mag[k] /= (double)n_fft_vis;
+        if (k > 0 && k < n_fft_vis / 2)
+            mag[k] *= 2.0;
+    }
+
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        free(signal);
+        free(mag);
+        return -1;
+    }
+
+    write_head(fp, title);
+
+    fprintf(fp,
+            "    const f = Array.from({length: %u}, (_, k) => k / %u.0);\n",
+            n_fft_vis / 2 + 1, n_fft_vis);
+    plot_html_js_array(fp, "mags", mag, n_fft_vis / 2 + 1, "%.8g");
+
+    fprintf(fp,
+        "    const mags_db = mags.map(m => 20 * Math.log10(Math.max(m, 1e-6)));\n"
+        "    Plotly.newPlot('plot', [{\n"
+        "      x: f, y: mags_db,\n"
+        "      type: 'scatter', mode: 'lines',\n"
+        "      line: { color: '#2563eb', width: 1.2 },\n"
+        "      hovertemplate: 'f: %%{x:.4f} cycles/sample<br>%%{y:.1f} dB<extra></extra>'\n"
+        "    }], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Normalized Frequency (cycles/sample)', range: [0, 0.5] },\n"
+        "      yaxis: { title: 'Magnitude (dB)', range: [-120, 5] },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360\n"
+        "    }, { responsive: true });\n",
+        title);
+
+    write_foot(fp);
+    fclose(fp);
+    free(signal);
+    free(mag);
+    printf("  %s\n", path);
+    return 0;
+}
+
 int main(void)
 {
     double *buf = malloc(N_SIGNAL * sizeof(double));
@@ -293,6 +399,44 @@ int main(void)
                            "Impulse Train (4 clicks) - Spectrogram", buf);
 
     MD_shutdown();   /* release N=256 STFT plan */
+
+    /* ----------------------------------------------------------------
+     * Phase 3: window function visuals
+     * All spectra use N=4096 zero-padded FFT for consistent comparison.
+     * ----------------------------------------------------------------*/
+    printf("Window function visuals:\n");
+
+    double hann[WINDOW_N], hamming[WINDOW_N], blackman[WINDOW_N], rect[WINDOW_N];
+    MD_Gen_Hann_Win(hann, WINDOW_N);
+    MD_Gen_Hamming_Win(hamming, WINDOW_N);
+    MD_Gen_Blackman_Win(blackman, WINDOW_N);
+    MD_Gen_Rect_Win(rect, WINDOW_N);
+
+    write_window_time_html("guides/plots/hann_window_time.html",
+                           "Hanning Window - Time Domain", hann, WINDOW_N);
+    write_window_spectrum_html("guides/plots/hann_window_spectrum.html",
+                               "Hanning Window - Magnitude Response", hann,
+                               WINDOW_N, WINDOW_FFT_VIS);
+
+    write_window_time_html("guides/plots/hamming_window_time.html",
+                           "Hamming Window - Time Domain", hamming, WINDOW_N);
+    write_window_spectrum_html("guides/plots/hamming_window_spectrum.html",
+                               "Hamming Window - Magnitude Response", hamming,
+                               WINDOW_N, WINDOW_FFT_VIS);
+
+    write_window_time_html("guides/plots/blackman_window_time.html",
+                           "Blackman Window - Time Domain", blackman, WINDOW_N);
+    write_window_spectrum_html("guides/plots/blackman_window_spectrum.html",
+                               "Blackman Window - Magnitude Response", blackman,
+                               WINDOW_N, WINDOW_FFT_VIS);
+
+    write_window_time_html("guides/plots/rect_window_time.html",
+                           "Rectangular Window - Time Domain", rect, WINDOW_N);
+    write_window_spectrum_html("guides/plots/rect_window_spectrum.html",
+                               "Rectangular Window - Magnitude Response", rect,
+                               WINDOW_N, WINDOW_FFT_VIS);
+
+    MD_shutdown();   /* release N=4096 plan */
 
     free(buf);
     return 0;

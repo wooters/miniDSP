@@ -52,3 +52,9 @@ Key patterns:
 - Public functions use module prefixes: `MD_`, `BiQuad_`, `FIO_`, `LA_`
 - `smp_type` is `typedef double` in biquad.h (could be changed to `float`)
 - Tests live in `tests/` with their own Makefile; `make test` from root delegates there
+
+## Documentation conventions
+
+- For "Reading the formula in C" sections, use direct loops/arithmetic (not helper wrappers) and include explicit variable mapping comments (for example: `i -> n`, `out[i] -> w[n]`).
+- For comparative visuals, keep plot settings fixed across variants (same tap length, same FFT visualization length, same dB floor/range) so differences are meaningful.
+- When adding generated guide assets (HTML plots/audio), update `Doxyfile` `HTML_EXTRA_FILES` and ensure every embedded iframe source is listed there.

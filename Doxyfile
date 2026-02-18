@@ -55,7 +55,15 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/plots/white_noise_spectrum.html \
                          guides/plots/white_noise_spectrogram.html \
                          guides/plots/impulse_spectrum.html \
-                         guides/plots/impulse_spectrogram.html
+                         guides/plots/impulse_spectrogram.html \
+                         guides/plots/hann_window_time.html \
+                         guides/plots/hann_window_spectrum.html \
+                         guides/plots/hamming_window_time.html \
+                         guides/plots/hamming_window_spectrum.html \
+                         guides/plots/blackman_window_time.html \
+                         guides/plots/blackman_window_spectrum.html \
+                         guides/plots/rect_window_time.html \
+                         guides/plots/rect_window_spectrum.html
 
 HTML_HEADER            = doxygen-custom/header.html
 

@@ -42,6 +42,18 @@ if (n == 1) {
 void MD_Gen_Hann_Win(double *out, unsigned n);
 ```
 
+**Visuals** — window taps and magnitude response:
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="hann_window_time.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="hann_window_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
+The smooth taper to zero at both ends reduces leakage compared with a
+rectangular window.
+
 **Quick example:**
 
 \snippet window_functions.c generate-hann
@@ -76,6 +88,18 @@ if (n == 1) {
 ```c
 void MD_Gen_Hamming_Win(double *out, unsigned n);
 ```
+
+**Visuals** — window taps and magnitude response:
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="hamming_window_time.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="hamming_window_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
+Compared with Hanning, the non-zero endpoints and coefficients shift
+the sidelobe pattern while keeping a similar main-lobe width.
 
 **Quick example:**
 
@@ -119,6 +143,18 @@ if (n == 1) {
 void MD_Gen_Blackman_Win(double *out, unsigned n);
 ```
 
+**Visuals** — window taps and magnitude response:
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="blackman_window_time.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="blackman_window_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
+You should see much lower sidelobes than Hanning/Hamming, with a wider
+main lobe in the response plot.
+
 **Quick example:**
 
 \snippet window_functions.c generate-blackman
@@ -150,6 +186,18 @@ for (unsigned i = 0; i < n; i++) {
 void MD_Gen_Rect_Win(double *out, unsigned n);
 ```
 
+**Visuals** — window taps and magnitude response:
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="rect_window_time.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="rect_window_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
+As the no-taper baseline, rectangular gives the narrowest main lobe and
+the highest sidelobes.
+
 **Quick example:**
 
 \snippet window_functions.c generate-rect
@@ -167,6 +215,8 @@ void MD_Gen_Rect_Win(double *out, unsigned n);
 
 If you are unsure where to start, Hanning is a good default. Use
 Blackman when leakage suppression matters more than peak sharpness.
+All response plots above use the same tap length and zero-padded FFT
+size, so sidelobe and main-lobe differences are directly comparable.
 
 ## Further reading
 
