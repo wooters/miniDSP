@@ -5,7 +5,7 @@ PROJECT_BRIEF          = "A small C library for audio DSP"
 OUTPUT_DIRECTORY       = docs
 
 # --- Input ---
-INPUT                  = . README.md guides
+INPUT                  = include src README.md guides
 FILE_PATTERNS          = *.h *.c *.md
 RECURSIVE              = NO
 EXCLUDE                = doxygen-awesome-css tests

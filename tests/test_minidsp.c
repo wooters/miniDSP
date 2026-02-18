@@ -23,7 +23,7 @@
 #include <unistd.h>
 #include "minidsp.h"
 #include "biquad.h"
-#include "../fileio.h"
+#include "fileio.h"
 
 /* -----------------------------------------------------------------------
  * Test infrastructure

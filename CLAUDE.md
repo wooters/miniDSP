@@ -30,7 +30,7 @@ The primary test suite (`test_minidsp`) links FFTW3, math, and libsndfile. PortA
 
 ## Architecture
 
-Four modules, each a `.c`/`.h` pair:
+Four modules, each with a header in `include/` and implementation in `src/`:
 
 | Module | Prefix | Purpose |
 |--------|--------|---------|
@@ -41,7 +41,7 @@ Four modules, each a `.c`/`.h` pair:
 
 Key patterns:
 
-- **FFT plan caching** — `minidsp.c` keeps static FFTW plans and buffers. They are allocated on first use and reallocated only when signal length changes. Call `MD_shutdown()` to free them.
+- **FFT plan caching** — `src/minidsp.c` keeps static FFTW plans and buffers. They are allocated on first use and reallocated only when signal length changes. Call `MD_shutdown()` to free them.
 - **PortAudio callbacks** — `liveio` uses non-blocking PortAudio streams. `LA_record()` / `LA_play()` return immediately; audio I/O happens in background callbacks. Also supports user-supplied callbacks via `LA_record_callback()` / `LA_play_callback()`.
 - **Heap-allocated filters** — `BiQuad_new()` returns a `malloc`'d struct. Caller must `free()` it.
 

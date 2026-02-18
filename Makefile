@@ -8,9 +8,9 @@
 
 include config.mk
 
-CFLAGS += -O2 -g
+CFLAGS += -O2 -g -Iinclude
 
-MD_SRCS = minidsp.c biquad.c liveio.c fileio.c
+MD_SRCS = src/minidsp.c src/biquad.c src/liveio.c src/fileio.c
 MD_OBJS = $(MD_SRCS:.c=.o)
 
 default: libminidsp.a
@@ -51,7 +51,7 @@ docs: libminidsp.a
 
 .PHONY: clean
 clean:
-	-rm -f *.o libminidsp.a
+	-rm -f src/*.o libminidsp.a
 	-rm -rf docs guides/audio guides/plots
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean

@@ -13,7 +13,7 @@
 
 include ../config.mk
 
-CFLAGS += -g -I..
+CFLAGS += -g -I../include
 
 # Paths to optional dependencies (legacy demos)
 GP = $(HOME)/src/gnuplot_i/src
@@ -24,7 +24,7 @@ GP_OBJ = $(GP)/gnuplot_i.o
 test_minidsp: test_minidsp.o ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lfftw3 -lsndfile -lm
 
-test_minidsp.o: test_minidsp.c ../minidsp.h ../biquad.h ../fileio.h
+test_minidsp.o: test_minidsp.c ../include/minidsp.h ../include/biquad.h ../include/fileio.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Convenience target: build and run

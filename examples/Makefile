@@ -7,7 +7,7 @@
 
 include ../config.mk
 
-CFLAGS += -O2 -g -I..
+CFLAGS += -O2 -g -I../include
 
 EXAMPLES = magnitude_spectrum power_spectral_density spectrogram phase_spectrum sine_wave white_noise impulse chirp_wave square_sawtooth
 
