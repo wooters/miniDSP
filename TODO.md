@@ -20,10 +20,10 @@ ranked roughly by educational impact.
 
 ## FIR Filters / Convolution
 
-- [ ] **Time-domain convolution** -- direct sum-of-products implementation; teaches the convolution theorem before FFT shortcuts
-- [ ] **Moving-average filter** -- simplest FIR low-pass; good first filter for students to implement and analyse
-- [ ] **General FIR filter** -- apply arbitrary coefficient arrays; pairs with window-design method
-- [ ] **FFT-based fast convolution** -- overlap-add or overlap-save; shows why FFT matters for long filters
+- [x] **Time-domain convolution** -- direct sum-of-products implementation; teaches the convolution theorem before FFT shortcuts
+- [x] **Moving-average filter** -- simplest FIR low-pass; good first filter for students to implement and analyse
+- [x] **General FIR filter** -- apply arbitrary coefficient arrays; pairs with window-design method
+- [x] **FFT-based fast convolution** -- overlap-add or overlap-save; shows why FFT matters for long filters
 
 ## Window Functions
 

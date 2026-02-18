@@ -643,6 +643,223 @@ static int test_mix_inplace(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for FIR filtering / convolution
+ * -----------------------------------------------------------------------*/
+
+static int test_convolution_num_samples(void)
+{
+    int ok = 1;
+    ok &= (MD_convolution_num_samples(1, 1) == 1);
+    ok &= (MD_convolution_num_samples(4, 3) == 6);
+    ok &= (MD_convolution_num_samples(256, 17) == 272);
+    return ok;
+}
+
+/** Small hand-computed full convolution. */
+static int test_convolution_time_known_small(void)
+{
+    double x[] = {1.0, 2.0, 3.0};
+    double h[] = {1.0, 1.0};
+    double y[4];
+    double expected[] = {1.0, 3.0, 5.0, 3.0};
+
+    MD_convolution_time(x, 3, h, 2, y);
+
+    int ok = 1;
+    for (unsigned i = 0; i < 4; i++) {
+        ok &= approx_equal(y[i], expected[i], 1e-15);
+    }
+    return ok;
+}
+
+/** Convolution with a unit impulse should reproduce the input. */
+static int test_convolution_time_impulse_identity(void)
+{
+    double x[] = {-1.0, 0.5, 2.0, -3.0, 4.5};
+    double h[] = {1.0};
+    double y[5];
+
+    MD_convolution_time(x, 5, h, 1, y);
+
+    int ok = 1;
+    for (unsigned i = 0; i < 5; i++) {
+        ok &= approx_equal(y[i], x[i], 1e-15);
+    }
+    return ok;
+}
+
+/** Known 2-tap FIR coefficients should match hand-computed values. */
+static int test_fir_filter_known_taps(void)
+{
+    double x[] = {1.0, 2.0, 3.0, 4.0};
+    double b[] = {0.5, 0.5};
+    double y[4];
+    double expected[] = {0.5, 1.5, 2.5, 3.5};
+
+    MD_fir_filter(x, 4, b, 2, y);
+
+    int ok = 1;
+    for (unsigned i = 0; i < 4; i++) {
+        ok &= approx_equal(y[i], expected[i], 1e-15);
+    }
+    return ok;
+}
+
+/** Step response of a causal moving average with fixed denominator. */
+static int test_moving_average_step_response(void)
+{
+    double x[] = {1, 1, 1, 1, 1, 1, 1, 1};
+    double y[8];
+    double expected[] = {0.25, 0.50, 0.75, 1.0, 1.0, 1.0, 1.0, 1.0};
+
+    MD_moving_average(x, 8, 4, y);
+
+    int ok = 1;
+    for (unsigned i = 0; i < 8; i++) {
+        ok &= approx_equal(y[i], expected[i], 1e-15);
+    }
+    return ok;
+}
+
+/** Moving average should match FIR with boxcar coefficients (1/M each). */
+static int test_moving_average_matches_boxcar_fir(void)
+{
+    unsigned N = 256;
+    unsigned M = 9;
+
+    double *x = malloc(N * sizeof(double));
+    double *y_ma = malloc(N * sizeof(double));
+    double *y_fir = malloc(N * sizeof(double));
+    double *b = malloc(M * sizeof(double));
+    if (!x || !y_ma || !y_fir || !b) {
+        free(b);
+        free(y_fir);
+        free(y_ma);
+        free(x);
+        return 0;
+    }
+
+    for (unsigned i = 0; i < N; i++) {
+        x[i] = sin(2.0 * M_PI * 11.0 * (double)i / (double)N)
+             + 0.3 * cos(2.0 * M_PI * 37.0 * (double)i / (double)N);
+    }
+    for (unsigned k = 0; k < M; k++) {
+        b[k] = 1.0 / (double)M;
+    }
+
+    MD_moving_average(x, N, M, y_ma);
+    MD_fir_filter(x, N, b, M, y_fir);
+
+    int ok = 1;
+    for (unsigned i = 0; i < N; i++) {
+        ok &= approx_equal(y_ma[i], y_fir[i], 1e-12);
+    }
+
+    free(b);
+    free(y_fir);
+    free(y_ma);
+    free(x);
+    return ok;
+}
+
+/** FFT overlap-add should match direct time-domain convolution. */
+static int test_convolution_fft_ola_matches_time(void)
+{
+    unsigned N = 2048;
+    unsigned M = 257;
+    unsigned out_len = MD_convolution_num_samples(N, M);
+
+    double *x = malloc(N * sizeof(double));
+    double *h = malloc(M * sizeof(double));
+    double *y_time = malloc(out_len * sizeof(double));
+    double *y_fft = malloc(out_len * sizeof(double));
+    if (!x || !h || !y_time || !y_fft) {
+        free(y_fft);
+        free(y_time);
+        free(h);
+        free(x);
+        return 0;
+    }
+
+    for (unsigned i = 0; i < N; i++) {
+        x[i] = 0.6 * sin(2.0 * M_PI * 37.0 * (double)i / (double)N)
+             + 0.2 * cos(2.0 * M_PI * 113.0 * (double)i / (double)N);
+    }
+    for (unsigned k = 0; k < M; k++) {
+        /* Finite decaying kernel */
+        h[k] = exp(-0.01 * (double)k) * cos(2.0 * M_PI * 0.02 * (double)k);
+    }
+
+    MD_convolution_time(x, N, h, M, y_time);
+    MD_convolution_fft_ola(x, N, h, M, y_fft);
+
+    double max_err = 0.0;
+    for (unsigned i = 0; i < out_len; i++) {
+        double err = fabs(y_time[i] - y_fft[i]);
+        if (err > max_err) max_err = err;
+    }
+
+    free(y_fft);
+    free(y_time);
+    free(h);
+    free(x);
+    return (max_err <= 1e-8);
+}
+
+/** FFT overlap-add should remain accurate across length combinations. */
+static int test_convolution_fft_ola_different_lengths(void)
+{
+    const unsigned signal_lens[] = {63, 500, 409};
+    const unsigned kernel_lens[] = {5, 80, 257};
+    const unsigned num_cases = 3;
+
+    int ok = 1;
+    for (unsigned c = 0; c < num_cases; c++) {
+        unsigned N = signal_lens[c];
+        unsigned M = kernel_lens[c];
+        unsigned out_len = MD_convolution_num_samples(N, M);
+
+        double *x = malloc(N * sizeof(double));
+        double *h = malloc(M * sizeof(double));
+        double *y_time = malloc(out_len * sizeof(double));
+        double *y_fft = malloc(out_len * sizeof(double));
+        if (!x || !h || !y_time || !y_fft) {
+            free(y_fft);
+            free(y_time);
+            free(h);
+            free(x);
+            return 0;
+        }
+
+        for (unsigned i = 0; i < N; i++) {
+            x[i] = sin(2.0 * M_PI * (3.0 + (double)c) * (double)i / (double)N)
+                 + 0.1 * (double)((int)(i % 7) - 3);
+        }
+        for (unsigned k = 0; k < M; k++) {
+            h[k] = 1.0 / (double)(k + 1);
+        }
+
+        MD_convolution_time(x, N, h, M, y_time);
+        MD_convolution_fft_ola(x, N, h, M, y_fft);
+
+        for (unsigned i = 0; i < out_len; i++) {
+            if (!approx_equal(y_time[i], y_fft[i], 1e-8)) {
+                ok = 0;
+                break;
+            }
+        }
+
+        free(y_fft);
+        free(y_time);
+        free(h);
+        free(x);
+        if (!ok) break;
+    }
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for window generation
  * -----------------------------------------------------------------------*/
 
@@ -3006,6 +3223,16 @@ int main(void)
     RUN_TEST(test_mix_passthrough);
     RUN_TEST(test_mix_energy);
     RUN_TEST(test_mix_inplace);
+
+    printf("\n--- FIR filters / convolution ---\n");
+    RUN_TEST(test_convolution_num_samples);
+    RUN_TEST(test_convolution_time_known_small);
+    RUN_TEST(test_convolution_time_impulse_identity);
+    RUN_TEST(test_fir_filter_known_taps);
+    RUN_TEST(test_moving_average_step_response);
+    RUN_TEST(test_moving_average_matches_boxcar_fir);
+    RUN_TEST(test_convolution_fft_ola_matches_time);
+    RUN_TEST(test_convolution_fft_ola_different_lengths);
 
     printf("\n--- Window generation ---\n");
     RUN_TEST(test_hann_endpoints);

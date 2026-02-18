@@ -63,7 +63,15 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/plots/blackman_window_time.html \
                          guides/plots/blackman_window_spectrum.html \
                          guides/plots/rect_window_time.html \
-                         guides/plots/rect_window_spectrum.html
+                         guides/plots/rect_window_spectrum.html \
+                         guides/plots/conv_time_response.html \
+                         guides/plots/conv_time_spectrum.html \
+                         guides/plots/moving_average_response.html \
+                         guides/plots/moving_average_spectrum.html \
+                         guides/plots/fir_general_response.html \
+                         guides/plots/fir_general_spectrum.html \
+                         guides/plots/conv_fft_ola_response.html \
+                         guides/plots/conv_fft_ola_spectrum.html
 
 HTML_HEADER            = doxygen-custom/header.html
 

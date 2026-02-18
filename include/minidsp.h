@@ -8,6 +8,7 @@
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning, Hamming, Blackman, rectangular)
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
+ *   - FIR filtering and convolution (time-domain and FFT overlap-add)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
@@ -205,6 +206,82 @@ void MD_peak_detect(const double *a, unsigned N, double threshold,
  */
 void MD_mix(const double *a, const double *b, double *out,
             unsigned N, double w_a, double w_b);
+
+/* -----------------------------------------------------------------------
+ * FIR filters / convolution
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Compute the output length of a full linear convolution.
+ *
+ * For input length N and kernel length M, full convolution length is N+M-1.
+ */
+unsigned MD_convolution_num_samples(unsigned signal_len, unsigned kernel_len);
+
+/**
+ * Time-domain full linear convolution (direct sum-of-products).
+ *
+ * Computes:
+ *   out[n] = sum_{k=0}^{kernel_len-1} signal[n-k] * kernel[k]
+ * with out-of-range signal samples treated as zero.
+ *
+ * @param signal      Input signal of length signal_len.
+ * @param signal_len  Number of input samples (must be > 0).
+ * @param kernel      FIR kernel of length kernel_len.
+ * @param kernel_len  Number of FIR taps (must be > 0).
+ * @param out         Output buffer of length signal_len + kernel_len - 1.
+ */
+void MD_convolution_time(const double *signal, unsigned signal_len,
+                         const double *kernel, unsigned kernel_len,
+                         double *out);
+
+/**
+ * Causal moving-average FIR filter with zero-padded startup.
+ *
+ * Computes:
+ *   out[n] = (1/window_len) * sum_{k=0}^{window_len-1} signal[n-k]
+ * where out-of-range samples (n-k < 0) are treated as zero.
+ *
+ * @param signal      Input signal of length signal_len.
+ * @param signal_len  Number of input samples (must be > 0).
+ * @param window_len  Moving-average window length (must be > 0).
+ * @param out         Output buffer of length signal_len.
+ */
+void MD_moving_average(const double *signal, unsigned signal_len,
+                       unsigned window_len, double *out);
+
+/**
+ * Apply a causal FIR filter with arbitrary coefficients.
+ *
+ * Computes:
+ *   out[n] = sum_{k=0}^{num_taps-1} coeffs[k] * signal[n-k]
+ * with out-of-range signal samples treated as zero.
+ *
+ * @param signal      Input signal of length signal_len.
+ * @param signal_len  Number of input samples (must be > 0).
+ * @param coeffs      FIR coefficients of length num_taps.
+ * @param num_taps    Number of FIR taps (must be > 0).
+ * @param out         Output buffer of length signal_len.
+ */
+void MD_fir_filter(const double *signal, unsigned signal_len,
+                   const double *coeffs, unsigned num_taps,
+                   double *out);
+
+/**
+ * Full linear convolution using FFT overlap-add (offline).
+ *
+ * Produces the same output as MD_convolution_time() but is faster for
+ * longer kernels by processing blocks in the frequency domain.
+ *
+ * @param signal      Input signal of length signal_len.
+ * @param signal_len  Number of input samples (must be > 0).
+ * @param kernel      FIR kernel of length kernel_len.
+ * @param kernel_len  Number of FIR taps (must be > 0).
+ * @param out         Output buffer of length signal_len + kernel_len - 1.
+ */
+void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
+                            const double *kernel, unsigned kernel_len,
+                            double *out);
 
 /* -----------------------------------------------------------------------
  * Signal scaling and conditioning

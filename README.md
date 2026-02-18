@@ -47,6 +47,13 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 - **Peak detection** -- find local maxima above a threshold with minimum-distance suppression.
 - **Signal mixing** -- weighted sum of two signals; needed for any multi-source demo.
 
+### FIR Filters / Convolution (minidsp.h)
+
+- **Time-domain convolution** -- direct full linear convolution for teaching and validation.
+- **Moving-average filter** -- simplest causal FIR low-pass with zero-padded startup.
+- **General FIR filter** -- apply arbitrary tap coefficients to build custom FIR responses.
+- **FFT overlap-add convolution** -- fast full convolution for longer kernels.
+
 ### Signal Measurement (minidsp.h)
 
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.
@@ -233,6 +240,35 @@ A full example generating an interactive HTML heatmap is in
 `examples/spectrogram.c`.
 See the [Spectrogram tutorial](https://wooters.github.io/miniDSP/stft-spectrogram.html)
 for a step-by-step explanation.
+
+### FIR filtering and convolution
+
+```c
+#include "minidsp.h"
+
+double x[1024];      // input signal
+double h[] = {0.2, 0.6, 0.2};   // simple smoothing kernel
+
+unsigned ylen = MD_convolution_num_samples(1024, 3);
+double *y_time = malloc(ylen * sizeof(double));
+double *y_fft  = malloc(ylen * sizeof(double));
+
+MD_convolution_time(x, 1024, h, 3, y_time);
+MD_convolution_fft_ola(x, 1024, h, 3, y_fft);   // same output, faster for long kernels
+
+double y_fir[1024];
+MD_fir_filter(x, 1024, h, 3, y_fir);
+
+double y_ma[1024];
+MD_moving_average(x, 1024, 8, y_ma);
+
+free(y_fft);
+free(y_time);
+MD_shutdown();
+```
+
+A runnable example is in `examples/fir_convolution.c`.
+See the [FIR/Convolution tutorial](https://wooters.github.io/miniDSP/fir-convolution.html).
 
 ### Filter audio with a low-pass biquad
 
