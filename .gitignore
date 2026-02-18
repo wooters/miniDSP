@@ -40,6 +40,18 @@ examples/phase_spectrum.html
 examples/sine_wave
 examples/sine_wave.csv
 examples/sine_wave.html
+examples/white_noise
+examples/white_noise.csv
+examples/white_noise.html
+examples/impulse
+examples/impulse.csv
+examples/impulse.html
+examples/chirp_wave
+examples/chirp_wave.csv
+examples/chirp_wave.html
+examples/square_sawtooth
+examples/square_sawtooth.csv
+examples/square_sawtooth.html
 
 # Generated documentation
 docs/
