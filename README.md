@@ -22,6 +22,11 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
 - **Sine wave generator** -- pure tone at a given frequency and amplitude; the "hello world" of DSP.
+- **White noise generator** -- Gaussian random samples with configurable seed; used to test filters and measure impulse responses.
+- **Impulse generator** -- single unit-sample spike at a given position; reveals a system's impulse response directly.
+- **Chirp generators** -- linear and logarithmic frequency sweeps; great for testing filter magnitude response across a frequency range.
+- **Square wave generator** -- bipolar square wave at a given frequency; demonstrates odd harmonics and Gibbs phenomenon.
+- **Sawtooth wave generator** -- linear ramp waveform at a given frequency; contains both odd and even harmonics.
 
 ### Biquad Filters (biquad.h)
 
