@@ -25,7 +25,7 @@ performance for FFT analysis.
 **Reading the formula in C:**
 
 ```c
-// n -> N (window length), out[i] -> w[n]
+// n -> N (window length), i -> n (sample index), out[i] -> w[n]
 if (n == 1) {
     out[0] = 1.0;
 } else {
@@ -60,6 +60,7 @@ w[n] = 0.54 - 0.46 \cos\!\left(\frac{2\pi n}{N-1}\right)
 **Reading the formula in C:**
 
 ```c
+// n -> N (window length), i -> n (sample index), out[i] -> w[n]
 if (n == 1) {
     out[0] = 1.0;
 } else {
@@ -99,6 +100,8 @@ main lobe.
 **Reading the formula in C:**
 
 ```c
+// n -> N (window length), i -> n (sample index),
+// p -> 2*pi*n/(N-1), out[i] -> w[n]
 if (n == 1) {
     out[0] = 1.0;
 } else {
@@ -135,6 +138,7 @@ It preserves the narrowest main lobe but has the highest sidelobes.
 **Reading the formula in C:**
 
 ```c
+// i -> n (sample index), out[i] -> w[n]
 for (unsigned i = 0; i < n; i++) {
     out[i] = 1.0;
 }
