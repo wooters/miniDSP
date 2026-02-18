@@ -11,16 +11,16 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 
 ## What's in the box?
 
-### Signal Processing (minidsp.h)
+### Spectral Analysis (minidsp.h)
 
-- **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 - **Magnitude spectrum** -- compute |X(k)| from a real signal using the FFT; the foundation of frequency-domain analysis.
 - **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
 - **Phase spectrum** -- compute arg(X(k)) in radians; reveals the timing of each frequency component and is a prerequisite for phase-vocoder effects.
 - **Spectrogram (STFT)** -- sliding-window FFT producing a time-frequency magnitude matrix; the standard tool for visualising time-varying audio.
-- **Signal measurements** -- energy, power, power in dB, normalised entropy.
-- **Scaling & AGC** -- linear range mapping, automatic gain control.
 - **Hanning window** -- smooth windowing function for FFT analysis.
+
+### Signal Generators (minidsp.h)
+
 - **Sine wave generator** -- pure tone at a given frequency and amplitude; the "hello world" of DSP.
 - **White noise generator** -- Gaussian random samples with configurable seed; used to test filters and measure impulse responses.
 - **Impulse generator** -- single unit-sample spike at a given position; reveals a system's impulse response directly.
@@ -28,12 +28,21 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Square wave generator** -- bipolar square wave at a given frequency; demonstrates odd harmonics and Gibbs phenomenon.
 - **Sawtooth wave generator** -- linear ramp waveform at a given frequency; contains both odd and even harmonics.
 
-### Biquad Filters (biquad.h)
+### Filters (biquad.h)
 
 Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/Audio-EQ-Cookbook.txt):
 
 - Low-pass, High-pass, Band-pass, Notch
 - Peaking EQ, Low shelf, High shelf
+
+### Delay Estimation (minidsp.h)
+
+- **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
+
+### Signal Measurement (minidsp.h)
+
+- **Signal measurements** -- energy, power, power in dB, normalised entropy.
+- **Scaling & AGC** -- linear range mapping, automatic gain control.
 
 ### File I/O (fileio.h)
 
