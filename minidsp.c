@@ -663,6 +663,39 @@ void MD_chirp_log(double *output, unsigned N, double amplitude,
     }
 }
 
+void MD_square_wave(double *output, unsigned N, double amplitude,
+                    double freq, double sample_rate)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+    double phase_step = 2.0 * M_PI * freq / sample_rate;
+    for (unsigned i = 0; i < N; i++) {
+        double phase = fmod(phase_step * (double)i, 2.0 * M_PI);
+        if (phase < 0.0) phase += 2.0 * M_PI;
+        if (phase == 0.0 || phase == M_PI)
+            output[i] = 0.0;
+        else if (phase < M_PI)
+            output[i] = amplitude;
+        else
+            output[i] = -amplitude;
+    }
+}
+
+void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
+                      double freq, double sample_rate)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+    double phase_step = 2.0 * M_PI * freq / sample_rate;
+    for (unsigned i = 0; i < N; i++) {
+        double phase = fmod(phase_step * (double)i, 2.0 * M_PI);
+        if (phase < 0.0) phase += 2.0 * M_PI;
+        output[i] = amplitude * (phase / M_PI - 1.0);
+    }
+}
+
 /* -----------------------------------------------------------------------
  * Public API: FFT / Spectrum Analysis
  * -----------------------------------------------------------------------*/
