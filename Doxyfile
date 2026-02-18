@@ -41,7 +41,21 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/audio/chirp_linear.wav \
                          guides/audio/chirp_log.wav \
                          guides/audio/white_noise.wav \
-                         guides/audio/impulse_train.wav
+                         guides/audio/impulse_train.wav \
+                         guides/plots/sine_spectrum.html \
+                         guides/plots/sine_spectrogram.html \
+                         guides/plots/square_spectrum.html \
+                         guides/plots/square_spectrogram.html \
+                         guides/plots/sawtooth_spectrum.html \
+                         guides/plots/sawtooth_spectrogram.html \
+                         guides/plots/chirp_linear_spectrum.html \
+                         guides/plots/chirp_linear_spectrogram.html \
+                         guides/plots/chirp_log_spectrum.html \
+                         guides/plots/chirp_log_spectrogram.html \
+                         guides/plots/white_noise_spectrum.html \
+                         guides/plots/white_noise_spectrogram.html \
+                         guides/plots/impulse_spectrum.html \
+                         guides/plots/impulse_spectrogram.html
 
 HTML_HEADER            = doxygen-custom/header.html
 

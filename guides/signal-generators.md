@@ -33,6 +33,13 @@ void MD_sine_wave(double *output, unsigned N, double amplitude,
 </audio>
 \endhtmlonly
 
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="sine_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="sine_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
 **Quick example** — generate one second of A4 (440 Hz):
 
 \snippet sine_wave.c generate-signal
@@ -82,6 +89,13 @@ void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
   <source src="impulse_train.wav" type="audio/wav">
   <em>Your browser does not support the audio element.</em>
 </audio>
+\endhtmlonly
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="impulse_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="impulse_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
 \endhtmlonly
 
 **Quick example** — generate a unit impulse at sample 0:
@@ -139,6 +153,13 @@ void MD_chirp_linear(double *output, unsigned N, double amplitude,
 </audio>
 \endhtmlonly
 
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="chirp_linear_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="chirp_linear_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
 ### Logarithmic chirp
 
 A logarithmic chirp sweeps frequency exponentially, spending equal time per
@@ -166,6 +187,13 @@ Requires \f$f_0 > 0\f$, \f$f_1 > 0\f$, and \f$f_0 \ne f_1\f$.
   <source src="chirp_log.wav" type="audio/wav">
   <em>Your browser does not support the audio element.</em>
 </audio>
+\endhtmlonly
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="chirp_log_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="chirp_log_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
 \endhtmlonly
 
 **Quick example** — generate both chirp types and compare:
@@ -210,6 +238,13 @@ void MD_square_wave(double *output, unsigned N, double amplitude,
 </audio>
 \endhtmlonly
 
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="square_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="square_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
 **Quick example:**
 
 \snippet square_sawtooth.c generate-square
@@ -247,6 +282,13 @@ void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
   <source src="sawtooth_440hz.wav" type="audio/wav">
   <em>Your browser does not support the audio element.</em>
 </audio>
+\endhtmlonly
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="sawtooth_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="sawtooth_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
 \endhtmlonly
 
 **Quick example:**
@@ -290,6 +332,13 @@ void MD_white_noise(double *output, unsigned N, double amplitude,
   <source src="white_noise.wav" type="audio/wav">
   <em>Your browser does not support the audio element.</em>
 </audio>
+\endhtmlonly
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="white_noise_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="white_noise_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
 \endhtmlonly
 
 **Quick example** — generate 4096 samples of unit-variance noise:

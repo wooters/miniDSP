@@ -43,13 +43,15 @@ container-test:
 .PHONY: docs
 docs: libminidsp.a
 	$(MAKE) -C examples gen_audio_samples
-	mkdir -p guides/audio
+	$(MAKE) -C examples gen_signal_plots
+	mkdir -p guides/audio guides/plots
 	examples/gen_audio_samples
+	examples/gen_signal_plots
 	doxygen Doxyfile
 
 .PHONY: clean
 clean:
 	-rm -f *.o libminidsp.a
-	-rm -rf docs guides/audio
+	-rm -rf docs guides/audio guides/plots
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean
