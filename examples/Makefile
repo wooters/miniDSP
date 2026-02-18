@@ -21,6 +21,10 @@ default: $(EXAMPLES)
 $(EXAMPLES): %: %.c ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lm
 
+# Docs-only utility (not a user-facing example — built by `make docs` from root)
+gen_audio_samples: gen_audio_samples.c ../libminidsp.a
+	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lsndfile -lm
+
 # Run the examples and generate the interactive HTML plots
 .PHONY: plot
 plot: $(EXAMPLES)
@@ -37,3 +41,4 @@ plot: $(EXAMPLES)
 .PHONY: clean
 clean:
 	-rm -rf $(EXAMPLES) $(addsuffix .dSYM,$(EXAMPLES)) $(addsuffix .csv,$(EXAMPLES)) $(addsuffix .html,$(EXAMPLES))
+	-rm -rf gen_audio_samples gen_audio_samples.dSYM

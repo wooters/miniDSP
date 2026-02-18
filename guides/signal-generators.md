@@ -24,6 +24,15 @@ void MD_sine_wave(double *output, unsigned N, double amplitude,
                   double freq, double sample_rate);
 ```
 
+**Listen** — 440 Hz, 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="sine_440hz.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
 **Quick example** — generate one second of A4 (440 Hz):
 
 \snippet sine_wave.c generate-signal
@@ -65,6 +74,15 @@ bin equals 1.0.
 ```c
 void MD_impulse(double *output, unsigned N, double amplitude, unsigned position);
 ```
+
+**Listen** — impulse train (four clicks at 0.5-second intervals), 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="impulse_train.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
 
 **Quick example** — generate a unit impulse at sample 0:
 
@@ -112,6 +130,15 @@ void MD_chirp_linear(double *output, unsigned N, double amplitude,
                      double f_start, double f_end, double sample_rate);
 ```
 
+**Listen** — linear sweep from 20 Hz to 4000 Hz, 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="chirp_linear.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
 ### Logarithmic chirp
 
 A logarithmic chirp sweeps frequency exponentially, spending equal time per
@@ -131,6 +158,15 @@ void MD_chirp_log(double *output, unsigned N, double amplitude,
 ```
 
 Requires \f$f_0 > 0\f$, \f$f_1 > 0\f$, and \f$f_0 \ne f_1\f$.
+
+**Listen** — logarithmic sweep from 20 Hz to 4000 Hz, 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="chirp_log.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
 
 **Quick example** — generate both chirp types and compare:
 
@@ -165,6 +201,15 @@ void MD_square_wave(double *output, unsigned N, double amplitude,
                     double freq, double sample_rate);
 ```
 
+**Listen** — 440 Hz, 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="square_440hz.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
 **Quick example:**
 
 \snippet square_sawtooth.c generate-square
@@ -194,6 +239,15 @@ shows how waveform shape determines harmonic content.
 void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
                       double freq, double sample_rate);
 ```
+
+**Listen** — 440 Hz, 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="sawtooth_440hz.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
 
 **Quick example:**
 
@@ -228,6 +282,15 @@ void MD_white_noise(double *output, unsigned N, double amplitude,
 ```
 
 `amplitude` is the standard deviation \f$\sigma\f$ of the distribution.
+
+**Listen** — Gaussian white noise (sigma 0.25), 2 seconds:
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="white_noise.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
 
 **Quick example** — generate 4096 samples of unit-variance noise:
 

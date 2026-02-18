@@ -28,6 +28,7 @@ examples/chirp_wave.html
 examples/square_sawtooth
 examples/square_sawtooth.csv
 examples/square_sawtooth.html
+examples/gen_audio_samples
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test

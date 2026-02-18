@@ -41,12 +41,15 @@ container-test:
 
 # Generate HTML documentation with Doxygen
 .PHONY: docs
-docs:
+docs: libminidsp.a
+	$(MAKE) -C examples gen_audio_samples
+	mkdir -p guides/audio
+	examples/gen_audio_samples
 	doxygen Doxyfile
 
 .PHONY: clean
 clean:
 	-rm -f *.o libminidsp.a
-	-rm -rf docs
+	-rm -rf docs guides/audio
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean

@@ -53,6 +53,10 @@ examples/square_sawtooth
 examples/square_sawtooth.csv
 examples/square_sawtooth.html
 
+# Generated audio samples for documentation
+guides/audio/
+examples/gen_audio_samples
+
 # Generated documentation
 docs/
 

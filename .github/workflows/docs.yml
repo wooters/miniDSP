@@ -22,11 +22,11 @@ jobs:
         with:
           submodules: true
 
-      - name: Install Doxygen
-        run: sudo apt-get update && sudo apt-get install -y doxygen
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y doxygen gcc make libfftw3-dev libsndfile1-dev
 
       - name: Generate documentation
-        run: doxygen Doxyfile
+        run: make docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

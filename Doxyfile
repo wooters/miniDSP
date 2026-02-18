@@ -34,7 +34,14 @@ HTML_EXTRA_STYLESHEET  = doxygen-awesome-css/doxygen-awesome.css
 
 HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js \
                          doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js \
-                         doxygen-awesome-css/doxygen-awesome-paragraph-link.js
+                         doxygen-awesome-css/doxygen-awesome-paragraph-link.js \
+                         guides/audio/sine_440hz.wav \
+                         guides/audio/square_440hz.wav \
+                         guides/audio/sawtooth_440hz.wav \
+                         guides/audio/chirp_linear.wav \
+                         guides/audio/chirp_log.wav \
+                         guides/audio/white_noise.wav \
+                         guides/audio/impulse_train.wav
 
 HTML_HEADER            = doxygen-custom/header.html
 
