@@ -214,7 +214,7 @@ Each sample is drawn independently from a normal distribution with mean 0 and
 standard deviation \f$\sigma\f$:
 
 \f[
-x[n] \sim \mathcal{N}(0,\, \sigma^2), \quad n = 0, 1, \ldots, N-1
+x[n] \sim \mathrm{N}(0,\, \sigma^2), \quad n = 0, 1, \ldots, N-1
 \f]
 
 Samples are generated with the Box-Muller transform seeded by `seed`, so the
