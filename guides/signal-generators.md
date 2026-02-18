@@ -101,7 +101,7 @@ A linear chirp sweeps instantaneous frequency from \f$f_0\f$ to \f$f_1\f$ at a
 constant rate over duration \f$T = (N-1)/f_s\f$:
 
 \f[
-x[n] = A \sin\!\left(2\pi\!\left(f_0\,t + \tfrac{1}{2}\,\frac{f_1 - f_0}{T}\,t^2\right)\right),
+x[n] = A \sin\!\left(2\pi\!\left(f_0\,t + \frac{1}{2}\,\frac{f_1 - f_0}{T}\,t^2\right)\right),
 \quad t = n / f_s
 \f]
 
