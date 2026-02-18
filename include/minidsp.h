@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal analysis (RMS, zero-crossing rate, autocorrelation, peak detection, mixing)
  *   - Signal scaling and gain adjustment
- *   - Window generation (Hanning window)
+ *   - Window generation (Hanning, Hamming, Blackman, rectangular)
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
@@ -468,11 +468,28 @@ void MD_stft(const double *signal, unsigned signal_len,
  * -----------------------------------------------------------------------*/
 
 /**
- * Generate a Hanning window of length n.
- * A Hanning window tapers the edges of a signal to zero, which reduces
- * spectral leakage when you later take an FFT.
+ * Generate a Hanning (Hann) window of length n.
+ * Tapers to zero at both ends and is a common default for FFT analysis.
  */
 void MD_Gen_Hann_Win(double *out, unsigned n);
+
+/**
+ * Generate a Hamming window of length n.
+ * Similar to Hanning, but with a slightly lower first sidelobe.
+ */
+void MD_Gen_Hamming_Win(double *out, unsigned n);
+
+/**
+ * Generate a Blackman window of length n.
+ * Much lower sidelobes than Hanning/Hamming, with a wider main lobe.
+ */
+void MD_Gen_Blackman_Win(double *out, unsigned n);
+
+/**
+ * Generate a rectangular window of length n (all ones).
+ * Useful as a baseline reference (equivalent to no tapering).
+ */
+void MD_Gen_Rect_Win(double *out, unsigned n);
 
 /* -----------------------------------------------------------------------
  * Signal generators

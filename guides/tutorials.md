@@ -5,6 +5,7 @@ Each tutorial explains the theory, walks through a working example,
 and shows the resulting plots.
 
 - \subpage signal-generators — Generate test signals (sine waves, white noise, impulse, chirp, and more).
+- \subpage window-functions — Compare Hanning, Hamming, Blackman, and rectangular windows for FFT analysis.
 - \subpage magnitude-spectrum — Decompose a signal into its frequency components using the DFT.
 - \subpage power-spectral-density — Measure how signal power distributes across frequencies.
 - \subpage stft-spectrogram — Visualise how a signal's frequency content changes over time.

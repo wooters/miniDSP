@@ -30,9 +30,9 @@ ranked roughly by educational impact.
 Hanning is already implemented (`MD_hanning_window`). Add the other common ones
 so students can compare sidelobe trade-offs.
 
-- [ ] **Hamming window** -- slightly lower first sidelobe than Hanning; popular in speech processing
-- [ ] **Blackman window** -- much lower sidelobes at the cost of a wider main lobe
-- [ ] **Rectangular window** -- trivial (all ones) but useful as a baseline reference
+- [x] **Hamming window** -- slightly lower first sidelobe than Hanning; popular in speech processing
+- [x] **Blackman window** -- much lower sidelobes at the cost of a wider main lobe
+- [x] **Rectangular window** -- trivial (all ones) but useful as a baseline reference
 
 ## Basic Signal Operations
 

@@ -17,7 +17,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
 - **Phase spectrum** -- compute arg(X(k)) in radians; reveals the timing of each frequency component and is a prerequisite for phase-vocoder effects.
 - **Spectrogram (STFT)** -- sliding-window FFT producing a time-frequency magnitude matrix; the standard tool for visualising time-varying audio.
-- **Hanning window** -- smooth windowing function for FFT analysis.
+- **Window functions** -- Hanning, Hamming, Blackman, and rectangular windows for FFT analysis trade-off studies.
 
 ### Signal Generators (minidsp.h)
 
@@ -305,4 +305,3 @@ make install-hooks
 ## Roadmap
 
 See [TODO.md](TODO.md) for planned features -- FFT spectrum analysis, signal generators, FIR filters, window functions, simple effects, pitch detection, and more.
-

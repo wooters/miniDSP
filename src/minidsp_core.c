@@ -1,7 +1,7 @@
 /**
  * @file minidsp_core.c
  * @brief Stateless signal math: dot product, energy, power, entropy,
- *        scaling, AGC, and Hanning window generation.
+ *        scaling, AGC, and window function generation.
  * @author Chuck Wooters <wooters@hey.com>
  * @copyright 2013 International Computer Science Institute
  */
@@ -379,8 +379,74 @@ void MD_mix(const double *a, const double *b, double *out,
  */
 void MD_Gen_Hann_Win(double *out, unsigned n)
 {
+    assert(out != nullptr);
+    assert(n > 0);
+
+    if (n == 1) {
+        out[0] = 1.0;
+        return;
+    }
+
     double n_minus_1 = (double)(n - 1);
     for (unsigned i = 0; i < n; i++) {
         out[i] = 0.5 * (1.0 - cos(2.0 * M_PI * (double)i / n_minus_1));
+    }
+}
+
+/**
+ * Generate a Hamming window.
+ *
+ * The formula is:  w[i] = 0.54 - 0.46 * cos(2*pi*i / (n-1))
+ */
+void MD_Gen_Hamming_Win(double *out, unsigned n)
+{
+    assert(out != nullptr);
+    assert(n > 0);
+
+    if (n == 1) {
+        out[0] = 1.0;
+        return;
+    }
+
+    double n_minus_1 = (double)(n - 1);
+    for (unsigned i = 0; i < n; i++) {
+        out[i] = 0.54 - 0.46 * cos(2.0 * M_PI * (double)i / n_minus_1);
+    }
+}
+
+/**
+ * Generate a Blackman window.
+ *
+ * The formula is:
+ *   w[i] = 0.42
+ *        - 0.5  * cos(2*pi*i / (n-1))
+ *        + 0.08 * cos(4*pi*i / (n-1))
+ */
+void MD_Gen_Blackman_Win(double *out, unsigned n)
+{
+    assert(out != nullptr);
+    assert(n > 0);
+
+    if (n == 1) {
+        out[0] = 1.0;
+        return;
+    }
+
+    double n_minus_1 = (double)(n - 1);
+    for (unsigned i = 0; i < n; i++) {
+        double p = 2.0 * M_PI * (double)i / n_minus_1;
+        out[i] = 0.42 - 0.5 * cos(p) + 0.08 * cos(2.0 * p);
+    }
+}
+
+/**
+ * Generate a rectangular window (all ones).
+ */
+void MD_Gen_Rect_Win(double *out, unsigned n)
+{
+    assert(out != nullptr);
+    assert(n > 0);
+    for (unsigned i = 0; i < n; i++) {
+        out[i] = 1.0;
     }
 }
