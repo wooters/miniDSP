@@ -61,6 +61,7 @@ HTML_HEADER            = doxygen-custom/header.html
 
 # --- MathJax for any LaTeX formulae in comments ---
 USE_MATHJAX            = YES
+MATHJAX_VERSION        = MathJax_3
 
 # --- Disable all non-HTML output ---
 GENERATE_LATEX         = NO
