@@ -7,6 +7,8 @@
 
 A small C library of DSP (Digital Signal Processing) routines for audio applications.
 
+**[Read the full documentation](https://wooters.github.io/miniDSP/)** -- API reference, tutorials, and interactive examples.
+
 ## What's in the box?
 
 ### Signal Processing (minidsp.h)
