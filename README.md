@@ -84,7 +84,9 @@ This requires the Apple [container](https://github.com/apple/container) CLI on m
 make docs       # generates HTML docs in docs/html
 ```
 
-## Quick example: detect the delay between two signals
+## Quick examples
+
+### Detect the delay between two signals
 
 ```c
 #include "minidsp.h"
@@ -101,7 +103,7 @@ printf("Signal B is %d samples behind signal A\n", delay);
 MD_shutdown();
 ```
 
-## Quick example: compute the magnitude spectrum
+### Compute the magnitude spectrum
 
 ```c
 #include "minidsp.h"
@@ -130,7 +132,7 @@ open examples/magnitude_spectrum.html    # interactive: zoom, pan, hover for val
 For a step-by-step walkthrough of the DSP concepts, see the
 [Magnitude Spectrum tutorial](https://wooters.github.io/miniDSP/magnitude-spectrum.html).
 
-## Quick example: compute the power spectral density
+### Compute the power spectral density
 
 ```c
 #include "minidsp.h"
@@ -153,7 +155,7 @@ A full example with Hanning windowing and one-sided PSD conversion is in
 See the [PSD tutorial](https://wooters.github.io/miniDSP/power-spectral-density.html)
 for a detailed explanation.
 
-## Quick example: compute a spectrogram (STFT)
+### Compute a spectrogram (STFT)
 
 ```c
 #include "minidsp.h"
@@ -183,7 +185,7 @@ A full example generating an interactive HTML heatmap is in
 See the [Spectrogram tutorial](https://wooters.github.io/miniDSP/stft-spectrogram.html)
 for a step-by-step explanation.
 
-## Quick example: filter audio with a low-pass biquad
+### Filter audio with a low-pass biquad
 
 ```c
 #include "biquad.h"
