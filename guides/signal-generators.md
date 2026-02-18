@@ -200,3 +200,53 @@ void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
 \snippet square_sawtooth.c generate-sawtooth
 
 See `examples/square_sawtooth.c` for the full runnable program.
+
+---
+
+## White noise
+
+Gaussian white noise has **equal power at all frequencies** — its power spectral
+density (PSD) is approximately flat across the entire band.  It is the standard
+broadband test signal for filter characterisation, impulse response measurement,
+and SNR experiments.
+
+Each sample is drawn independently from a normal distribution with mean 0 and
+standard deviation \f$\sigma\f$:
+
+\f[
+x[n] \sim \mathcal{N}(0,\, \sigma^2), \quad n = 0, 1, \ldots, N-1
+\f]
+
+Samples are generated with the Box-Muller transform seeded by `seed`, so the
+same seed always produces the same sequence — useful for reproducible tests.
+
+**API:**
+
+```c
+void MD_white_noise(double *output, unsigned N, double amplitude,
+                    unsigned seed);
+```
+
+`amplitude` is the standard deviation \f$\sigma\f$ of the distribution.
+
+**Quick example** — generate 4096 samples of unit-variance noise:
+
+\snippet white_noise.c generate-signal
+
+**Verifying via PSD**
+
+Feed the noise to `MD_power_spectral_density()` and confirm the spectrum is
+approximately flat — no bin should dominate:
+
+```c
+unsigned N = 4096;
+double *sig = malloc(N * sizeof(double));
+double *psd = malloc((N/2 + 1) * sizeof(double));
+
+MD_white_noise(sig, N, 1.0, 42);
+MD_power_spectral_density(sig, N, psd);
+/* psd[] should fluctuate around a constant level */
+```
+
+See `examples/white_noise.c` for a full runnable program that computes and
+plots the power spectral density.
