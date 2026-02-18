@@ -31,6 +31,7 @@ where \f$D\f$ is the delay in samples and \f$|feedback| < 1\f$.
 **Reading the algorithm in C:**
 
 ```c
+// x[n] -> in[n], s[n-D] -> d (delay[idx]), y[n] -> out[n], D -> delay_samples
 double d = delay[idx];
 out[n] = dry * in[n] + wet * d;
 delay[idx] = in[n] + feedback * d;
@@ -86,6 +87,7 @@ So gain moves between \f$1-depth\f$ and \f$1\f$.
 **Reading the algorithm in C:**
 
 ```c
+// f_LFO -> rate_hz, fs -> sample_rate, g[n] -> gain, x[n] -> in[n], y[n] -> out[n]
 double lfo = 0.5 * (1.0 + sin(2.0 * M_PI * rate_hz * n / sample_rate));
 double gain = (1.0 - depth) + depth * lfo;
 out[n] = in[n] * gain;
@@ -138,6 +140,7 @@ The repeated, closely spaced echoes create a reverb-like resonant tail.
 **Reading the algorithm in C:**
 
 ```c
+// c[n-D] -> delayed (comb[idx]), c[n] -> c, x[n] -> in[n], y[n] -> out[n], D -> delay_samples
 double delayed = comb[idx];
 double c = in[n] + feedback * delayed;
 comb[idx] = c;
