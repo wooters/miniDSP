@@ -220,10 +220,3 @@ The test suite (`tests/test_minidsp.c`) covers every public function:
 
 See [TODO.md](TODO.md) for planned features -- FFT spectrum analysis, signal generators, FIR filters, window functions, simple effects, pitch detection, and more.
 
-## License
-
-MIT License.  See [LICENSE](LICENSE) for details.
-
-## Author
-
-Chuck Wooters -- <wooters@hey.com>
