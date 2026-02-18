@@ -17,6 +17,15 @@ A sine wave at frequency \f$f\f$ Hz, amplitude \f$A\f$, and sample rate \f$f_s\f
 x[n] = A \sin\!\left(\frac{2\pi f n}{f_s}\right), \quad n = 0, 1, \ldots, N-1
 \f]
 
+**Reading the formula in C:**
+
+```c
+// A -> amplitude,  f -> freq,  fs -> sample_rate,  n -> i,  x[n] -> output[i]
+double phase_step = 2.0 * M_PI * freq / sample_rate;  // precompute 2*pi*f / fs
+for (unsigned i = 0; i < N; i++)
+    output[i] = amplitude * sin(phase_step * (double)i);  // A * sin(2*pi*f*n / fs)
+```
+
 **API:**
 
 ```c
@@ -71,6 +80,14 @@ A discrete impulse ([Kronecker delta](https://en.wikipedia.org/wiki/Kronecker_de
 \f[
 x[n] = \begin{cases} A & \text{if } n = n_0 \\ 0 & \text{otherwise} \end{cases}
 \f]
+
+**Reading the formula in C:**
+
+```c
+// A -> amplitude,  n0 -> position,  x[n] -> output[n]
+memset(output, 0, N * sizeof(double));  // set all samples to 0
+output[position] = amplitude;           // except at n = n0, where x[n] = A
+```
 
 The unit impulse (\f$A = 1\f$, \f$n_0 = 0\f$) is the identity element of
 [convolution](https://en.wikipedia.org/wiki/Convolution) and has a perfectly flat magnitude spectrum — every frequency
@@ -137,6 +154,20 @@ x[n] = A \sin\!\left(2\pi\!\left(f_0\,t + \frac{1}{2}\,\frac{f_1 - f_0}{T}\,t^2\
 \quad t = n / f_s
 \f]
 
+**Reading the formula in C:**
+
+```c
+// A -> amplitude,  f0 -> f_start,  f1 -> f_end,  fs -> sample_rate
+// t = n/fs,  T = (N-1)/fs,  x[n] -> output[i]
+double T = (double)(N - 1) / sample_rate;
+double chirp_rate = (f_end - f_start) / T;                // (f1 - f0) / T
+for (unsigned i = 0; i < N; i++) {
+    double t = (double)i / sample_rate;                    // t = n / fs
+    double phase = 2.0 * M_PI * (f_start * t + 0.5 * chirp_rate * t * t);
+    output[i] = amplitude * sin(phase);   // A * sin(2*pi * (f0*t + 1/2 * (f1-f0)/T * t^2))
+}
+```
+
 **API:**
 
 ```c
@@ -170,6 +201,22 @@ log-frequency axis.
 x[n] = A \sin\!\left(\frac{2\pi f_0 T}{\ln r}\!\left(r^{t/T} - 1\right)\right),
 \quad r = f_1 / f_0,\quad t = n / f_s
 \f]
+
+**Reading the formula in C:**
+
+```c
+// A -> amplitude,  f0 -> f_start,  f1 -> f_end,  fs -> sample_rate
+// r = f1/f0,  t = n/fs,  T = (N-1)/fs,  x[n] -> output[i]
+double T = (double)(N - 1) / sample_rate;
+double ratio = f_end / f_start;                            // r = f1 / f0
+double log_ratio = log(ratio);                             // ln(r)
+for (unsigned i = 0; i < N; i++) {
+    double t = (double)i / sample_rate;                    // t = n / fs
+    double phase = 2.0 * M_PI * f_start * T
+                 * (pow(ratio, t / T) - 1.0) / log_ratio; // 2*pi*f0*T / ln(r) * (r^(t/T) - 1)
+    output[i] = amplitude * sin(phase);
+}
+```
 
 **API:**
 
@@ -219,6 +266,21 @@ x[n] = \begin{cases}
 
 where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
 
+**Reading the formula in C:**
+
+```c
+// A -> amplitude,  f -> freq,  fs -> sample_rate
+// phi -> phase,  x[n] -> output[i]
+double phase_step = 2.0 * M_PI * freq / sample_rate;  // 2*pi*f / fs
+for (unsigned i = 0; i < N; i++) {
+    double phase = fmod(phase_step * (double)i, 2.0 * M_PI);  // phi = 2*pi*f*n/fs (mod 2*pi)
+    if (phase < M_PI)
+        output[i] = amplitude;     // +A when 0 < phi < pi
+    else
+        output[i] = -amplitude;    // -A when pi < phi < 2*pi
+}
+```
+
 Its [Fourier series](https://en.wikipedia.org/wiki/Fourier_series) contains **only odd harmonics** (1f, 3f, 5f, …) with amplitudes
 decaying as \f$1/k\f$ — a textbook demonstration of the [Gibbs phenomenon](https://en.wikipedia.org/wiki/Gibbs_phenomenon).
 
@@ -263,6 +325,18 @@ x[n] = A \left(\frac{\phi}{\pi} - 1\right)
 \f]
 
 where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
+
+**Reading the formula in C:**
+
+```c
+// A -> amplitude,  f -> freq,  fs -> sample_rate
+// phi -> phase,  x[n] -> output[i]
+double phase_step = 2.0 * M_PI * freq / sample_rate;  // 2*pi*f / fs
+for (unsigned i = 0; i < N; i++) {
+    double phase = fmod(phase_step * (double)i, 2.0 * M_PI);  // phi = 2*pi*f*n/fs (mod 2*pi)
+    output[i] = amplitude * (phase / M_PI - 1.0);             // A * (phi/pi - 1)
+}
+```
 
 Unlike the square wave, the sawtooth contains **all integer harmonics**
 (1f, 2f, 3f, …), each decaying as \f$1/k\f$.  Comparing the two spectra
@@ -315,6 +389,19 @@ x[n] \sim \mathrm{N}(0,\, \sigma^2), \quad n = 0, 1, \ldots, N-1
 
 Samples are generated with the [Box-Muller transform](https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform) seeded by `seed`, so the
 same seed always produces the same sequence — useful for reproducible tests.
+
+**Reading the formula in C** — the
+[Box-Muller transform](https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform)
+turns uniform random numbers into Gaussian samples:
+
+```c
+// sigma -> amplitude,  x[n] -> output[i]
+// u1, u2 are uniform random numbers in (0, 1)
+double r     = sqrt(-2.0 * log(u1));     // sqrt(-2 * ln(u1))
+double theta = 2.0 * M_PI * u2;          // 2 * pi * u2
+output[i]     = amplitude * r * cos(theta);  // sigma * sqrt(-2*ln(u1)) * cos(2*pi*u2)
+output[i + 1] = amplitude * r * sin(theta);  // sigma * sqrt(-2*ln(u1)) * sin(2*pi*u2)
+```
 
 **API:**
 
