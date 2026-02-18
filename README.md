@@ -99,6 +99,8 @@ int main(void) {
 }
 ```
 
+Save the code above as `my_program.c`.
+
 **Compile it directly:**
 
 ```sh
