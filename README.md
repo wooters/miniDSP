@@ -65,7 +65,7 @@ make            # builds libminidsp.a
 ### Run the test suite
 
 ```sh
-make test       # builds and runs all 85 tests
+make test       # builds and runs all tests
 ```
 
 ### Test inside an Ubuntu container
