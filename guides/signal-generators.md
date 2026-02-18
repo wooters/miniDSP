@@ -50,14 +50,14 @@ and writes an interactive HTML plot.
 
 ## Impulse
 
-A discrete impulse (Kronecker delta) at position \f$n_0\f$ with amplitude \f$A\f$:
+A discrete impulse ([Kronecker delta](https://en.wikipedia.org/wiki/Kronecker_delta)) at position \f$n_0\f$ with amplitude \f$A\f$:
 
 \f[
 x[n] = \begin{cases} A & \text{if } n = n_0 \\ 0 & \text{otherwise} \end{cases}
 \f]
 
 The unit impulse (\f$A = 1\f$, \f$n_0 = 0\f$) is the identity element of
-convolution and has a perfectly flat magnitude spectrum — every frequency
+[convolution](https://en.wikipedia.org/wiki/Convolution) and has a perfectly flat magnitude spectrum — every frequency
 bin equals 1.0.
 
 **API:**
@@ -91,7 +91,7 @@ time-domain and frequency-domain plots.
 
 ## Chirp (swept sine)
 
-A **chirp** sweeps frequency over time — either linearly or logarithmically.
+A **[chirp](https://en.wikipedia.org/wiki/Chirp)** sweeps frequency over time — either linearly or logarithmically.
 Chirps are the standard test signal for spectrograms and for measuring filter
 magnitude response.
 
@@ -155,8 +155,8 @@ x[n] = \begin{cases}
 
 where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
 
-Its Fourier series contains **only odd harmonics** (1f, 3f, 5f, …) with amplitudes
-decaying as \f$1/k\f$ — a textbook demonstration of the Gibbs phenomenon.
+Its [Fourier series](https://en.wikipedia.org/wiki/Fourier_series) contains **only odd harmonics** (1f, 3f, 5f, …) with amplitudes
+decaying as \f$1/k\f$ — a textbook demonstration of the [Gibbs phenomenon](https://en.wikipedia.org/wiki/Gibbs_phenomenon).
 
 **API:**
 
@@ -205,12 +205,12 @@ See `examples/square_sawtooth.c` for the full runnable program.
 
 ## White noise
 
-Gaussian white noise has **equal power at all frequencies** — its power spectral
+[Gaussian white noise](https://en.wikipedia.org/wiki/White_noise) has **equal power at all frequencies** — its power spectral
 density (PSD) is approximately flat across the entire band.  It is the standard
 broadband test signal for filter characterisation, impulse response measurement,
 and SNR experiments.
 
-Each sample is drawn independently from a normal distribution with mean 0 and
+Each sample is drawn independently from a [normal distribution](https://en.wikipedia.org/wiki/Normal_distribution) with mean 0 and
 standard deviation \f$\sigma\f$:
 
 \f[
@@ -250,3 +250,13 @@ MD_power_spectral_density(sig, N, psd);
 
 See `examples/white_noise.c` for a full runnable program that computes and
 plots the power spectral density.
+
+---
+
+## Further reading
+
+- [Chirp](https://en.wikipedia.org/wiki/Chirp) — Wikipedia
+- [Fourier series](https://en.wikipedia.org/wiki/Fourier_series) — Wikipedia
+- [Gibbs phenomenon](https://en.wikipedia.org/wiki/Gibbs_phenomenon) — Wikipedia
+- [White noise](https://en.wikipedia.org/wiki/White_noise) — Wikipedia
+- Julius O. Smith, [Mathematics of the DFT](https://ccrma.stanford.edu/~jos/mdft/) — free online textbook

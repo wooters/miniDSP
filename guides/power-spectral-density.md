@@ -14,7 +14,7 @@ shows *amplitude* at each frequency. The **power spectral density (PSD)**
 shows how the signal's *power* is distributed across frequencies.
 
 Given the DFT coefficients \f$X(k)\f$ of an \f$N\f$-sample signal, the
-periodogram estimate of the PSD is:
+[periodogram](https://en.wikipedia.org/wiki/Periodogram) estimate of the PSD is:
 
 \f[
 \text{PSD}(k) = \frac{|X(k)|^2}{N}

@@ -37,7 +37,7 @@ frequencies.
 
 ## Step 2: Apply a window function
 
-Before computing the FFT, we multiply the signal by a **Hanning window**.
+Before computing the FFT, we multiply the signal by a **[Hanning window](https://en.wikipedia.org/wiki/Hann_function)**.
 Why?
 
 The DFT assumes the input is one period of a periodic signal. In reality,

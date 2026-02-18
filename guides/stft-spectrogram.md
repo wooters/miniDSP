@@ -27,7 +27,7 @@ X_f(k) = \sum_{n=0}^{N-1} w[n]\, x[f \cdot H + n]\, e^{-j 2\pi k n / N}
 where:
 - \f$N\f$ is the FFT window size (samples per frame)
 - \f$H\f$ is the hop size (samples between successive frames)
-- \f$w[n]\f$ is the Hanning window
+- \f$w[n]\f$ is the [Hanning window](https://en.wikipedia.org/wiki/Hann_function)
 - \f$x[\cdot]\f$ is the input signal
 
 MD_stft() stores \f$|X_f(k)|\f$ in a row-major matrix:
@@ -52,7 +52,7 @@ computation.
 
 ## Step 1: Generate a chirp signal
 
-A **linear chirp** sweeps instantaneous frequency from \f$f_0\f$ to \f$f_1\f$
+A **[linear chirp](https://en.wikipedia.org/wiki/Chirp)** sweeps instantaneous frequency from \f$f_0\f$ to \f$f_1\f$
 linearly over a duration \f$T\f$:
 
 \f[

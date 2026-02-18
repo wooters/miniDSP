@@ -32,7 +32,7 @@ much energy is at frequency \f$k\f$.  The **phase spectrum**
 A **time-delayed signal** is the most important case: the DFT shift
 theorem says delaying a signal by \f$d\f$ samples adds a linear phase
 ramp of slope \f$-2\pi d / N\f$ radians per bin.  This is the basis
-of the GCC-PHAT delay estimator (see MD_get_delay()).
+of the [GCC-PHAT](https://en.wikipedia.org/wiki/Generalized_cross-correlation) delay estimator (see MD_get_delay()).
 
 ### When to trust the phase
 
