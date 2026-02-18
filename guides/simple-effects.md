@@ -17,17 +17,16 @@ Delay/echo reads an older sample from a circular delay line and mixes it
 with the current input:
 
 \f[
-d[n] = \text{delay\_buffer}[\text{idx}], \quad
-y[n] = dry \cdot x[n] + wet \cdot d[n]
+s[n] = x[n] + feedback \cdot s[n-D]
 \f]
 
-Then the delay memory is updated with feedback:
+The output mixes dry input with the delayed state:
 
 \f[
-\text{delay\_buffer}[\text{idx}] = x[n] + feedback \cdot d[n]
+y[n] = dry \cdot x[n] + wet \cdot s[n-D]
 \f]
 
-With \f$|feedback| < 1\f$, echoes decay over time.
+where \f$D=\text{delay\_samples}\f$ and \f$|feedback| < 1\f$.
 
 **Reading the algorithm in C:**
 

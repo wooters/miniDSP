@@ -215,17 +215,16 @@ void MD_mix(const double *a, const double *b, double *out,
 /**
  * Delay line / echo effect using a circular buffer with feedback.
  *
- * For each sample:
+ * Let D = delay_samples. The internal delay state follows:
  *
  * \f[
- * d[n] = \text{delay\_buffer}[\text{idx}], \quad
- * y[n] = dry \cdot x[n] + wet \cdot d[n]
+ * s[n] = x[n] + feedback \cdot s[n-D]
  * \f]
  *
- * and the delay line is updated as:
+ * and output is:
  *
  * \f[
- * \text{delay\_buffer}[\text{idx}] = x[n] + feedback \cdot d[n]
+ * y[n] = dry \cdot x[n] + wet \cdot s[n-D]
  * \f]
  *
  * This creates repeating echoes decaying geometrically when
