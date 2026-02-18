@@ -47,6 +47,12 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 - **Peak detection** -- find local maxima above a threshold with minimum-distance suppression.
 - **Signal mixing** -- weighted sum of two signals; needed for any multi-source demo.
 
+### Simple Effects (minidsp.h)
+
+- **Delay line / echo** -- circular-buffer delay with feedback; the building block of many audio effects.
+- **Tremolo** -- amplitude modulation by a low-frequency oscillator.
+- **Comb-filter reverb** -- feedback comb filter introducing a reverb-like decay tail.
+
 ### FIR Filters / Convolution (minidsp.h)
 
 - **Time-domain convolution** -- direct full linear convolution for teaching and validation.

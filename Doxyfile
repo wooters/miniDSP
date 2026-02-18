@@ -42,6 +42,12 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/audio/chirp_log.wav \
                          guides/audio/white_noise.wav \
                          guides/audio/impulse_train.wav \
+                         guides/audio/effect_delay_before.wav \
+                         guides/audio/effect_delay_after.wav \
+                         guides/audio/effect_tremolo_before.wav \
+                         guides/audio/effect_tremolo_after.wav \
+                         guides/audio/effect_comb_before.wav \
+                         guides/audio/effect_comb_after.wav \
                          guides/plots/sine_spectrum.html \
                          guides/plots/sine_spectrogram.html \
                          guides/plots/square_spectrum.html \

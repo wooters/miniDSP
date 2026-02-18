@@ -55,6 +55,9 @@ examples/square_sawtooth.html
 examples/basic_operations
 examples/basic_operations.csv
 examples/basic_operations.html
+examples/simple_effects
+examples/simple_effects.csv
+examples/simple_effects.html
 
 # Generated assets for documentation
 guides/audio/

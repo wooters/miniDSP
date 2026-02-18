@@ -1,9 +1,10 @@
 /**
  * @file gen_audio_samples.c
- * @brief Docs-only utility: generate WAV audio samples for the signal generators guide.
+ * @brief Docs-only utility: generate WAV audio samples for docs guides.
  *
- * This program generates 7 WAV files into guides/audio/ so that the Doxygen
- * documentation can embed playable audio previews of each signal generator.
+ * This program generates WAV files into guides/audio/ so that the Doxygen
+ * documentation can embed playable audio previews for signal generators and
+ * simple effects.
  *
  * It is NOT a user-facing example — it is invoked automatically by `make docs`.
  *
@@ -21,6 +22,13 @@
 #define SAMPLE_RATE 44100
 #define DURATION    2.0
 
+static double clamp_unit(double x)
+{
+    if (x > 1.0) return 1.0;
+    if (x < -1.0) return -1.0;
+    return x;
+}
+
 static int write_wav(const char *path, const double *buf, unsigned N)
 {
     float *fbuf = malloc(N * sizeof(float));
@@ -29,7 +37,7 @@ static int write_wav(const char *path, const double *buf, unsigned N)
         return -1;
     }
     for (unsigned i = 0; i < N; i++)
-        fbuf[i] = (float)buf[i];
+        fbuf[i] = (float)clamp_unit(buf[i]);
 
     int rc = FIO_write_wav(path, fbuf, N, SAMPLE_RATE);
     free(fbuf);
@@ -44,8 +52,11 @@ int main(void)
 {
     const unsigned N = (unsigned)(SAMPLE_RATE * DURATION);
     double *buf = malloc(N * sizeof(double));
-    if (!buf) {
+    double *fx  = malloc(N * sizeof(double));
+    if (!buf || !fx) {
         fprintf(stderr, "allocation failed\n");
+        free(fx);
+        free(buf);
         return 1;
     }
 
@@ -85,6 +96,37 @@ int main(void)
     }
     write_wav("guides/audio/impulse_train.wav", buf, N);
 
+    /* --------------------------------------------------------------------
+     * Simple effects: before/after clips
+     * ------------------------------------------------------------------*/
+
+    /* Delay source: percussive click train. */
+    memset(buf, 0, N * sizeof(double));
+    for (unsigned i = 0; i < N; i += (unsigned)(0.35 * SAMPLE_RATE)) {
+        if (i < N) buf[i] = 0.9;
+    }
+    write_wav("guides/audio/effect_delay_before.wav", buf, N);
+    MD_delay_echo(buf, fx, N, 11025, 0.45, 1.0, 0.6);
+    write_wav("guides/audio/effect_delay_after.wav", fx, N);
+
+    /* Tremolo source: steady 220 Hz sine. */
+    MD_sine_wave(buf, N, 0.8, 220.0, SAMPLE_RATE);
+    write_wav("guides/audio/effect_tremolo_before.wav", buf, N);
+    MD_tremolo(buf, fx, N, 5.0, 0.8, SAMPLE_RATE);
+    write_wav("guides/audio/effect_tremolo_after.wav", fx, N);
+
+    /* Comb source: short decaying tone burst. */
+    memset(buf, 0, N * sizeof(double));
+    unsigned burst_len = SAMPLE_RATE / 5; /* 200 ms burst */
+    for (unsigned i = 0; i < burst_len; i++) {
+        double env = exp(-6.0 * (double)i / (double)burst_len);
+        buf[i] = 0.85 * env * sin(2.0 * M_PI * 330.0 * (double)i / SAMPLE_RATE);
+    }
+    write_wav("guides/audio/effect_comb_before.wav", buf, N);
+    MD_comb_reverb(buf, fx, N, 1323, 0.75, 0.7, 0.6);
+    write_wav("guides/audio/effect_comb_after.wav", fx, N);
+
+    free(fx);
     free(buf);
     return 0;
 }

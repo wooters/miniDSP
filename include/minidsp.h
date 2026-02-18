@@ -5,6 +5,7 @@
  * This header declares functions for:
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal analysis (RMS, zero-crossing rate, autocorrelation, peak detection, mixing)
+ *   - Simple effects (delay/echo, tremolo, and comb-filter reverb)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning, Hamming, Blackman, rectangular)
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
@@ -206,6 +207,99 @@ void MD_peak_detect(const double *a, unsigned N, double threshold,
  */
 void MD_mix(const double *a, const double *b, double *out,
             unsigned N, double w_a, double w_b);
+
+/* -----------------------------------------------------------------------
+ * Simple effects
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Delay line / echo effect using a circular buffer with feedback.
+ *
+ * For each sample:
+ *
+ * \f[
+ * d[n] = \text{delay\_buffer}[\text{idx}], \quad
+ * y[n] = dry \cdot x[n] + wet \cdot d[n]
+ * \f]
+ *
+ * and the delay line is updated as:
+ *
+ * \f[
+ * \text{delay\_buffer}[\text{idx}] = x[n] + feedback \cdot d[n]
+ * \f]
+ *
+ * This creates repeating echoes decaying geometrically when
+ * \f$|feedback| < 1\f$.  In-place safe: @p out may alias @p in.
+ *
+ * @param in             Input signal of length N.
+ * @param out            Output signal of length N (caller-allocated).
+ * @param N              Number of samples.
+ * @param delay_samples  Delay length in samples (must be > 0).
+ * @param feedback       Echo feedback gain (must satisfy |feedback| < 1).
+ * @param dry            Dry (original) mix weight.
+ * @param wet            Wet (delayed) mix weight.
+ */
+void MD_delay_echo(const double *in, double *out, unsigned N,
+                   unsigned delay_samples, double feedback,
+                   double dry, double wet);
+
+/**
+ * Tremolo effect (amplitude modulation by a sinusoidal LFO).
+ *
+ * The modulation gain is:
+ *
+ * \f[
+ * g[n] = (1 - depth) + depth \cdot \frac{1 + \sin(2\pi f_{LFO} n / f_s)}{2}
+ * \f]
+ *
+ * so \f$g[n]\f$ ranges from \f$1-depth\f$ to \f$1\f$.
+ *
+ * Output:
+ *
+ * \f[
+ * y[n] = g[n] \cdot x[n]
+ * \f]
+ *
+ * In-place safe: @p out may alias @p in.
+ *
+ * @param in           Input signal of length N.
+ * @param out          Output signal of length N (caller-allocated).
+ * @param N            Number of samples.
+ * @param rate_hz      LFO rate in Hz (must be >= 0).
+ * @param depth        Modulation depth in [0, 1].
+ * @param sample_rate  Sampling rate in Hz (must be > 0).
+ */
+void MD_tremolo(const double *in, double *out, unsigned N,
+                double rate_hz, double depth, double sample_rate);
+
+/**
+ * Comb-filter reverb (feedback comb filter with dry/wet mix).
+ *
+ * Internal comb section:
+ *
+ * \f[
+ * c[n] = x[n] + feedback \cdot c[n-D]
+ * \f]
+ *
+ * Final output:
+ *
+ * \f[
+ * y[n] = dry \cdot x[n] + wet \cdot c[n]
+ * \f]
+ *
+ * where \f$D\f$ is @p delay_samples.  In-place safe: @p out may alias @p in.
+ *
+ * @param in             Input signal of length N.
+ * @param out            Output signal of length N (caller-allocated).
+ * @param N              Number of samples.
+ * @param delay_samples  Comb delay in samples (must be > 0).
+ * @param feedback       Feedback gain (must satisfy |feedback| < 1).
+ * @param dry            Dry (original) mix weight.
+ * @param wet            Wet (comb output) mix weight.
+ */
+void MD_comb_reverb(const double *in, double *out, unsigned N,
+                    unsigned delay_samples, double feedback,
+                    double dry, double wet);
 
 /* -----------------------------------------------------------------------
  * FIR filters / convolution

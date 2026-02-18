@@ -11,4 +11,5 @@ and shows the resulting plots.
 - \subpage stft-spectrogram — Visualise how a signal's frequency content changes over time.
 - \subpage phase-spectrum — Inspect the per-frequency phase angle of a real signal.
 - \subpage basic-signal-operations — RMS, zero-crossing rate, autocorrelation, peak detection, and signal mixing.
+- \subpage simple-effects — Delay/echo, tremolo, and comb-filter reverb.
 - \subpage fir-convolution — Time-domain convolution, moving-average FIR, general FIR, and FFT overlap-add fast convolution.

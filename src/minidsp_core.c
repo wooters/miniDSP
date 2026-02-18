@@ -1,7 +1,7 @@
 /**
  * @file minidsp_core.c
  * @brief Stateless signal math: dot product, energy, power, entropy,
- *        scaling, AGC, and window function generation.
+ *        scaling, AGC, simple effects, and window function generation.
  * @author Chuck Wooters <wooters@hey.com>
  * @copyright 2013 International Computer Science Institute
  */
@@ -360,6 +360,81 @@ void MD_mix(const double *a, const double *b, double *out,
     for (unsigned i = 0; i < N; i++) {
         out[i] = w_a * a[i] + w_b * b[i];
     }
+}
+
+/* -----------------------------------------------------------------------
+ * Public API: simple effects
+ * -----------------------------------------------------------------------*/
+
+void MD_delay_echo(const double *in, double *out, unsigned N,
+                   unsigned delay_samples, double feedback,
+                   double dry, double wet)
+{
+    assert(in != nullptr);
+    assert(out != nullptr);
+    assert(N > 0);
+    assert(delay_samples > 0);
+    assert(fabs(feedback) < 1.0);
+
+    double *delay = calloc(delay_samples, sizeof(double));
+    assert(delay != nullptr);
+
+    unsigned idx = 0;
+    for (unsigned n = 0; n < N; n++) {
+        double x = in[n];
+        double d = delay[idx];
+        out[n] = dry * x + wet * d;
+        delay[idx] = x + feedback * d;
+        idx++;
+        if (idx == delay_samples) idx = 0;
+    }
+
+    free(delay);
+}
+
+void MD_tremolo(const double *in, double *out, unsigned N,
+                double rate_hz, double depth, double sample_rate)
+{
+    assert(in != nullptr);
+    assert(out != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+    assert(rate_hz >= 0.0);
+    assert(depth >= 0.0 && depth <= 1.0);
+
+    double phase_step = 2.0 * M_PI * rate_hz / sample_rate;
+    for (unsigned n = 0; n < N; n++) {
+        double lfo = 0.5 * (1.0 + sin(phase_step * (double)n));
+        double gain = (1.0 - depth) + depth * lfo;
+        out[n] = in[n] * gain;
+    }
+}
+
+void MD_comb_reverb(const double *in, double *out, unsigned N,
+                    unsigned delay_samples, double feedback,
+                    double dry, double wet)
+{
+    assert(in != nullptr);
+    assert(out != nullptr);
+    assert(N > 0);
+    assert(delay_samples > 0);
+    assert(fabs(feedback) < 1.0);
+
+    double *comb = calloc(delay_samples, sizeof(double));
+    assert(comb != nullptr);
+
+    unsigned idx = 0;
+    for (unsigned n = 0; n < N; n++) {
+        double x = in[n];
+        double delayed = comb[idx];
+        double y_comb = x + feedback * delayed;
+        comb[idx] = y_comb;
+        out[n] = dry * x + wet * y_comb;
+        idx++;
+        if (idx == delay_samples) idx = 0;
+    }
+
+    free(comb);
 }
 
 /* -----------------------------------------------------------------------

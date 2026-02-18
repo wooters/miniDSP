@@ -44,9 +44,9 @@ so students can compare sidelobe trade-offs.
 
 ## Simple Effects
 
-- [ ] **Delay line / echo** -- circular-buffer delay with feedback; the building block of most audio effects
-- [ ] **Tremolo** -- amplitude modulation by a low-frequency oscillator; simplest audible effect to implement
-- [ ] **Comb-filter reverb** -- feedback comb filter; introduces students to IIR reverb design (Schroeder reverberator)
+- [x] **Delay line / echo** -- circular-buffer delay with feedback; the building block of most audio effects
+- [x] **Tremolo** -- amplitude modulation by a low-frequency oscillator; simplest audible effect to implement
+- [x] **Comb-filter reverb** -- feedback comb filter; introduces students to IIR reverb design (Schroeder reverberator)
 
 ## Pitch Detection
 
