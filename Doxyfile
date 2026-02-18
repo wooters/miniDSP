@@ -62,6 +62,12 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/plots/white_noise_spectrogram.html \
                          guides/plots/impulse_spectrum.html \
                          guides/plots/impulse_spectrogram.html \
+                         guides/plots/effect_delay_before_spectrogram.html \
+                         guides/plots/effect_delay_after_spectrogram.html \
+                         guides/plots/effect_tremolo_before_spectrogram.html \
+                         guides/plots/effect_tremolo_after_spectrogram.html \
+                         guides/plots/effect_comb_before_spectrogram.html \
+                         guides/plots/effect_comb_after_spectrogram.html \
                          guides/plots/hann_window_time.html \
                          guides/plots/hann_window_spectrum.html \
                          guides/plots/hamming_window_time.html \

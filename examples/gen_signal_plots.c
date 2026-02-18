@@ -4,6 +4,7 @@
  *
  * Generates:
  *   - 14 signal-generator plots (7 spectra + 7 spectrograms)
+ *   - 6 simple-effects spectrograms (delay/tremolo/comb, before + after)
  *   - 8 window-function plots (4 time-domain + 4 spectra)
  *   - 8 FIR/convolution plots (4 responses + 4 spectra)
  * into guides/plots/ for embedding as iframes in Doxygen guides.
@@ -367,8 +368,11 @@ static int write_signal_time_html(const char *path, const char *title,
 int main(void)
 {
     double *buf = malloc(N_SIGNAL * sizeof(double));
-    if (!buf) {
+    double *fx = malloc(N_SIGNAL * sizeof(double));
+    if (!buf || !fx) {
         fprintf(stderr, "allocation failed\n");
+        free(fx);
+        free(buf);
         return 1;
     }
 
@@ -450,6 +454,47 @@ int main(void)
         buf[i * (N_SIGNAL / 4)] = 0.8;
     write_spectrogram_html("guides/plots/impulse_spectrogram.html",
                            "Impulse Train (4 clicks) - Spectrogram", buf);
+
+    /* ----------------------------------------------------------------
+     * Phase 2b: simple effects spectrograms (before/after)
+     * ----------------------------------------------------------------*/
+    printf("Simple effect spectrograms:\n");
+
+    /* Delay/echo: click train source */
+    memset(buf, 0, N_SIGNAL * sizeof(double));
+    const unsigned click_step = SAMPLE_RATE * 35u / 100u;  /* 0.35 s */
+    for (unsigned i = 0; i < N_SIGNAL; i += click_step) {
+        buf[i] = 0.9;
+    }
+    write_spectrogram_html("guides/plots/effect_delay_before_spectrogram.html",
+                           "Delay/Echo - Before (dry clicks) Spectrogram", buf);
+
+    MD_delay_echo(buf, fx, N_SIGNAL, SAMPLE_RATE / 4u, 0.45, 1.0, 0.6); /* 250 ms */
+    write_spectrogram_html("guides/plots/effect_delay_after_spectrogram.html",
+                           "Delay/Echo - After Spectrogram", fx);
+
+    /* Tremolo: steady sine tone source */
+    MD_sine_wave(buf, N_SIGNAL, 0.8, 220.0, SAMPLE_RATE);
+    write_spectrogram_html("guides/plots/effect_tremolo_before_spectrogram.html",
+                           "Tremolo - Before (220 Hz sine) Spectrogram", buf);
+
+    MD_tremolo(buf, fx, N_SIGNAL, 5.0, 0.8, SAMPLE_RATE);
+    write_spectrogram_html("guides/plots/effect_tremolo_after_spectrogram.html",
+                           "Tremolo - After Spectrogram", fx);
+
+    /* Comb reverb: short decaying tone burst */
+    memset(buf, 0, N_SIGNAL * sizeof(double));
+    const unsigned burst_len = SAMPLE_RATE / 5u;  /* 200 ms */
+    for (unsigned i = 0; i < burst_len; i++) {
+        double env = exp(-6.0 * (double)i / (double)burst_len);
+        buf[i] = 0.85 * env * sin(2.0 * M_PI * 330.0 * (double)i / (double)SAMPLE_RATE);
+    }
+    write_spectrogram_html("guides/plots/effect_comb_before_spectrogram.html",
+                           "Comb Reverb - Before (decaying burst) Spectrogram", buf);
+
+    MD_comb_reverb(buf, fx, N_SIGNAL, SAMPLE_RATE * 3u / 100u, 0.75, 0.7, 0.6); /* 30 ms */
+    write_spectrogram_html("guides/plots/effect_comb_after_spectrogram.html",
+                           "Comb Reverb - After Spectrogram", fx);
 
     MD_shutdown();   /* release N=256 STFT plan */
 
@@ -568,6 +613,7 @@ int main(void)
     free(conv_in);
     free(work_b);
     free(work_a);
+    free(fx);
     free(buf);
     return 0;
 }

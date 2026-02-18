@@ -65,6 +65,15 @@ void MD_delay_echo(const double *in, double *out, unsigned N,
 </audio>
 \endhtmlonly
 
+**Spectrograms (before/after):**
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="effect_delay_before_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="effect_delay_after_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
 ---
 
 ## Tremolo
@@ -117,6 +126,15 @@ void MD_tremolo(const double *in, double *out, unsigned N,
   <source src="effect_tremolo_after.wav" type="audio/wav">
   <em>Your browser does not support the audio element.</em>
 </audio>
+\endhtmlonly
+
+**Spectrograms (before/after):**
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="effect_tremolo_before_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="effect_tremolo_after_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
 \endhtmlonly
 
 ---
@@ -173,6 +191,15 @@ void MD_comb_reverb(const double *in, double *out, unsigned N,
   <source src="effect_comb_after.wav" type="audio/wav">
   <em>Your browser does not support the audio element.</em>
 </audio>
+\endhtmlonly
+
+**Spectrograms (before/after):**
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="effect_comb_before_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="effect_comb_after_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
 \endhtmlonly
 
 ---
