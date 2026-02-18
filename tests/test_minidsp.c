@@ -1924,6 +1924,145 @@ static int test_chirp_log_amplitude_bound(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_square_wave()
+ * -----------------------------------------------------------------------*/
+
+/** First half of the period is +amplitude, second half is −amplitude. */
+static int test_square_high_low(void)
+{
+    double sample_rate = 16000.0;
+    double freq = 1000.0;
+    double amplitude = 2.5;
+    /* One full period = 16 samples */
+    unsigned period = (unsigned)(sample_rate / freq);
+    unsigned N = period;
+    double out[N];
+    MD_square_wave(out, N, amplitude, freq, sample_rate);
+
+    int ok = 1;
+    /* Sample 0: phase = 0 → zero crossing */
+    ok &= approx_equal(out[0], 0.0, 1e-12);
+    /* Samples 1..7 (first half, excluding zero crossing): +amplitude */
+    for (unsigned i = 1; i < period / 2; i++)
+        ok &= approx_equal(out[i], amplitude, 1e-12);
+    /* Sample 8: phase = π → zero crossing */
+    ok &= approx_equal(out[period / 2], 0.0, 1e-12);
+    /* Samples 9..15 (second half): −amplitude */
+    for (unsigned i = period / 2 + 1; i < period; i++)
+        ok &= approx_equal(out[i], -amplitude, 1e-12);
+    return ok;
+}
+
+/** Spectrum of a square wave: peaks at odd harmonics, near-zero at even. */
+static int test_square_spectrum_harmonics(void)
+{
+    unsigned N = 4096;
+    double sample_rate = 16000.0;
+    double freq = 250.0;  /* bin 64: 64 * 16000/4096 */
+
+    double sig[N];
+    MD_square_wave(sig, N, 1.0, freq, sample_rate);
+
+    unsigned num_bins = N / 2 + 1;
+    double mag[num_bins];
+    MD_magnitude_spectrum(sig, N, mag);
+
+    unsigned fundamental_bin = (unsigned)(freq * N / sample_rate);
+    int ok = 1;
+    /* Odd harmonics (1f, 3f, 5f) should have significant energy */
+    ok &= (mag[fundamental_bin * 1] > mag[fundamental_bin * 2] * 5.0);
+    ok &= (mag[fundamental_bin * 3] > mag[fundamental_bin * 2] * 2.0);
+    ok &= (mag[fundamental_bin * 5] > mag[fundamental_bin * 4] * 2.0);
+    /* Even harmonics (2f, 4f) should be near zero relative to fundamental */
+    ok &= (mag[fundamental_bin * 2] < mag[fundamental_bin] * 0.05);
+    ok &= (mag[fundamental_bin * 4] < mag[fundamental_bin] * 0.05);
+    return ok;
+}
+
+/** Negative amplitude inverts the square wave. */
+static int test_square_amplitude_negative(void)
+{
+    double sample_rate = 16000.0;
+    double freq = 1000.0;
+    double amplitude = -3.0;
+    unsigned period = (unsigned)(sample_rate / freq);
+    unsigned N = period;
+    double out[N];
+    MD_square_wave(out, N, amplitude, freq, sample_rate);
+
+    int ok = 1;
+    ok &= approx_equal(out[0], 0.0, 1e-12);
+    /* With negative amplitude: first half is negative, second half is positive */
+    ok &= approx_equal(out[1], amplitude, 1e-12);
+    ok &= approx_equal(out[period / 2 + 1], -amplitude, 1e-12);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_sawtooth_wave()
+ * -----------------------------------------------------------------------*/
+
+/** Middle of the period is near 0. */
+static int test_sawtooth_midpoint(void)
+{
+    double sample_rate = 16000.0;
+    double freq = 1000.0;
+    double amplitude = 2.0;
+    unsigned period = (unsigned)(sample_rate / freq);
+    unsigned N = period;
+    double out[N];
+    MD_sawtooth_wave(out, N, amplitude, freq, sample_rate);
+
+    /* Start of period: −amplitude */
+    int ok = approx_equal(out[0], -amplitude, 1e-12);
+    /* Middle of period: near 0 */
+    ok &= approx_equal(out[period / 2], 0.0, 1e-9);
+    return ok;
+}
+
+/** Spectrum: all harmonics present, decaying approximately as 1/k. */
+static int test_sawtooth_spectrum_harmonics(void)
+{
+    unsigned N = 4096;
+    double sample_rate = 16000.0;
+    double freq = 250.0;  /* bin 64 */
+
+    double sig[N];
+    MD_sawtooth_wave(sig, N, 1.0, freq, sample_rate);
+
+    unsigned num_bins = N / 2 + 1;
+    double mag[num_bins];
+    MD_magnitude_spectrum(sig, N, mag);
+
+    unsigned fb = (unsigned)(freq * N / sample_rate);
+    int ok = 1;
+    /* All harmonics 1f..5f should have significant energy */
+    for (unsigned k = 1; k <= 5; k++)
+        ok &= (mag[fb * k] > mag[fb] * 0.05);
+    /* Harmonic magnitudes should roughly decay: mag[k*f] < mag[(k-1)*f] */
+    for (unsigned k = 2; k <= 5; k++)
+        ok &= (mag[fb * k] < mag[fb * (k - 1)]);
+    return ok;
+}
+
+/** Negative amplitude inverts the sawtooth wave. */
+static int test_sawtooth_amplitude_negative(void)
+{
+    double sample_rate = 16000.0;
+    double freq = 1000.0;
+    unsigned period = (unsigned)(sample_rate / freq);
+    unsigned N = period;
+    double pos[N], neg[N];
+    MD_sawtooth_wave(pos, N, 1.0, freq, sample_rate);
+    MD_sawtooth_wave(neg, N, -1.0, freq, sample_rate);
+
+    int ok = 1;
+    for (unsigned i = 0; i < N; i++)
+        ok &= approx_equal(neg[i], -pos[i], 1e-12);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_stft() and MD_stft_num_frames()
  * -----------------------------------------------------------------------*/
 
@@ -2533,6 +2672,16 @@ int main(void)
     RUN_TEST(test_chirp_log_starts_at_zero);
     RUN_TEST(test_chirp_log_spectrum_spread);
     RUN_TEST(test_chirp_log_amplitude_bound);
+
+    printf("\n--- MD_square_wave ---\n");
+    RUN_TEST(test_square_high_low);
+    RUN_TEST(test_square_spectrum_harmonics);
+    RUN_TEST(test_square_amplitude_negative);
+
+    printf("\n--- MD_sawtooth_wave ---\n");
+    RUN_TEST(test_sawtooth_midpoint);
+    RUN_TEST(test_sawtooth_spectrum_harmonics);
+    RUN_TEST(test_sawtooth_amplitude_negative);
 
     printf("\n--- MD_stft ---\n");
     RUN_TEST(test_stft_num_frames);

@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
- *   - Signal generators (sine wave, white noise, impulse, chirp)
+ *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
@@ -471,6 +471,70 @@ void MD_chirp_linear(double *output, unsigned N, double amplitude,
  */
 void MD_chirp_log(double *output, unsigned N, double amplitude,
                   double f_start, double f_end, double sample_rate);
+
+/**
+ * Generate a square wave.
+ *
+ * Fills the output buffer with a bipolar square wave that alternates
+ * between +amplitude and −amplitude at the given frequency:
+ *
+ * \f[
+ * x[n] = \begin{cases}
+ *   +A  & 0 < \phi < \pi \\
+ *   -A  & \pi < \phi < 2\pi \\
+ *    0  & \phi = 0 \text{ or } \phi = \pi
+ * \end{cases}
+ * \f]
+ *
+ * where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
+ *
+ * A square wave contains only odd harmonics (1f, 3f, 5f, …) whose
+ * amplitudes decay as 1/k — a classic demonstration of the Fourier
+ * series and the Gibbs phenomenon.
+ *
+ * @param output      Output buffer of length N (caller-allocated).
+ * @param N           Number of samples to generate.  Must be > 0.
+ * @param amplitude   Peak amplitude of the square wave (e.g. 1.0).
+ * @param freq        Frequency in Hz.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ *
+ * @code
+ * double sig[1024];
+ * MD_square_wave(sig, 1024, 1.0, 440.0, 44100.0);
+ * @endcode
+ */
+void MD_square_wave(double *output, unsigned N, double amplitude,
+                    double freq, double sample_rate);
+
+/**
+ * Generate a sawtooth wave.
+ *
+ * Fills the output buffer with a sawtooth wave that ramps linearly
+ * from −amplitude to +amplitude over each period:
+ *
+ * \f[
+ * x[n] = A \left(\frac{\phi}{\pi} - 1\right)
+ * \f]
+ *
+ * where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
+ *
+ * A sawtooth wave contains all integer harmonics (1f, 2f, 3f, …)
+ * whose amplitudes decay as 1/k — useful for demonstrating richer
+ * harmonic content compared to the square wave's odd-only series.
+ *
+ * @param output      Output buffer of length N (caller-allocated).
+ * @param N           Number of samples to generate.  Must be > 0.
+ * @param amplitude   Peak amplitude of the sawtooth wave (e.g. 1.0).
+ * @param freq        Frequency in Hz.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ *
+ * @code
+ * double sig[1024];
+ * MD_sawtooth_wave(sig, 1024, 1.0, 440.0, 44100.0);
+ * @endcode
+ */
+void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
+                      double freq, double sample_rate);
 
 /* -----------------------------------------------------------------------
  * Resource cleanup

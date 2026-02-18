@@ -141,5 +141,62 @@ magnitude spectra of both chirp types and writes an interactive HTML plot.
 
 ---
 
-*Future sections — Square/Sawtooth — will appear here
-as new `##` headings when those generators are implemented.*
+## Square wave
+
+A square wave at frequency \f$f\f$ Hz alternates between \f$+A\f$ and \f$-A\f$:
+
+\f[
+x[n] = \begin{cases}
+  +A  & 0 < \phi < \pi \\
+  -A  & \pi < \phi < 2\pi \\
+   0  & \phi = 0 \text{ or } \phi = \pi
+\end{cases}
+\f]
+
+where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
+
+Its Fourier series contains **only odd harmonics** (1f, 3f, 5f, …) with amplitudes
+decaying as \f$1/k\f$ — a textbook demonstration of the Gibbs phenomenon.
+
+**API:**
+
+```c
+void MD_square_wave(double *output, unsigned N, double amplitude,
+                    double freq, double sample_rate);
+```
+
+**Quick example:**
+
+\snippet square_sawtooth.c generate-square
+
+See `examples/square_sawtooth.c` for a full program that compares the square and
+sawtooth spectra side by side.
+
+---
+
+## Sawtooth wave
+
+A sawtooth wave ramps linearly from \f$-A\f$ to \f$+A\f$ over each period:
+
+\f[
+x[n] = A \left(\frac{\phi}{\pi} - 1\right)
+\f]
+
+where \f$\phi = 2\pi f n / f_s \pmod{2\pi}\f$.
+
+Unlike the square wave, the sawtooth contains **all integer harmonics**
+(1f, 2f, 3f, …), each decaying as \f$1/k\f$.  Comparing the two spectra
+shows how waveform shape determines harmonic content.
+
+**API:**
+
+```c
+void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
+                      double freq, double sample_rate);
+```
+
+**Quick example:**
+
+\snippet square_sawtooth.c generate-sawtooth
+
+See `examples/square_sawtooth.c` for the full runnable program.
