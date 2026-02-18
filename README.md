@@ -39,6 +39,14 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 
+### Signal Analysis (minidsp.h)
+
+- **RMS** -- root mean square, the standard signal loudness measure.
+- **Zero-crossing rate** -- fraction of adjacent samples that change sign; simple proxy for pitch and noisiness.
+- **Autocorrelation** -- normalised self-similarity at different lags; foundation of pitch detection.
+- **Peak detection** -- find local maxima above a threshold with minimum-distance suppression.
+- **Signal mixing** -- weighted sum of two signals; needed for any multi-source demo.
+
 ### Signal Measurement (minidsp.h)
 
 - **Signal measurements** -- energy, power, power in dB, normalised entropy.

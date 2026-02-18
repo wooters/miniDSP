@@ -360,6 +360,289 @@ static int test_entropy_clip(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_rms()
+ * -----------------------------------------------------------------------*/
+
+/** RMS of a unit-amplitude sine wave should be 1/sqrt(2). */
+static int test_rms_sine(void)
+{
+    unsigned N = 8000;
+    double sig[8000];
+    /* Use integer number of complete cycles to avoid edge effects */
+    MD_sine_wave(sig, N, 1.0, 100.0, 8000.0);
+    double rms = MD_rms(sig, N);
+    return approx_equal(rms, 1.0 / sqrt(2.0), 1e-6);
+}
+
+/** RMS of a DC signal of value c should be |c|. */
+static int test_rms_dc(void)
+{
+    double sig[100];
+    for (unsigned i = 0; i < 100; i++) sig[i] = 3.0;
+    return approx_equal(MD_rms(sig, 100), 3.0, 1e-15);
+}
+
+/** RMS of silence should be 0. */
+static int test_rms_silence(void)
+{
+    double sig[64];
+    memset(sig, 0, sizeof(sig));
+    return approx_equal(MD_rms(sig, 64), 0.0, 1e-15);
+}
+
+/** RMS should equal sqrt(MD_power()). */
+static int test_rms_matches_sqrt_power(void)
+{
+    double sig[] = {1.0, -2.0, 3.0, -4.0, 5.0};
+    double rms = MD_rms(sig, 5);
+    double expected = sqrt(MD_power(sig, 5));
+    return approx_equal(rms, expected, 1e-15);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_zero_crossing_rate()
+ * -----------------------------------------------------------------------*/
+
+/** ZCR of a sine wave should be approximately 2*freq/sample_rate. */
+static int test_zcr_sine(void)
+{
+    unsigned N = 8000;
+    double sig[8000];
+    double freq = 500.0, sr = 8000.0;
+    MD_sine_wave(sig, N, 1.0, freq, sr);
+    double zcr = MD_zero_crossing_rate(sig, N);
+    double expected = 2.0 * freq / sr;  /* 0.125 */
+    return approx_equal(zcr, expected, 0.005);
+}
+
+/** ZCR of a constant signal should be 0. */
+static int test_zcr_constant(void)
+{
+    double sig[100];
+    for (unsigned i = 0; i < 100; i++) sig[i] = 5.0;
+    return approx_equal(MD_zero_crossing_rate(sig, 100), 0.0, 1e-15);
+}
+
+/** ZCR of a perfectly alternating signal should be 1.0. */
+static int test_zcr_alternating(void)
+{
+    double sig[100];
+    for (unsigned i = 0; i < 100; i++) sig[i] = (i % 2 == 0) ? 1.0 : -1.0;
+    return approx_equal(MD_zero_crossing_rate(sig, 100), 1.0, 1e-15);
+}
+
+/** Noise should have higher ZCR than a low-frequency sine. */
+static int test_zcr_noise_higher_than_sine(void)
+{
+    unsigned N = 4096;
+    double sine[4096], noise[4096];
+    MD_sine_wave(sine, N, 1.0, 100.0, 8000.0);
+    MD_white_noise(noise, N, 1.0, 42);
+    return MD_zero_crossing_rate(noise, N) > MD_zero_crossing_rate(sine, N);
+}
+
+/** Zeros in the signal should be treated as non-negative. */
+static int test_zcr_zeros_handling(void)
+{
+    /* {1, 0, -1, 0, 1}: sign changes at indices 1->2 and 2->3 */
+    double sig[] = {1.0, 0.0, -1.0, 0.0, 1.0};
+    double zcr = MD_zero_crossing_rate(sig, 5);
+    /* 0 is non-negative, so transitions: 0→-1 (cross), -1→0 (cross) = 2/4 = 0.5 */
+    return approx_equal(zcr, 0.5, 1e-15);
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_autocorrelation()
+ * -----------------------------------------------------------------------*/
+
+/** Autocorrelation at lag 0 should always be 1.0. */
+static int test_acf_lag0(void)
+{
+    double sig[] = {1.0, -2.0, 3.0, -4.0, 5.0};
+    double acf[3];
+    MD_autocorrelation(sig, 5, acf, 3);
+    return approx_equal(acf[0], 1.0, 1e-15);
+}
+
+/** Sine autocorrelation should peak at the period. */
+static int test_acf_sine_period(void)
+{
+    unsigned N = 2048;
+    double sig[2048];
+    /* 100 Hz at 1000 Hz sample rate -> period = 10 samples */
+    MD_sine_wave(sig, N, 1.0, 100.0, 1000.0);
+    unsigned max_lag = 50;
+    double acf[50];
+    MD_autocorrelation(sig, N, acf, max_lag);
+    /* acf[10] should be close to 1.0 (one full period) */
+    return approx_equal(acf[10], 1.0, 0.01);
+}
+
+/** Noise autocorrelation should decay quickly. */
+static int test_acf_noise_decay(void)
+{
+    unsigned N = 4096;
+    double *sig = malloc(N * sizeof(double));
+    MD_white_noise(sig, N, 1.0, 42);
+    unsigned max_lag = 100;
+    double *acf = malloc(max_lag * sizeof(double));
+    MD_autocorrelation(sig, N, acf, max_lag);
+    /* acf[0] = 1.0, acf at larger lags should be much smaller */
+    int ok = (fabs(acf[10]) < 0.15);
+    free(acf);
+    free(sig);
+    return ok;
+}
+
+/** All autocorrelation values should have magnitude <= 1.0. */
+static int test_acf_bounded(void)
+{
+    double sig[] = {1.0, -3.0, 2.0, -1.0, 4.0, -2.0, 3.0, -5.0};
+    double acf[5];
+    MD_autocorrelation(sig, 8, acf, 5);
+    for (unsigned i = 0; i < 5; i++) {
+        if (fabs(acf[i]) > 1.0 + 1e-10) return 0;
+    }
+    return 1;
+}
+
+/** Autocorrelation of silence should be all zeros. */
+static int test_acf_silence(void)
+{
+    double sig[32];
+    memset(sig, 0, sizeof(sig));
+    double acf[10];
+    MD_autocorrelation(sig, 32, acf, 10);
+    for (unsigned i = 0; i < 10; i++) {
+        if (fabs(acf[i]) > 1e-15) return 0;
+    }
+    return 1;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_peak_detect()
+ * -----------------------------------------------------------------------*/
+
+/** Detect known peaks in a simple signal. */
+static int test_peaks_known(void)
+{
+    double sig[] = {0, 1, 3, 1, 0, 2, 5, 2, 0};
+    unsigned peaks[9], n;
+    MD_peak_detect(sig, 9, 0.0, 1, peaks, &n);
+    return n == 2 && peaks[0] == 2 && peaks[1] == 6;
+}
+
+/** Threshold should filter out small peaks. */
+static int test_peaks_threshold(void)
+{
+    double sig[] = {0, 1, 3, 1, 0, 2, 5, 2, 0};
+    unsigned peaks[9], n;
+    MD_peak_detect(sig, 9, 4.0, 1, peaks, &n);
+    /* Only the peak at index 6 (value 5) is above threshold 4 */
+    return n == 1 && peaks[0] == 6;
+}
+
+/** min_distance should suppress nearby peaks. */
+static int test_peaks_min_distance(void)
+{
+    double sig[] = {0, 3, 0, 2, 0, 4, 0};
+    unsigned peaks[7], n;
+    MD_peak_detect(sig, 7, 0.0, 3, peaks, &n);
+    /* Peak at 1 (value 3) accepted, peak at 3 (value 2) is within distance 3, skipped.
+       Peak at 5 (value 4) is at distance 4 from peak 1, accepted. */
+    return n == 2 && peaks[0] == 1 && peaks[1] == 5;
+}
+
+/** Signal with no peaks should return zero count. */
+static int test_peaks_none(void)
+{
+    double sig[] = {1, 2, 3, 4, 5};
+    unsigned peaks[5], n;
+    MD_peak_detect(sig, 5, 0.0, 1, peaks, &n);
+    /* Monotonically increasing -> no local maxima */
+    return n == 0;
+}
+
+/** Flat signal should produce zero peaks (equal neighbours). */
+static int test_peaks_flat_signal(void)
+{
+    double sig[] = {3, 3, 3, 3, 3};
+    unsigned peaks[5], n;
+    MD_peak_detect(sig, 5, 0.0, 1, peaks, &n);
+    return n == 0;
+}
+
+/** Single-sample signal should produce zero peaks. */
+static int test_peaks_single_sample(void)
+{
+    double sig[] = {5.0};
+    unsigned peaks[1], n;
+    MD_peak_detect(sig, 1, 0.0, 1, peaks, &n);
+    return n == 0;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_mix()
+ * -----------------------------------------------------------------------*/
+
+/** Equal weights of 0.5 should produce the average. */
+static int test_mix_equal_weights(void)
+{
+    double a[] = {2.0, 4.0, 6.0};
+    double b[] = {10.0, 20.0, 30.0};
+    double out[3];
+    MD_mix(a, b, out, 3, 0.5, 0.5);
+    int ok = 1;
+    ok &= approx_equal(out[0], 6.0, 1e-15);
+    ok &= approx_equal(out[1], 12.0, 1e-15);
+    ok &= approx_equal(out[2], 18.0, 1e-15);
+    return ok;
+}
+
+/** Weight 1.0/0.0 should pass through the first signal. */
+static int test_mix_passthrough(void)
+{
+    double a[] = {1.0, 2.0, 3.0};
+    double b[] = {10.0, 20.0, 30.0};
+    double out[3];
+    MD_mix(a, b, out, 3, 1.0, 0.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], 1.0, 1e-15);
+    ok &= approx_equal(out[1], 2.0, 1e-15);
+    ok &= approx_equal(out[2], 3.0, 1e-15);
+    return ok;
+}
+
+/** Mixing should satisfy the expected energy relationship for orthogonal signals. */
+static int test_mix_energy(void)
+{
+    unsigned N = 8000;
+    double sine[8000], noise[8000], mix[8000];
+    /* Sine at an exact integer bin and noise are approximately orthogonal */
+    MD_sine_wave(sine, N, 1.0, 100.0, 8000.0);
+    MD_white_noise(noise, N, 0.5, 123);
+    MD_mix(sine, noise, mix, N, 1.0, 1.0);
+    /* Energy of mix should be approximately E(sine) + E(noise) for uncorrelated signals */
+    double e_sine = MD_energy(sine, N);
+    double e_noise = MD_energy(noise, N);
+    double e_mix = MD_energy(mix, N);
+    return approx_equal(e_mix, e_sine + e_noise, e_mix * 0.1);
+}
+
+/** In-place mixing: output aliases input a. */
+static int test_mix_inplace(void)
+{
+    double a[] = {1.0, 2.0, 3.0};
+    double b[] = {4.0, 5.0, 6.0};
+    MD_mix(a, b, a, 3, 0.5, 0.5);
+    int ok = 1;
+    ok &= approx_equal(a[0], 2.5, 1e-15);
+    ok &= approx_equal(a[1], 3.5, 1e-15);
+    ok &= approx_equal(a[2], 4.5, 1e-15);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_Gen_Hann_Win()
  * -----------------------------------------------------------------------*/
 
@@ -2582,6 +2865,40 @@ int main(void)
     RUN_TEST(test_entropy_single);
     RUN_TEST(test_entropy_no_clip);
     RUN_TEST(test_entropy_clip);
+
+    printf("\n--- MD_rms ---\n");
+    RUN_TEST(test_rms_sine);
+    RUN_TEST(test_rms_dc);
+    RUN_TEST(test_rms_silence);
+    RUN_TEST(test_rms_matches_sqrt_power);
+
+    printf("\n--- MD_zero_crossing_rate ---\n");
+    RUN_TEST(test_zcr_sine);
+    RUN_TEST(test_zcr_constant);
+    RUN_TEST(test_zcr_alternating);
+    RUN_TEST(test_zcr_noise_higher_than_sine);
+    RUN_TEST(test_zcr_zeros_handling);
+
+    printf("\n--- MD_autocorrelation ---\n");
+    RUN_TEST(test_acf_lag0);
+    RUN_TEST(test_acf_sine_period);
+    RUN_TEST(test_acf_noise_decay);
+    RUN_TEST(test_acf_bounded);
+    RUN_TEST(test_acf_silence);
+
+    printf("\n--- MD_peak_detect ---\n");
+    RUN_TEST(test_peaks_known);
+    RUN_TEST(test_peaks_threshold);
+    RUN_TEST(test_peaks_min_distance);
+    RUN_TEST(test_peaks_none);
+    RUN_TEST(test_peaks_flat_signal);
+    RUN_TEST(test_peaks_single_sample);
+
+    printf("\n--- MD_mix ---\n");
+    RUN_TEST(test_mix_equal_weights);
+    RUN_TEST(test_mix_passthrough);
+    RUN_TEST(test_mix_energy);
+    RUN_TEST(test_mix_inplace);
 
     printf("\n--- MD_Gen_Hann_Win ---\n");
     RUN_TEST(test_hann_endpoints);

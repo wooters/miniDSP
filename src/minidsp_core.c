@@ -252,6 +252,117 @@ double MD_entropy(const double *a, unsigned N, bool clip)
 }
 
 /* -----------------------------------------------------------------------
+ * Public API: signal analysis
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Root mean square: the standard measure of signal "loudness".
+ *
+ *   RMS = sqrt(1/N * sum(x[n]^2)) = sqrt(power)
+ */
+double MD_rms(const double *a, unsigned N)
+{
+    assert(a != nullptr);
+    assert(N > 0);
+    return sqrt(MD_power(a, N));
+}
+
+/**
+ * Zero-crossing rate: fraction of adjacent sample pairs that
+ * differ in sign.  Returns a value in [0.0, 1.0].
+ *
+ * Zero is treated as non-negative (standard convention).
+ */
+double MD_zero_crossing_rate(const double *a, unsigned N)
+{
+    assert(a != nullptr);
+    assert(N > 1);
+    unsigned crossings = 0;
+    for (unsigned i = 1; i < N; i++) {
+        if ((a[i] < 0.0) != (a[i - 1] < 0.0))
+            crossings++;
+    }
+    return (double)crossings / (double)(N - 1);
+}
+
+/**
+ * Normalised autocorrelation for lags 0..max_lag-1.
+ *
+ *   out[tau] = (1/R[0]) * sum_{n=0}^{N-1-tau} x[n] * x[n+tau]
+ *
+ * Reuses MD_dot() for the inner product.  Silent signals (R[0]=0)
+ * produce all-zero output.
+ */
+void MD_autocorrelation(const double *a, unsigned N,
+                        double *out, unsigned max_lag)
+{
+    assert(a != nullptr);
+    assert(out != nullptr);
+    assert(N > 0);
+    assert(max_lag > 0 && max_lag < N);
+
+    double r0 = MD_energy(a, N);
+    if (r0 == 0.0) {
+        memset(out, 0, max_lag * sizeof(double));
+        return;
+    }
+    for (unsigned tau = 0; tau < max_lag; tau++) {
+        out[tau] = MD_dot(a, a + tau, N - tau) / r0;
+    }
+}
+
+/**
+ * Peak detection: find local maxima above a threshold.
+ *
+ * A sample a[i] is a peak if:
+ *   - a[i] > a[i-1]  AND  a[i] > a[i+1]  (strictly greater than neighbours)
+ *   - a[i] >= threshold
+ *   - distance from the last accepted peak >= min_distance
+ *
+ * Endpoints (i=0, i=N-1) are never peaks.
+ */
+void MD_peak_detect(const double *a, unsigned N, double threshold,
+                    unsigned min_distance, unsigned *peaks_out,
+                    unsigned *num_peaks_out)
+{
+    assert(a != nullptr);
+    assert(peaks_out != nullptr);
+    assert(num_peaks_out != nullptr);
+    assert(min_distance >= 1);
+
+    unsigned count = 0;
+    unsigned last_peak = 0;
+
+    for (unsigned i = 1; i + 1 < N; i++) {
+        if (a[i] > a[i - 1] && a[i] > a[i + 1] && a[i] >= threshold) {
+            if (count == 0 || i - last_peak >= min_distance) {
+                peaks_out[count++] = i;
+                last_peak = i;
+            }
+        }
+    }
+    *num_peaks_out = count;
+}
+
+/**
+ * Signal mixing: weighted sum of two signals.
+ *
+ *   out[n] = w_a * a[n] + w_b * b[n]
+ *
+ * In-place safe (out may alias a or b).
+ */
+void MD_mix(const double *a, const double *b, double *out,
+            unsigned N, double w_a, double w_b)
+{
+    assert(a != nullptr);
+    assert(b != nullptr);
+    assert(out != nullptr);
+    for (unsigned i = 0; i < N; i++) {
+        out[i] = w_a * a[i] + w_b * b[i];
+    }
+}
+
+/* -----------------------------------------------------------------------
  * Public API: window generation
  * -----------------------------------------------------------------------*/
 

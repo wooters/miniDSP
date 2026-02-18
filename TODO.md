@@ -36,11 +36,11 @@ so students can compare sidelobe trade-offs.
 
 ## Basic Signal Operations
 
-- [ ] **RMS (root mean square)** -- standard loudness measure; more perceptually meaningful than peak amplitude
-- [ ] **Zero-crossing rate** -- simple proxy for pitch/noisiness; widely used in speech/music classification
-- [ ] **Autocorrelation** -- similarity of a signal with a delayed copy of itself; foundation of pitch detection
-- [ ] **Peak detection** -- find local maxima above a threshold; used in onset detection and pitch tracking
-- [ ] **Signal mixing** -- weighted sum of two signals; needed for any multi-source demo
+- [x] **RMS (root mean square)** -- standard loudness measure; more perceptually meaningful than peak amplitude
+- [x] **Zero-crossing rate** -- simple proxy for pitch/noisiness; widely used in speech/music classification
+- [x] **Autocorrelation** -- similarity of a signal with a delayed copy of itself; foundation of pitch detection
+- [x] **Peak detection** -- find local maxima above a threshold; used in onset detection and pitch tracking
+- [x] **Signal mixing** -- weighted sum of two signals; needed for any multi-source demo
 
 ## Simple Effects
 

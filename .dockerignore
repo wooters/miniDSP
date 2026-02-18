@@ -28,6 +28,9 @@ examples/chirp_wave.html
 examples/square_sawtooth
 examples/square_sawtooth.csv
 examples/square_sawtooth.html
+examples/basic_operations
+examples/basic_operations.csv
+examples/basic_operations.html
 examples/gen_audio_samples
 examples/gen_signal_plots
 tests/test_minidsp

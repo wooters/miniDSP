@@ -4,6 +4,7 @@
  *
  * This header declares functions for:
  *   - Basic signal measurements (energy, power, entropy)
+ *   - Signal analysis (RMS, zero-crossing rate, autocorrelation, peak detection, mixing)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
@@ -57,6 +58,153 @@ double MD_power(const double *a, unsigned N);
 
 /** Compute signal power in decibels: 10 * log10(power). */
 double MD_power_db(const double *a, unsigned N);
+
+/* -----------------------------------------------------------------------
+ * Signal analysis
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Compute the root mean square (RMS) of a signal.
+ *
+ * RMS is the standard measure of signal "loudness":
+ *
+ * \f[
+ * \mathrm{RMS} = \sqrt{\frac{1}{N}\sum_{n=0}^{N-1} x[n]^2}
+ * \f]
+ *
+ * Equivalently, `sqrt(MD_power(a, N))`.  A unit-amplitude sine wave
+ * has RMS = 1/sqrt(2) ~ 0.707.  A DC signal of value c has RMS = |c|.
+ *
+ * @param a  Input signal of length N.
+ * @param N  Number of samples.  Must be > 0.
+ * @return   RMS value (always >= 0).
+ *
+ * @code
+ * double sig[1024];
+ * MD_sine_wave(sig, 1024, 1.0, 440.0, 44100.0);
+ * double rms = MD_rms(sig, 1024);  // ~ 0.707
+ * @endcode
+ */
+double MD_rms(const double *a, unsigned N);
+
+/**
+ * Compute the zero-crossing rate of a signal.
+ *
+ * The zero-crossing rate counts how often the signal changes sign,
+ * normalised by the number of adjacent pairs:
+ *
+ * \f[
+ * \mathrm{ZCR} = \frac{1}{N-1}\sum_{n=1}^{N-1}
+ *     \mathbf{1}\!\bigl[\mathrm{sgn}(x[n]) \ne \mathrm{sgn}(x[n-1])\bigr]
+ * \f]
+ *
+ * Returns a value in [0.0, 1.0].  High ZCR indicates noise or
+ * high-frequency content; low ZCR indicates tonal or low-frequency
+ * content.  Zero is treated as non-negative (standard convention).
+ *
+ * @param a  Input signal of length N.
+ * @param N  Number of samples.  Must be > 1.
+ * @return   Zero-crossing rate in [0.0, 1.0].
+ *
+ * @code
+ * double sig[4096];
+ * MD_sine_wave(sig, 4096, 1.0, 1000.0, 16000.0);
+ * double zcr = MD_zero_crossing_rate(sig, 4096);
+ * // zcr ~ 2 * 1000 / 16000 = 0.125
+ * @endcode
+ */
+double MD_zero_crossing_rate(const double *a, unsigned N);
+
+/**
+ * Compute the normalised autocorrelation of a signal.
+ *
+ * The autocorrelation measures the similarity between a signal and a
+ * delayed copy of itself.  This function computes the normalised
+ * (biased) autocorrelation for lags 0 through max_lag-1:
+ *
+ * \f[
+ * R[\tau] = \frac{1}{R[0]} \sum_{n=0}^{N-1-\tau} x[n]\,x[n+\tau]
+ * \f]
+ *
+ * where \f$R[0] = \sum x[n]^2\f$ is the signal energy.
+ * The output satisfies out[0] = 1.0 and |out[tau]| <= 1.0.
+ * A silent signal (all zeros) produces all-zero output.
+ *
+ * @param a        Input signal of length N.
+ * @param N        Number of samples.  Must be > 0.
+ * @param out      Output array of length max_lag (caller-allocated).
+ * @param max_lag  Number of lag values to compute.  Must be > 0 and < N.
+ *
+ * @code
+ * double sig[1024];
+ * MD_sine_wave(sig, 1024, 1.0, 100.0, 1000.0);
+ * double acf[50];
+ * MD_autocorrelation(sig, 1024, acf, 50);
+ * // acf[0] = 1.0, acf[10] ~ 1.0 (lag = one period of 100 Hz at 1 kHz)
+ * @endcode
+ */
+void MD_autocorrelation(const double *a, unsigned N,
+                        double *out, unsigned max_lag);
+
+/**
+ * Detect peaks (local maxima) in a signal.
+ *
+ * A sample a[i] is a peak if it is strictly greater than both
+ * immediate neighbours and above the given threshold.  The
+ * min_distance parameter suppresses nearby secondary peaks:
+ * after accepting a peak at index i, any candidate within
+ * min_distance indices is skipped.
+ *
+ * Peaks are found left-to-right (deterministic tie-breaking).
+ * Endpoint samples (i=0, i=N-1) are never peaks because they
+ * lack two neighbours.
+ *
+ * @param a             Input signal of length N.
+ * @param N             Number of samples.
+ * @param threshold     Minimum value for a peak.
+ * @param min_distance  Minimum index gap between accepted peaks (>= 1).
+ * @param peaks_out     Output array of peak indices (caller-allocated,
+ *                      worst case N elements).
+ * @param num_peaks_out Receives the number of peaks found.
+ *
+ * @code
+ * double sig[] = {0, 1, 3, 1, 0, 2, 5, 2, 0};
+ * unsigned peaks[9], n;
+ * MD_peak_detect(sig, 9, 0.0, 1, peaks, &n);
+ * // n = 2, peaks = {2, 6}  (values 3 and 5)
+ * @endcode
+ */
+void MD_peak_detect(const double *a, unsigned N, double threshold,
+                    unsigned min_distance, unsigned *peaks_out,
+                    unsigned *num_peaks_out);
+
+/**
+ * Mix (weighted sum) two signals.
+ *
+ * Computes the element-wise weighted sum:
+ *
+ * \f[
+ * \mathrm{out}[n] = w_a \cdot a[n] + w_b \cdot b[n]
+ * \f]
+ *
+ * In-place safe: the output buffer may alias either input.
+ *
+ * @param a    First input signal of length N.
+ * @param b    Second input signal of length N.
+ * @param out  Output signal of length N (caller-allocated).
+ * @param N    Number of samples.
+ * @param w_a  Weight for signal a.
+ * @param w_b  Weight for signal b.
+ *
+ * @code
+ * double sine[1024], noise[1024], mix[1024];
+ * MD_sine_wave(sine, 1024, 1.0, 440.0, 44100.0);
+ * MD_white_noise(noise, 1024, 0.1, 42);
+ * MD_mix(sine, noise, mix, 1024, 0.8, 0.2);
+ * @endcode
+ */
+void MD_mix(const double *a, const double *b, double *out,
+            unsigned N, double w_a, double w_b);
 
 /* -----------------------------------------------------------------------
  * Signal scaling and conditioning

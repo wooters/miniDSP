@@ -9,3 +9,4 @@ and shows the resulting plots.
 - \subpage power-spectral-density — Measure how signal power distributes across frequencies.
 - \subpage stft-spectrogram — Visualise how a signal's frequency content changes over time.
 - \subpage phase-spectrum — Inspect the per-frequency phase angle of a real signal.
+- \subpage basic-signal-operations — RMS, zero-crossing rate, autocorrelation, peak detection, and signal mixing.

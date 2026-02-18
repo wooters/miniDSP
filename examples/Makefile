@@ -9,7 +9,7 @@ include ../config.mk
 
 CFLAGS += -O2 -g -I../include
 
-EXAMPLES = magnitude_spectrum power_spectral_density spectrogram phase_spectrum sine_wave white_noise impulse chirp_wave square_sawtooth
+EXAMPLES = magnitude_spectrum power_spectral_density spectrogram phase_spectrum sine_wave white_noise impulse chirp_wave square_sawtooth basic_operations
 
 # Always delegate to parent Makefile to check if library needs rebuilding
 .PHONY: ../libminidsp.a
@@ -40,6 +40,7 @@ plot: $(EXAMPLES)
 	./impulse
 	./chirp_wave
 	./square_sawtooth
+	./basic_operations
 
 .PHONY: clean
 clean:
