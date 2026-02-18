@@ -26,7 +26,7 @@ The output mixes dry input with the delayed state:
 y[n] = dry \cdot x[n] + wet \cdot s[n-D]
 \f]
 
-where \f$D=\text{delay\_samples}\f$ and \f$|feedback| < 1\f$.
+where \f$D\f$ is the delay in samples and \f$|feedback| < 1\f$.
 
 **Reading the algorithm in C:**
 
