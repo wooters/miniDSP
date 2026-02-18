@@ -121,6 +121,7 @@ interactive plot to read exact time, frequency, and dB values.
 
 ## API reference
 
+- MD_chirp_linear() — generate the linear chirp test signal
 - MD_stft() — compute the STFT magnitude matrix
 - MD_stft_num_frames() — compute the number of output frames
 - MD_magnitude_spectrum() — single-frame magnitude spectrum

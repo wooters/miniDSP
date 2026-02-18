@@ -614,6 +614,55 @@ void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
     output[position] = amplitude;
 }
 
+void MD_chirp_linear(double *output, unsigned N, double amplitude,
+                     double f_start, double f_end, double sample_rate)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+
+    if (N == 1) {
+        output[0] = 0.0;
+        return;
+    }
+
+    double T = (double)(N - 1) / sample_rate;
+    double chirp_rate = (f_end - f_start) / T;
+
+    for (unsigned i = 0; i < N; i++) {
+        double t = (double)i / sample_rate;
+        double phase = 2.0 * M_PI * (f_start * t + 0.5 * chirp_rate * t * t);
+        output[i] = amplitude * sin(phase);
+    }
+}
+
+void MD_chirp_log(double *output, unsigned N, double amplitude,
+                  double f_start, double f_end, double sample_rate)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+    assert(f_start > 0.0);
+    assert(f_end > 0.0);
+    assert(f_start != f_end);
+
+    if (N == 1) {
+        output[0] = 0.0;
+        return;
+    }
+
+    double T = (double)(N - 1) / sample_rate;
+    double ratio = f_end / f_start;
+    double log_ratio = log(ratio);
+
+    for (unsigned i = 0; i < N; i++) {
+        double t = (double)i / sample_rate;
+        double phase = 2.0 * M_PI * f_start * T
+                     * (pow(ratio, t / T) - 1.0) / log_ratio;
+        output[i] = amplitude * sin(phase);
+    }
+}
+
 /* -----------------------------------------------------------------------
  * Public API: FFT / Spectrum Analysis
  * -----------------------------------------------------------------------*/
