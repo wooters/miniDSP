@@ -217,7 +217,7 @@ standard deviation \f$\sigma\f$:
 x[n] \sim \mathrm{N}(0,\, \sigma^2), \quad n = 0, 1, \ldots, N-1
 \f]
 
-Samples are generated with the Box-Muller transform seeded by `seed`, so the
+Samples are generated with the [Box-Muller transform](https://en.wikipedia.org/wiki/Box%E2%80%93Muller_transform) seeded by `seed`, so the
 same seed always produces the same sequence — useful for reproducible tests.
 
 **API:**
