@@ -23,10 +23,10 @@ jobs:
           submodules: true
 
       - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y doxygen gcc make libfftw3-dev libsndfile1-dev
+        run: sudo apt-get update && sudo apt-get install -y doxygen gcc-14 libc6-dev make libfftw3-dev libsndfile1-dev
 
       - name: Generate documentation
-        run: make docs
+        run: make docs CC=gcc-14
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
