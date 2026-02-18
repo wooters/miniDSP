@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
- *   - Signal generators (sine wave)
+ *   - Signal generators (sine wave, white noise)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
@@ -353,6 +353,32 @@ void MD_Gen_Hann_Win(double *out, unsigned n);
  */
 void MD_sine_wave(double *output, unsigned N, double amplitude,
                   double freq, double sample_rate);
+
+/**
+ * Generate Gaussian white noise.
+ *
+ * Fills `output` with normally distributed random samples (mean 0,
+ * standard deviation `amplitude`) using the Box-Muller transform.
+ * White noise has equal energy at all frequencies -- its power
+ * spectral density is approximately flat.
+ *
+ * Use white noise to test filters, measure impulse responses, or
+ * as an additive noise source for SNR experiments.
+ *
+ * @param output    Output buffer of length N (caller-allocated).
+ * @param N         Number of samples to generate.  Must be > 0.
+ * @param amplitude Standard deviation of the noise (e.g. 1.0).
+ * @param seed      Seed for the random number generator.  Using the
+ *                  same seed produces the same output sequence, which
+ *                  is useful for reproducible tests.
+ *
+ * @code
+ * double noise[4096];
+ * MD_white_noise(noise, 4096, 1.0, 42);  // reproducible Gaussian noise
+ * @endcode
+ */
+void MD_white_noise(double *output, unsigned N, double amplitude,
+                    unsigned seed);
 
 /* -----------------------------------------------------------------------
  * Resource cleanup

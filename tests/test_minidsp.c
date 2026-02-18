@@ -1570,6 +1570,124 @@ static int test_sine_amplitude_negative(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_white_noise()
+ * -----------------------------------------------------------------------*/
+
+/** Sample mean of white noise should be near zero. */
+static int test_white_noise_mean_near_zero(void)
+{
+    unsigned N = 100000;
+    double *noise = malloc(N * sizeof(double));
+    MD_white_noise(noise, N, 1.0, 42);
+
+    double sum = 0.0;
+    for (unsigned i = 0; i < N; i++) sum += noise[i];
+    double mean = sum / (double)N;
+
+    free(noise);
+    return (fabs(mean) < 0.02);
+}
+
+/** Sample standard deviation should match the requested amplitude. */
+static int test_white_noise_stddev_matches_amplitude(void)
+{
+    unsigned N = 100000;
+    double amplitude = 2.5;
+    double *noise = malloc(N * sizeof(double));
+    MD_white_noise(noise, N, amplitude, 123);
+
+    double sum = 0.0, sum_sq = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        sum += noise[i];
+        sum_sq += noise[i] * noise[i];
+    }
+    double mean = sum / (double)N;
+    double variance = sum_sq / (double)N - mean * mean;
+    double stddev = sqrt(variance);
+
+    free(noise);
+    return approx_equal(stddev, amplitude, 0.05);
+}
+
+/** Same seed must produce identical output. */
+static int test_white_noise_reproducible(void)
+{
+    unsigned N = 1024;
+    double *a = malloc(N * sizeof(double));
+    double *b = malloc(N * sizeof(double));
+    MD_white_noise(a, N, 1.0, 99);
+    MD_white_noise(b, N, 1.0, 99);
+
+    int ok = 1;
+    for (unsigned i = 0; i < N; i++) {
+        ok &= (a[i] == b[i]);
+    }
+    free(b);
+    free(a);
+    return ok;
+}
+
+/** Different seeds must produce different output. */
+static int test_white_noise_different_seeds(void)
+{
+    unsigned N = 1024;
+    double *a = malloc(N * sizeof(double));
+    double *b = malloc(N * sizeof(double));
+    MD_white_noise(a, N, 1.0, 1);
+    MD_white_noise(b, N, 1.0, 2);
+
+    int differs = 0;
+    for (unsigned i = 0; i < N; i++) {
+        if (a[i] != b[i]) { differs = 1; break; }
+    }
+    free(b);
+    free(a);
+    return differs;
+}
+
+/** PSD of white noise should be roughly flat (no bin > 10x the mean). */
+static int test_white_noise_flat_spectrum(void)
+{
+    unsigned N = 4096;
+    double *noise = malloc(N * sizeof(double));
+    MD_white_noise(noise, N, 1.0, 77);
+
+    unsigned num_bins = N / 2 + 1;
+    double *psd = malloc(num_bins * sizeof(double));
+    MD_power_spectral_density(noise, N, psd);
+
+    /* Compute mean PSD (skip DC bin 0) */
+    double sum = 0.0;
+    for (unsigned k = 1; k < num_bins; k++) sum += psd[k];
+    double mean_psd = sum / (double)(num_bins - 1);
+
+    /* No bin should be more than 10x the mean */
+    int ok = (mean_psd > 0.0);
+    for (unsigned k = 1; k < num_bins; k++) {
+        if (psd[k] > mean_psd * 10.0) { ok = 0; break; }
+    }
+
+    free(psd);
+    free(noise);
+    return ok;
+}
+
+/** Odd lengths (including N=1) must produce finite values. */
+static int test_white_noise_odd_length(void)
+{
+    double out1[1];
+    MD_white_noise(out1, 1, 1.0, 0);
+    if (isnan(out1[0]) || isinf(out1[0])) return 0;
+
+    double out7[7];
+    MD_white_noise(out7, 7, 1.0, 0);
+    for (unsigned i = 0; i < 7; i++) {
+        if (isnan(out7[i]) || isinf(out7[i])) return 0;
+    }
+    return 1;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_stft() and MD_stft_num_frames()
  * -----------------------------------------------------------------------*/
 
@@ -2151,6 +2269,14 @@ int main(void)
     RUN_TEST(test_sine_full_period);
     RUN_TEST(test_sine_spectrum_peak);
     RUN_TEST(test_sine_amplitude_negative);
+
+    printf("\n--- MD_white_noise ---\n");
+    RUN_TEST(test_white_noise_mean_near_zero);
+    RUN_TEST(test_white_noise_stddev_matches_amplitude);
+    RUN_TEST(test_white_noise_reproducible);
+    RUN_TEST(test_white_noise_different_seeds);
+    RUN_TEST(test_white_noise_flat_spectrum);
+    RUN_TEST(test_white_noise_odd_length);
 
     printf("\n--- MD_stft ---\n");
     RUN_TEST(test_stft_num_frames);
