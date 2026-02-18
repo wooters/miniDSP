@@ -57,6 +57,68 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 - Record from the microphone and play back to speakers via PortAudio
 - Non-blocking API with callback support
 
+## Use in your project
+
+Install the [dependencies](#dependencies) listed below, then clone and build:
+
+```sh
+git clone https://github.com/wooters/miniDSP.git
+cd miniDSP
+make
+```
+
+This produces `libminidsp.a` in the repo root.
+
+**A minimal program** -- generate a sine wave and find its peak frequency bin:
+
+```c
+#include "minidsp.h"
+#include <stdio.h>
+
+int main(void) {
+    double signal[1024];
+    MD_sine_wave(signal, 1024, 1.0, 440.0, 16000.0);
+
+    double mag[1024 / 2 + 1];
+    MD_magnitude_spectrum(signal, 1024, mag);
+
+    unsigned peak = 0;
+    for (unsigned k = 1; k < 1024 / 2 + 1; k++)
+        if (mag[k] > mag[peak]) peak = k;
+    printf("Peak bin: %u (%.1f Hz)\n", peak, peak * 16000.0 / 1024);
+
+    MD_shutdown();
+}
+```
+
+**Compile it directly:**
+
+```sh
+gcc -std=c23 -Ipath/to/miniDSP/include my_program.c \
+    -Lpath/to/miniDSP -lminidsp -lfftw3 -lm -o my_program
+```
+
+**Or use a Makefile** (adapts to Homebrew on macOS automatically):
+
+```makefile
+MINIDSP_DIR = path/to/miniDSP
+
+CC      = gcc
+CFLAGS  = -std=c23 -Wall -Wextra -I$(MINIDSP_DIR)/include
+LDFLAGS = -L$(MINIDSP_DIR)
+LDLIBS  = -lminidsp -lfftw3 -lm
+
+BREW_PREFIX := $(shell brew --prefix 2>/dev/null)
+ifneq ($(BREW_PREFIX),)
+  CFLAGS  += -I$(BREW_PREFIX)/include
+  LDFLAGS += -L$(BREW_PREFIX)/lib
+endif
+
+my_program: my_program.c
+	$(CC) $(CFLAGS) $(LDFLAGS) $< $(LDLIBS) -o $@
+```
+
+If you use `fileio.h` for reading or writing audio files, add `-lsndfile` to `LDLIBS`.
 
 ## Quick examples
 
