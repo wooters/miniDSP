@@ -12,6 +12,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 ## What's in the box?
 
 ### Signal Processing (minidsp.h)
+
 - **GCC-PHAT** -- estimate the time delay between two microphone signals using Generalized Cross-Correlation with Phase Transform.  This is the core of acoustic source localisation.
 - **Magnitude spectrum** -- compute |X(k)| from a real signal using the FFT; the foundation of frequency-domain analysis.
 - **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
@@ -23,11 +24,14 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Sine wave generator** -- pure tone at a given frequency and amplitude; the "hello world" of DSP.
 
 ### Biquad Filters (biquad.h)
+
 Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/Audio-EQ-Cookbook.txt):
+
 - Low-pass, High-pass, Band-pass, Notch
 - Peaking EQ, Low shelf, High shelf
 
 ### File I/O (fileio.h)
+
 - Read audio files in any format supported by libsndfile (WAV, FLAC, AIFF, OGG, etc.)
 - Write audio to WAV (IEEE float for lossless DSP round-trips)
 - Write feature vectors in NumPy `.npy` format (for Python interop)
@@ -35,62 +39,10 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 - Write feature vectors in HTK binary format (deprecated)
 
 ### Live Audio I/O (liveio.h)
+
 - Record from the microphone and play back to speakers via PortAudio
 - Non-blocking API with callback support
 
-## Building
-
-### Dependencies
-
-Install the following libraries before building:
-
-| Library | Purpose | Debian/Ubuntu | macOS (Homebrew) |
-|---------|---------|--------------|------------------|
-| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
-| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
-| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
-| [Doxygen](https://www.doxygen.nl/) | API docs generation (optional) | `apt install doxygen` | `brew install doxygen` |
-| [Apple container](https://github.com/apple/container) | Linux container testing (optional) | — | macOS 26+ built-in |
-
-The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
-
-On Ubuntu, GCC 14 or later is required for `-std=c23` support. Ubuntu 24.04 ships GCC 13 by default, so install `gcc-14` explicitly (`apt install gcc-14`).
-
-### Compile the library
-
-```sh
-make            # builds libminidsp.a
-```
-
-### Run the test suite
-
-```sh
-make test       # builds and runs all tests
-```
-
-### Test inside an Ubuntu container
-
-To verify the library builds and passes all tests on Linux (Ubuntu 24.04 with GCC 14):
-
-```sh
-make container-test   # builds image, then runs make test inside the container
-```
-
-This requires the Apple [container](https://github.com/apple/container) CLI on macOS 26+.
-
-### Generate API documentation
-
-```sh
-make docs       # generates HTML docs in docs/html
-```
-
-### Install git hooks
-
-A pre-push hook is included that runs `make test` and `make container-test` before allowing pushes to `main`:
-
-```sh
-make install-hooks
-```
 
 ## Quick examples
 
@@ -209,22 +161,59 @@ for (int i = 0; i < num_samples; i++) {
 free(lpf);
 ```
 
-## Test suite
+## Build and Test
 
-The test suite (`tests/test_minidsp.c`) covers every public function:
+### Dependencies
 
-- **Dot product** -- orthogonal vectors, known values, self-dot
-- **Energy / Power / dB** -- known signals, sine wave power, dB floor
-- **Scaling** -- endpoints, midpoint, vector scaling, fit-within-range
-- **AGC** -- target dB level achievement
-- **Entropy** -- uniform, spike, zero, clip/no-clip modes
-- **Hanning window** -- endpoints, peak, symmetry, range
-- **Magnitude spectrum** -- single sine, two sines, DC signal, zeros, impulse (flat spectrum), Parseval's theorem, FFT plan re-caching, non-negativity
-- **Power spectral density** -- single sine, two sines, DC signal, zeros, impulse (flat PSD), Parseval's theorem, FFT plan re-caching, non-negativity
-- **Spectrogram (STFT)** -- frame count formula, silence, pure tone peak, hop=N non-overlapping frames, non-negativity, Parseval's theorem per frame, plan re-caching across window sizes
-- **GCC-PHAT** -- positive/negative/zero delays, SIMP vs PHAT weighting, multi-signal delays, FFT plan caching
-- **Biquad filters** -- LPF, HPF, BPF, Notch, PEQ, Low shelf, High shelf, DC rejection
-- **File I/O writers** -- .npy round-trip, safetensors round-trip, WAV round-trip
+Install the following libraries before building:
+
+| Library | Purpose | Debian/Ubuntu | macOS (Homebrew) |
+|---------|---------|--------------|------------------|
+| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
+| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
+| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
+| [Doxygen](https://www.doxygen.nl/) | API docs generation (optional) | `apt install doxygen` | `brew install doxygen` |
+| [Apple container](https://github.com/apple/container) | Linux container testing (optional) | — | macOS 26+ built-in |
+
+The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
+
+On Ubuntu, GCC 14 or later is required for `-std=c23` support. Ubuntu 24.04 ships GCC 13 by default, so install `gcc-14` explicitly (`apt install gcc-14`).
+
+### Compile the library
+
+```sh
+make            # builds libminidsp.a
+```
+
+### Run the test suite
+
+```sh
+make test       # builds and runs all tests
+```
+
+### Test inside an Ubuntu container
+
+To verify the library builds and passes all tests on Linux (Ubuntu 24.04 with GCC 14):
+
+```sh
+make container-test   # builds image, then runs make test inside the container
+```
+
+This requires the Apple [container](https://github.com/apple/container) CLI on macOS 26+.
+
+### Generate API documentation
+
+```sh
+make docs       # generates HTML docs in docs/html
+```
+
+### Install git hooks
+
+A pre-push hook is included that runs `make test` and `make container-test` before allowing pushes to `main`:
+
+```sh
+make install-hooks
+```
 
 ## Roadmap
 
