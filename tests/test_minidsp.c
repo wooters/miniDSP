@@ -1780,6 +1780,150 @@ static int test_impulse_flat_spectrum(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_chirp_linear()
+ * -----------------------------------------------------------------------*/
+
+/** output[0] must be 0 for any chirp because sin(0) = 0. */
+static int test_chirp_linear_starts_at_zero(void)
+{
+    double out[1024];
+    MD_chirp_linear(out, 1024, 2.5, 200.0, 4000.0, 16000.0);
+    return approx_equal(out[0], 0.0, 1e-12);
+}
+
+/** The magnitude spectrum of a linear chirp should have energy spread
+ *  across the swept frequency range, not concentrated in one bin. */
+static int test_chirp_linear_spectrum_spread(void)
+{
+    unsigned N = 4096;
+    double sample_rate = 16000.0;
+    double f_start = 1000.0;
+    double f_end   = 3000.0;
+
+    double *sig = malloc(N * sizeof(double));
+    MD_chirp_linear(sig, N, 1.0, f_start, f_end, sample_rate);
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    unsigned bin_start = (unsigned)(f_start * N / sample_rate);
+    unsigned bin_end   = (unsigned)(f_end   * N / sample_rate);
+
+    /* Find the peak magnitude in the sweep range */
+    double peak = 0.0;
+    for (unsigned k = bin_start; k <= bin_end; k++)
+        if (mag[k] > peak) peak = mag[k];
+
+    /* Count bins with energy above 10% of peak */
+    double threshold = peak * 0.1;
+    unsigned active_bins = 0;
+    for (unsigned k = bin_start; k <= bin_end; k++)
+        if (mag[k] > threshold) active_bins++;
+
+    free(mag);
+    free(sig);
+
+    /* A chirp should have energy in many bins, not just one. */
+    return (active_bins > (bin_end - bin_start) / 2);
+}
+
+/** When f_start == f_end, the linear chirp degenerates to a constant-
+ *  frequency sine wave and should match MD_sine_wave output. */
+static int test_chirp_linear_constant_freq(void)
+{
+    unsigned N = 1024;
+    double sample_rate = 1024.0;
+    double freq = 100.0;
+
+    double *chirp = malloc(N * sizeof(double));
+    double *sine  = malloc(N * sizeof(double));
+    MD_chirp_linear(chirp, N, 1.0, freq, freq, sample_rate);
+    MD_sine_wave(sine, N, 1.0, freq, sample_rate);
+
+    int ok = 1;
+    for (unsigned i = 0; i < N; i++)
+        ok &= approx_equal(chirp[i], sine[i], 1e-10);
+
+    free(sine);
+    free(chirp);
+    return ok;
+}
+
+/** The signal should be bounded by [-amplitude, +amplitude]. */
+static int test_chirp_linear_amplitude_bound(void)
+{
+    unsigned N = 8192;
+    double amplitude = 3.7;
+    double out[N];
+    MD_chirp_linear(out, N, amplitude, 100.0, 5000.0, 44100.0);
+
+    for (unsigned i = 0; i < N; i++)
+        if (out[i] > amplitude + 1e-12 || out[i] < -amplitude - 1e-12)
+            return 0;
+    return 1;
+}
+
+/* -----------------------------------------------------------------------
+ * Tests for MD_chirp_log()
+ * -----------------------------------------------------------------------*/
+
+/** output[0] must be 0 because sin(0) = 0. */
+static int test_chirp_log_starts_at_zero(void)
+{
+    double out[1024];
+    MD_chirp_log(out, 1024, 1.0, 20.0, 20000.0, 44100.0);
+    return approx_equal(out[0], 0.0, 1e-12);
+}
+
+/** The log chirp spectrum should have energy spread across the range. */
+static int test_chirp_log_spectrum_spread(void)
+{
+    unsigned N = 4096;
+    double sample_rate = 16000.0;
+    double f_start = 500.0;
+    double f_end   = 4000.0;
+
+    double *sig = malloc(N * sizeof(double));
+    MD_chirp_log(sig, N, 1.0, f_start, f_end, sample_rate);
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    unsigned bin_start = (unsigned)(f_start * N / sample_rate);
+    unsigned bin_end   = (unsigned)(f_end   * N / sample_rate);
+
+    double peak = 0.0;
+    for (unsigned k = bin_start; k <= bin_end; k++)
+        if (mag[k] > peak) peak = mag[k];
+
+    double threshold = peak * 0.1;
+    unsigned active_bins = 0;
+    for (unsigned k = bin_start; k <= bin_end; k++)
+        if (mag[k] > threshold) active_bins++;
+
+    free(mag);
+    free(sig);
+
+    return (active_bins > (bin_end - bin_start) / 2);
+}
+
+/** The signal should be bounded by [-amplitude, +amplitude]. */
+static int test_chirp_log_amplitude_bound(void)
+{
+    unsigned N = 8192;
+    double amplitude = 2.0;
+    double out[N];
+    MD_chirp_log(out, N, amplitude, 100.0, 10000.0, 44100.0);
+
+    for (unsigned i = 0; i < N; i++)
+        if (out[i] > amplitude + 1e-12 || out[i] < -amplitude - 1e-12)
+            return 0;
+    return 1;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_stft() and MD_stft_num_frames()
  * -----------------------------------------------------------------------*/
 
@@ -2378,6 +2522,17 @@ int main(void)
     RUN_TEST(test_impulse_amplitude_negative);
     RUN_TEST(test_impulse_single_sample);
     RUN_TEST(test_impulse_flat_spectrum);
+
+    printf("\n--- MD_chirp_linear ---\n");
+    RUN_TEST(test_chirp_linear_starts_at_zero);
+    RUN_TEST(test_chirp_linear_spectrum_spread);
+    RUN_TEST(test_chirp_linear_constant_freq);
+    RUN_TEST(test_chirp_linear_amplitude_bound);
+
+    printf("\n--- MD_chirp_log ---\n");
+    RUN_TEST(test_chirp_log_starts_at_zero);
+    RUN_TEST(test_chirp_log_spectrum_spread);
+    RUN_TEST(test_chirp_log_amplitude_bound);
 
     printf("\n--- MD_stft ---\n");
     RUN_TEST(test_stft_num_frames);

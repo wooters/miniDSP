@@ -135,19 +135,10 @@ int main(void)
     }
 
     /* ------------------------------------------------------------------
-     * Generate a linear chirp: x(t) = sin(2*pi*(f0 + (f1-f0)/(2*T)*t)*t)
-     *
-     * A linear chirp sweeps instantaneous frequency from f0 to f1
-     * linearly over duration T.  It is the canonical test signal for
-     * spectrograms because the diagonal stripe it produces is immediately
-     * recognisable and easy to verify visually.
+     * Generate a linear chirp sweeping from chirp_f0 to chirp_f1.
      * ----------------------------------------------------------------*/
     //! [generate-chirp]
-    const double chirp_rate = (chirp_f1 - chirp_f0) / duration_s;  /* Hz/s */
-    for (unsigned i = 0; i < signal_len; i++) {
-        double t = (double)i / sample_rate;
-        signal[i] = sin(2.0 * M_PI * (chirp_f0 + 0.5 * chirp_rate * t) * t);
-    }
+    MD_chirp_linear(signal, signal_len, 1.0, chirp_f0, chirp_f1, sample_rate);
     //! [generate-chirp]
 
     /* ------------------------------------------------------------------

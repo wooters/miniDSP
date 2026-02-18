@@ -89,5 +89,57 @@ time-domain and frequency-domain plots.
 
 ---
 
-*Future sections — Chirp, Square/Sawtooth — will appear here
+## Chirp (swept sine)
+
+A **chirp** sweeps frequency over time — either linearly or logarithmically.
+Chirps are the standard test signal for spectrograms and for measuring filter
+magnitude response.
+
+### Linear chirp
+
+A linear chirp sweeps instantaneous frequency from \f$f_0\f$ to \f$f_1\f$ at a
+constant rate over duration \f$T = (N-1)/f_s\f$:
+
+\f[
+x[n] = A \sin\!\left(2\pi\!\left(f_0\,t + \tfrac{1}{2}\,\frac{f_1 - f_0}{T}\,t^2\right)\right),
+\quad t = n / f_s
+\f]
+
+**API:**
+
+```c
+void MD_chirp_linear(double *output, unsigned N, double amplitude,
+                     double f_start, double f_end, double sample_rate);
+```
+
+### Logarithmic chirp
+
+A logarithmic chirp sweeps frequency exponentially, spending equal time per
+octave.  This is ideal for audio systems whose response is best viewed on a
+log-frequency axis.
+
+\f[
+x[n] = A \sin\!\left(\frac{2\pi f_0 T}{\ln r}\!\left(r^{t/T} - 1\right)\right),
+\quad r = f_1 / f_0,\quad t = n / f_s
+\f]
+
+**API:**
+
+```c
+void MD_chirp_log(double *output, unsigned N, double amplitude,
+                  double f_start, double f_end, double sample_rate);
+```
+
+Requires \f$f_0 > 0\f$, \f$f_1 > 0\f$, and \f$f_0 \ne f_1\f$.
+
+**Quick example** — generate both chirp types and compare:
+
+\snippet chirp_wave.c generate-chirps
+
+See `examples/chirp_wave.c` for a full runnable program that generates the
+magnitude spectra of both chirp types and writes an interactive HTML plot.
+
+---
+
+*Future sections — Square/Sawtooth — will appear here
 as new `##` headings when those generators are implemented.*

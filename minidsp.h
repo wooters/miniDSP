@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
- *   - Signal generators (sine wave, white noise, impulse)
+ *   - Signal generators (sine wave, white noise, impulse, chirp)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
@@ -404,6 +404,73 @@ void MD_white_noise(double *output, unsigned N, double amplitude,
  * @endcode
  */
 void MD_impulse(double *output, unsigned N, double amplitude, unsigned position);
+
+/**
+ * Generate a linear chirp (swept sine with linearly increasing frequency).
+ *
+ * The instantaneous frequency sweeps linearly from @p f_start to @p f_end
+ * over N samples:
+ *
+ *   f(t) = f_start + (f_end - f_start) * t / T
+ *
+ * where T = (N-1) / sample_rate is the sweep duration.  The output is:
+ *
+ *   output[i] = amplitude * sin(2*pi * (f_start*t + 0.5*chirp_rate*t^2))
+ *
+ * A linear chirp is the standard test signal for spectrograms -- its
+ * instantaneous frequency traces a straight diagonal line in the
+ * time-frequency plane.
+ *
+ * @param output      Output buffer of length N (caller-allocated).
+ * @param N           Number of samples to generate.  Must be > 0.
+ * @param amplitude   Peak amplitude of the chirp (e.g. 1.0).
+ * @param f_start     Starting frequency in Hz.
+ * @param f_end       Ending frequency in Hz.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ *
+ * @code
+ * double sig[16000];
+ * // 1-second linear chirp from 200 Hz to 4000 Hz at 16 kHz sample rate
+ * MD_chirp_linear(sig, 16000, 1.0, 200.0, 4000.0, 16000.0);
+ * @endcode
+ */
+void MD_chirp_linear(double *output, unsigned N, double amplitude,
+                     double f_start, double f_end, double sample_rate);
+
+/**
+ * Generate a logarithmic chirp (swept sine with exponentially increasing
+ * frequency).
+ *
+ * The instantaneous frequency sweeps exponentially from @p f_start to
+ * @p f_end over N samples:
+ *
+ *   f(t) = f_start * (f_end / f_start)^(t / T)
+ *
+ * where T = (N-1) / sample_rate is the sweep duration.  The output is:
+ *
+ *   output[i] = amplitude * sin(2*pi * f_start * T * (r^(t/T) - 1) / ln(r))
+ *
+ * where r = f_end / f_start.
+ *
+ * A logarithmic chirp spends equal time per octave, making it ideal for
+ * measuring systems whose behaviour is best described on a log-frequency
+ * axis (e.g. audio equaliser response).
+ *
+ * @param output      Output buffer of length N (caller-allocated).
+ * @param N           Number of samples to generate.  Must be > 0.
+ * @param amplitude   Peak amplitude of the chirp (e.g. 1.0).
+ * @param f_start     Starting frequency in Hz.  Must be > 0.
+ * @param f_end       Ending frequency in Hz.  Must be > 0 and != f_start.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ *
+ * @code
+ * double sig[44100];
+ * // 1-second log chirp from 20 Hz to 20 kHz at 44.1 kHz sample rate
+ * MD_chirp_log(sig, 44100, 1.0, 20.0, 20000.0, 44100.0);
+ * @endcode
+ */
+void MD_chirp_log(double *output, unsigned N, double amplitude,
+                  double f_start, double f_end, double sample_rate);
 
 /* -----------------------------------------------------------------------
  * Resource cleanup
