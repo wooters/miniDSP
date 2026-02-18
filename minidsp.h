@@ -6,7 +6,7 @@
  *   - Basic signal measurements (energy, power, entropy)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning window)
- *   - Signal generators (sine wave, white noise)
+ *   - Signal generators (sine wave, white noise, impulse)
  *   - FFT-based magnitude spectrum, power spectral density, and STFT
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
@@ -379,6 +379,31 @@ void MD_sine_wave(double *output, unsigned N, double amplitude,
  */
 void MD_white_noise(double *output, unsigned N, double amplitude,
                     unsigned seed);
+
+/**
+ * Generate a discrete impulse (Kronecker delta).
+ *
+ * Fills the output buffer with zeros except at @p position, where the
+ * value is set to @p amplitude.  A unit impulse (amplitude 1.0 at
+ * position 0) is the identity element of convolution and has a
+ * perfectly flat magnitude spectrum.
+ *
+ * Common uses:
+ *   - Measure a system's impulse response by feeding it through a filter.
+ *   - Verify that MD_magnitude_spectrum() returns a flat spectrum.
+ *   - Create delayed spikes for testing convolution and delay estimation.
+ *
+ * @param output    Output buffer of length N (caller-allocated).
+ * @param N         Number of samples to generate.  Must be > 0.
+ * @param amplitude Value of the impulse spike (e.g. 1.0 for unit impulse).
+ * @param position  Sample index of the spike (0-based).  Must be < N.
+ *
+ * @code
+ * double sig[1024];
+ * MD_impulse(sig, 1024, 1.0, 0);  // unit impulse at sample 0
+ * @endcode
+ */
+void MD_impulse(double *output, unsigned N, double amplitude, unsigned position);
 
 /* -----------------------------------------------------------------------
  * Resource cleanup
