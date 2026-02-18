@@ -39,6 +39,12 @@ container-test:
 	container build --tag $(CONTAINER_TAG) --file Dockerfile .
 	container run --rm $(CONTAINER_TAG)
 
+# Install git hooks (pre-push runs tests before pushing to main)
+.PHONY: install-hooks
+install-hooks:
+	ln -sf ../../scripts/pre-push .git/hooks/pre-push
+	@echo "Git hooks installed."
+
 # Generate HTML documentation with Doxygen
 .PHONY: docs
 docs: libminidsp.a

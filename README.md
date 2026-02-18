@@ -84,6 +84,14 @@ This requires the Apple [container](https://github.com/apple/container) CLI on m
 make docs       # generates HTML docs in docs/html
 ```
 
+### Install git hooks
+
+A pre-push hook is included that runs `make test` and `make container-test` before allowing pushes to `main`:
+
+```sh
+make install-hooks
+```
+
 ## Quick examples
 
 ### Detect the delay between two signals

@@ -1,0 +1,50 @@
+#!/bin/sh
+#
+# Git pre-push hook: run tests before pushing to main.
+#
+# Runs `make test` and `make container-test` when pushing to main.
+# Pushes to other branches are allowed without checks.
+#
+# Install with: make install-hooks
+
+remote="$1"
+
+while read local_ref local_sha remote_ref remote_sha; do
+    # Only gate pushes targeting main
+    case "$remote_ref" in
+        refs/heads/main)
+            echo "Pushing to main -- running tests first..."
+
+            echo ""
+            echo "==> make test"
+            make test
+            if [ $? -ne 0 ]; then
+                echo ""
+                echo "FAILED: make test -- push to main aborted."
+                exit 1
+            fi
+
+            if ! command -v container >/dev/null 2>&1; then
+                echo ""
+                echo "FAILED: 'container' CLI not found -- cannot run container-test."
+                echo "Install Apple container (macOS 26+) or skip this hook with: git push --no-verify"
+                exit 1
+            fi
+
+            echo ""
+            echo "==> make container-test"
+            make container-test
+            if [ $? -ne 0 ]; then
+                echo ""
+                echo "FAILED: make container-test -- push to main aborted."
+                exit 1
+            fi
+
+            echo ""
+            echo "All tests passed -- pushing to main."
+            exit 0
+            ;;
+    esac
+done
+
+exit 0
