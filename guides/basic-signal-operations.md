@@ -19,9 +19,14 @@ the mean squared amplitude:
 **Reading the formula in C:**
 
 ```c
-// Square each sample, average, then take the square root.
-// In miniDSP this is simply sqrt(MD_power(a, N)):
-double rms = sqrt(MD_power(signal, N));
+// x[n]^2  ->  a[i] * a[i]          square each sample
+// sum     ->  accumulate in a loop  sum of squares
+// 1/N     ->  / (double)N           divide by number of samples
+// sqrt()  ->  sqrt()                take the square root
+double sum = 0.0;
+for (unsigned i = 0; i < N; i++)
+    sum += a[i] * a[i];
+double rms = sqrt(sum / (double)N);
 ```
 
 A unit-amplitude sine wave has RMS = \f$1/\sqrt{2} \approx 0.707\f$.
@@ -98,10 +103,18 @@ R[\tau] = \frac{\displaystyle\sum_{n=0}^{N-1-\tau} x[n]\,x[n+\tau]}
 **Reading the formula in C:**
 
 ```c
-// The numerator is a dot product of x with a shifted copy of itself.
-// miniDSP reuses MD_dot() for this:
-double r0 = MD_energy(a, N);            // denominator: sum of x[n]^2
-out[tau] = MD_dot(a, a + tau, N - tau) / r0;
+// Denominator: sum of x[n]^2  (the signal energy, R[0])
+double r0 = 0.0;
+for (unsigned n = 0; n < N; n++)
+    r0 += a[n] * a[n];
+
+// Numerator for each lag tau: sum of x[n] * x[n + tau]
+for (unsigned tau = 0; tau < max_lag; tau++) {
+    double sum = 0.0;
+    for (unsigned n = 0; n < N - tau; n++)
+        sum += a[n] * a[n + tau];
+    out[tau] = sum / r0;   // normalise so out[0] = 1.0
+}
 ```
 
 \f$R[0] = 1.0\f$ always, and \f$|R[\tau]| \le 1.0\f$.
