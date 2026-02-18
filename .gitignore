@@ -43,3 +43,6 @@ examples/sine_wave.html
 
 # Generated documentation
 docs/
+
+# Local Claude Code settings
+.claude/
