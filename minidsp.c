@@ -605,6 +605,15 @@ void MD_white_noise(double *output, unsigned N, double amplitude,
     }
 }
 
+void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(position < N);
+    memset(output, 0, N * sizeof(double));
+    output[position] = amplitude;
+}
+
 /* -----------------------------------------------------------------------
  * Public API: FFT / Spectrum Analysis
  * -----------------------------------------------------------------------*/

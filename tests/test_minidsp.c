@@ -1688,6 +1688,98 @@ static int test_white_noise_odd_length(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_impulse()
+ * -----------------------------------------------------------------------*/
+
+/** Unit impulse at position 0: output[0]=1.0, all others zero. */
+static int test_impulse_at_zero(void)
+{
+    unsigned N = 64;
+    double out[64];
+    MD_impulse(out, N, 1.0, 0);
+    if (!approx_equal(out[0], 1.0, 1e-15)) return 0;
+    for (unsigned i = 1; i < N; i++) {
+        if (!approx_equal(out[i], 0.0, 1e-15)) return 0;
+    }
+    return 1;
+}
+
+/** Impulse at the middle of the buffer. */
+static int test_impulse_at_middle(void)
+{
+    unsigned N = 128;
+    double out[128];
+    unsigned pos = N / 2;
+    MD_impulse(out, N, 1.0, pos);
+    for (unsigned i = 0; i < N; i++) {
+        double expected = (i == pos) ? 1.0 : 0.0;
+        if (!approx_equal(out[i], expected, 1e-15)) return 0;
+    }
+    return 1;
+}
+
+/** Impulse at the last sample (position = N-1). */
+static int test_impulse_at_last(void)
+{
+    unsigned N = 256;
+    double out[256];
+    MD_impulse(out, N, 1.0, N - 1);
+    for (unsigned i = 0; i < N - 1; i++) {
+        if (!approx_equal(out[i], 0.0, 1e-15)) return 0;
+    }
+    return approx_equal(out[N - 1], 1.0, 1e-15);
+}
+
+/** Custom amplitude: the spike value should match the given amplitude. */
+static int test_impulse_amplitude(void)
+{
+    unsigned N = 32;
+    double out[32];
+    MD_impulse(out, N, 5.5, 10);
+    int ok = approx_equal(out[10], 5.5, 1e-15);
+    ok &= approx_equal(out[9], 0.0, 1e-15);
+    ok &= approx_equal(out[11], 0.0, 1e-15);
+    return ok;
+}
+
+/** Negative amplitude should work (just a negative spike). */
+static int test_impulse_amplitude_negative(void)
+{
+    unsigned N = 64;
+    double out[64];
+    MD_impulse(out, N, -3.0, 0);
+    return approx_equal(out[0], -3.0, 1e-15);
+}
+
+/** N=1: a single-sample buffer should contain only the impulse. */
+static int test_impulse_single_sample(void)
+{
+    double out[1];
+    MD_impulse(out, 1, 2.0, 0);
+    return approx_equal(out[0], 2.0, 1e-15);
+}
+
+/** Unit impulse at position 0 has a flat magnitude spectrum. */
+static int test_impulse_flat_spectrum(void)
+{
+    unsigned N = 512;
+    double *sig = malloc(N * sizeof(double));
+    MD_impulse(sig, N, 1.0, 0);
+
+    unsigned num_bins = N / 2 + 1;
+    double *mag = malloc(num_bins * sizeof(double));
+    MD_magnitude_spectrum(sig, N, mag);
+
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++)
+        ok &= approx_equal(mag[k], 1.0, 1e-10);
+
+    free(mag);
+    free(sig);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_stft() and MD_stft_num_frames()
  * -----------------------------------------------------------------------*/
 
@@ -2277,6 +2369,15 @@ int main(void)
     RUN_TEST(test_white_noise_different_seeds);
     RUN_TEST(test_white_noise_flat_spectrum);
     RUN_TEST(test_white_noise_odd_length);
+
+    printf("\n--- MD_impulse ---\n");
+    RUN_TEST(test_impulse_at_zero);
+    RUN_TEST(test_impulse_at_middle);
+    RUN_TEST(test_impulse_at_last);
+    RUN_TEST(test_impulse_amplitude);
+    RUN_TEST(test_impulse_amplitude_negative);
+    RUN_TEST(test_impulse_single_sample);
+    RUN_TEST(test_impulse_flat_spectrum);
 
     printf("\n--- MD_stft ---\n");
     RUN_TEST(test_stft_num_frames);

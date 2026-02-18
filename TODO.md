@@ -14,7 +14,7 @@ ranked roughly by educational impact.
 
 - [x] **Sine generator** -- constant-frequency tone at a given amplitude and sample rate; the "hello world" of DSP
 - [x] **White noise generator** -- uniformly or normally distributed random samples; used to test filters and measure impulse responses
-- [ ] **Impulse generator** -- single unit-sample spike; reveals a system's impulse response directly
+- [x] **Impulse generator** -- single unit-sample spike; reveals a system's impulse response directly
 - [ ] **Chirp (swept sine)** -- frequency sweeps linearly or logarithmically over time; great for testing filter magnitude response
 - [ ] **Square / sawtooth waves** -- classic non-sinusoidal waveforms; demonstrate harmonics and Gibbs phenomenon
 
