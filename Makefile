@@ -10,7 +10,8 @@ include config.mk
 
 CFLAGS += -O2 -g -Iinclude
 
-MD_SRCS = src/minidsp.c src/biquad.c src/liveio.c src/fileio.c
+MD_SRCS = src/minidsp_core.c src/minidsp_generators.c src/minidsp_spectrum.c \
+          src/minidsp_gcc.c src/biquad.c src/liveio.c src/fileio.c
 MD_OBJS = $(MD_SRCS:.c=.o)
 
 default: libminidsp.a
