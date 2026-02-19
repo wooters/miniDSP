@@ -58,3 +58,6 @@ Key patterns:
 - For "Reading the formula in C" sections, use direct loops/arithmetic (not helper wrappers) and include explicit variable mapping comments (for example: `i -> n`, `out[i] -> w[n]`).
 - For comparative visuals, keep plot settings fixed across variants (same tap length, same FFT visualization length, same dB floor/range) so differences are meaningful.
 - When adding generated guide assets (HTML plots/audio), update `Doxyfile` `HTML_EXTRA_FILES` and ensure every embedded iframe source is listed there.
+- Record implementation learnings in `CLAUDE.md`, not in user-facing tutorials.
+- Keep module boundaries explicit: FFT-dependent APIs belong in `src/minidsp_spectrum.c`; time-domain/stateless analysis belongs in `src/minidsp_core.c`.
+- Keep API contract consistent: assertions for invalid usage; sentinel returns (for example `0.0`) only for valid-but-unresolved runtime outcomes.
