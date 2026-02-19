@@ -10,7 +10,7 @@ Every real-valued signal can be decomposed into a sum of sinusoids at
 different frequencies. The **magnitude spectrum** tells you the amplitude
 of each sinusoidal component.
 
-The tool for this decomposition is the **Discrete Fourier Transform (DFT)**.
+The tool for this decomposition is the **[Discrete Fourier Transform (DFT)](https://en.wikipedia.org/wiki/Discrete_Fourier_transform)**.
 Given \f$N\f$ samples \f$x[n]\f$, the DFT produces \f$N\f$ complex
 coefficients:
 
@@ -44,7 +44,7 @@ The DFT assumes the input is one period of a periodic signal. In reality,
 our signal chunk rarely starts and ends at a perfect zero crossing. This
 mismatch creates an artificial discontinuity at the boundaries, which
 causes energy to "leak" from the true frequency into neighbouring bins --
-an effect called **spectral leakage**.
+an effect called **[spectral leakage](https://en.wikipedia.org/wiki/Spectral_leakage)**.
 
 A window function tapers the signal smoothly to zero at both edges,
 eliminating the discontinuity:
@@ -78,7 +78,7 @@ To recover the actual signal amplitudes, we:
 2. **Double the interior bins** (\f$k = 1 \ldots N/2-1\f$) because the
    energy from the discarded negative-frequency bins folds onto the
    positive side.
-3. **Leave DC and Nyquist alone** -- they have no mirror image.
+3. **Leave DC and [Nyquist](https://en.wikipedia.org/wiki/Nyquist_frequency) alone** -- they have no mirror image.
 
 \snippet magnitude_spectrum.c one-sided-amplitude
 
@@ -97,7 +97,7 @@ and 2500 Hz (0.3). The tiny spike at 0 Hz is the DC offset (0.1).
 
 ### Logarithmic (dB) scale
 
-The dB plot reveals low-level details invisible on the linear scale.
+The [dB](https://en.wikipedia.org/wiki/Decibel) plot reveals low-level details invisible on the linear scale.
 The Hanning window's side lobes appear as the gradually decaying skirt
 around each peak. Without windowing, these lobes would be much higher
 and wider, obscuring nearby weak signals.

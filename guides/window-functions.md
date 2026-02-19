@@ -1,11 +1,11 @@
 # Window Functions {#window-functions}
 
-Window functions taper a finite signal block before an FFT so the block
+[Window functions](https://en.wikipedia.org/wiki/Window_function) taper a finite signal block before an [FFT](https://en.wikipedia.org/wiki/Fast_Fourier_transform) so the block
 edges do not create a large discontinuity. That discontinuity causes
-**spectral leakage**: energy spreads into neighboring bins.
+**[spectral leakage](https://en.wikipedia.org/wiki/Spectral_leakage)**: energy spreads into neighboring bins.
 
 miniDSP provides four common windows so you can compare the trade-off
-between main-lobe width (frequency resolution) and sidelobe level
+between main-lobe width (frequency resolution) and [sidelobe](https://en.wikipedia.org/wiki/Sidelobes) level
 (leakage suppression).
 
 ---

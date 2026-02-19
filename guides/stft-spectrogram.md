@@ -10,13 +10,13 @@ it covers the DFT fundamentals that the STFT builds on.
 ## What is the STFT?
 
 The **magnitude spectrum** shows the frequency content of an *entire* signal.
-But audio signals are rarely stationary — a speech sentence, a musical phrase,
+But audio signals are rarely [stationary](https://en.wikipedia.org/wiki/Stationary_process) — a speech sentence, a musical phrase,
 or a chirp sweep all have frequency content that changes over time.
 
-The **Short-Time Fourier Transform (STFT)** solves this by dividing the signal
+The **[Short-Time Fourier Transform (STFT)](https://en.wikipedia.org/wiki/Short-time_Fourier_transform)** solves this by dividing the signal
 into short, overlapping frames and computing the DFT of each one.
 The result is a two-dimensional time-frequency representation called a
-**spectrogram**.
+**[spectrogram](https://en.wikipedia.org/wiki/Spectrogram)**.
 
 For frame \f$f\f$ and frequency bin \f$k\f$, the STFT is:
 
@@ -80,7 +80,7 @@ not normalised by \f$N\f$.
 ## Step 3: Convert to dB
 
 Raw magnitudes span many orders of magnitude.  A log scale compresses the
-dynamic range and makes both loud and quiet features visible simultaneously.
+[dynamic range](https://en.wikipedia.org/wiki/Dynamic_range) and makes both loud and quiet features visible simultaneously.
 
 Normalise by \f$N\f$ before taking the log so that a full-scale sine (amplitude 1)
 reads near 0 dB. Floor at \f$10^{-6}\f$ to avoid \f$\log(0)\f$.

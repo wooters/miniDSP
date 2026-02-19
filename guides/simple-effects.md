@@ -2,9 +2,9 @@
 
 Three classic audio effects built from short delay lines:
 
-- Delay/Echo (circular buffer + feedback)
-- Tremolo (low-frequency amplitude modulation)
-- Comb-filter reverb (feedback comb)
+- [Delay/Echo](https://en.wikipedia.org/wiki/Delay_%28audio_effect%29) ([circular buffer](https://en.wikipedia.org/wiki/Circular_buffer) + feedback)
+- [Tremolo](https://en.wikipedia.org/wiki/Tremolo) (low-frequency [amplitude modulation](https://en.wikipedia.org/wiki/Amplitude_modulation))
+- [Comb-filter](https://en.wikipedia.org/wiki/Comb_filter) [reverb](https://en.wikipedia.org/wiki/Reverberation) (feedback comb)
 
 These are simple enough to study sample-by-sample, but they are also the
 building blocks of many larger audio effects.

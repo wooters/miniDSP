@@ -10,7 +10,7 @@ it covers the DFT fundamentals that this tutorial builds on.
 ## What is the power spectral density?
 
 The **magnitude spectrum** (covered in the \ref magnitude-spectrum tutorial)
-shows *amplitude* at each frequency. The **power spectral density (PSD)**
+shows *amplitude* at each frequency. The **[power spectral density (PSD)](https://en.wikipedia.org/wiki/Spectral_density)**
 shows how the signal's *power* is distributed across frequencies.
 
 Given the DFT coefficients \f$X(k)\f$ of an \f$N\f$-sample signal, the
@@ -30,7 +30,7 @@ we use \f$|X(k)|^2\f$ (power) instead of \f$|X(k)|\f$ (amplitude).
 | Formula  | \f$\|X(k)\|\f$ | \f$\|X(k)\|^2 / N\f$ |
 | Units    | Amplitude | Power |
 | dB conversion | \f$20 \log_{10}\f$ | \f$10 \log_{10}\f$ |
-| Use case | Identify frequency components | Noise analysis, SNR estimation |
+| Use case | Identify frequency components | Noise analysis, [SNR](https://en.wikipedia.org/wiki/Signal-to-noise_ratio) estimation |
 
 Why the different dB formulas? Power is proportional to the *square*
 of amplitude. Since \f$10 \log_{10}(A^2) = 20 \log_{10}(A)\f$, using
@@ -39,7 +39,7 @@ produces the same dB values for equivalent signals.
 
 ## Parseval's theorem
 
-Parseval's theorem states that the total energy in the time domain equals
+[Parseval's theorem](https://en.wikipedia.org/wiki/Parseval%27s_theorem) states that the total energy in the time domain equals
 the total energy in the frequency domain:
 
 \f[

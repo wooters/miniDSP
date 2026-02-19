@@ -10,7 +10,7 @@ the DFT fundamentals this tutorial builds on.
 
 ## What is the phase spectrum?
 
-Every DFT coefficient \f$X(k)\f$ is a complex number with a magnitude
+Every DFT coefficient \f$X(k)\f$ is a [complex number](https://en.wikipedia.org/wiki/Complex_number) with a magnitude
 and an angle.  The **magnitude spectrum** \f$|X(k)|\f$ tells you how
 much energy is at frequency \f$k\f$.  The **phase spectrum**
 \f$\phi(k)\f$ tells you the *timing* of that frequency component:
@@ -29,8 +29,8 @@ much energy is at frequency \f$k\f$.  The **phase spectrum**
 | \f$\cos(2\pi k_0 n / N + \varphi)\f$ | \f$\phi(k_0) = \varphi\f$ |
 | Impulse delayed by \f$d\f$ samples | \f$\phi(k) = -2\pi k d / N\f$ (linear) |
 
-A **time-delayed signal** is the most important case: the DFT shift
-theorem says delaying a signal by \f$d\f$ samples adds a linear phase
+A **[time-delayed signal](https://en.wikipedia.org/wiki/Time_delay)** is the most important case: the [DFT shift theorem](https://en.wikipedia.org/wiki/Discrete_Fourier_transform#Shift_theorem)
+says delaying a signal by \f$d\f$ samples adds a linear phase
 ramp of slope \f$-2\pi d / N\f$ radians per bin.  This is the basis
 of the [GCC-PHAT](https://en.wikipedia.org/wiki/Generalized_cross-correlation) delay estimator (see MD_get_delay()).
 
@@ -100,7 +100,7 @@ At all other bins the phase is numerically arbitrary (magnitude is zero).
 
 ## Connection to phase vocoder
 
-The phase vocoder uses phase differences between consecutive STFT
+The [phase vocoder](https://en.wikipedia.org/wiki/Phase_vocoder) uses phase differences between consecutive STFT
 frames to track the instantaneous frequency of each bin, enabling
 high-quality time-stretching and pitch-shifting of audio.
 MD_phase_spectrum() provides the per-frame phase needed as input

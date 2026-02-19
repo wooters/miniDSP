@@ -1,15 +1,15 @@
 # Basic Signal Operations {#basic-signal-operations}
 
-Five fundamental time-domain operations that complement the existing signal
+Five fundamental [time-domain](https://en.wikipedia.org/wiki/Time_domain) operations that complement the existing signal
 measurements (energy, power, entropy) and FFT-based spectrum analysis.
 Together they give you a toolkit for analysing and manipulating signals
-before or instead of going to the frequency domain.
+before or instead of going to the [frequency domain](https://en.wikipedia.org/wiki/Frequency_domain).
 
 ---
 
 ## RMS (Root Mean Square)
 
-RMS is the standard measure of signal "loudness" — the square root of
+[RMS](https://en.wikipedia.org/wiki/Root_mean_square) is the standard measure of signal "loudness" — the square root of
 the mean squared amplitude:
 
 \f[
@@ -49,7 +49,7 @@ double MD_rms(const double *a, unsigned N);
 
 ## Zero-Crossing Rate
 
-The zero-crossing rate (ZCR) counts how often the signal changes sign,
+The [zero-crossing rate](https://en.wikipedia.org/wiki/Zero-crossing_rate) (ZCR) counts how often the signal changes sign,
 normalised by the number of adjacent pairs:
 
 \f[
@@ -91,7 +91,7 @@ in the buffer, the ZCR should be very close to \f$2f/f_s\f$.
 
 ## Autocorrelation
 
-The autocorrelation measures the similarity between a signal and a
+The [autocorrelation](https://en.wikipedia.org/wiki/Autocorrelation) measures the similarity between a signal and a
 delayed copy of itself.  The normalised form divides by \f$R[0]\f$
 (the signal energy) so the output is bounded:
 
@@ -119,7 +119,7 @@ for (unsigned tau = 0; tau < max_lag; tau++) {
 
 \f$R[0] = 1.0\f$ always, and \f$|R[\tau]| \le 1.0\f$.
 For a periodic signal, the autocorrelation peaks at the fundamental
-period — this is the basis of time-domain pitch detection.
+period (the inverse of the [fundamental frequency](https://en.wikipedia.org/wiki/Fundamental_frequency)) — this is the basis of time-domain pitch detection.
 
 **API:**
 

@@ -1,6 +1,6 @@
 # FIR Filters and Convolution {#fir-convolution}
 
-Finite impulse response (FIR) filtering and convolution are core DSP tools:
+[Finite impulse response (FIR)](https://en.wikipedia.org/wiki/Finite_impulse_response) filtering and [convolution](https://en.wikipedia.org/wiki/Convolution) are core DSP tools:
 you shape a signal by summing delayed, weighted copies of it.
 
 miniDSP provides four related APIs so students can start with direct
@@ -62,7 +62,7 @@ void MD_convolution_time(const double *signal, unsigned signal_len,
 
 ## Moving-average FIR filter
 
-The moving-average filter is the simplest FIR low-pass:
+The moving-average filter is the simplest FIR [low-pass](https://en.wikipedia.org/wiki/Low-pass_filter):
 
 \f[
 y[n] = \frac{1}{M}\sum_{k=0}^{M-1} x[n-k]
@@ -155,7 +155,7 @@ void MD_fir_filter(const double *signal, unsigned signal_len,
 
 ## FFT overlap-add fast convolution
 
-For long filters, direct convolution is \f$O(NM)\f$. Overlap-add computes the
+For long filters, direct convolution is \f$O(NM)\f$. [Overlap-add](https://en.wikipedia.org/wiki/Overlap%E2%80%93add_method) computes the
 same full linear convolution in blocks using FFTs:
 
 \f[
@@ -164,7 +164,7 @@ y_b[n] = \mathrm{IFFT}(Y_b(k))
 \f]
 
 Each block's time-domain result is added into the output with overlap
-between adjacent blocks.
+between adjacent blocks, after an [inverse FFT (IFFT)](https://en.wikipedia.org/wiki/Fast_Fourier_transform#Inverse_transform) per block.
 
 **Reading the algorithm in C:**
 

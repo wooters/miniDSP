@@ -1,9 +1,9 @@
 # Pitch Detection {#pitch-detection}
 
-This tutorial compares two classic fundamental-frequency (F0) estimators:
+This [pitch detection](https://en.wikipedia.org/wiki/Pitch_detection_algorithm) tutorial compares two classic [fundamental-frequency (F0)](https://en.wikipedia.org/wiki/Fundamental_frequency) estimators:
 
-- **Autocorrelation peak picking** (time domain)
-- **FFT peak picking** (frequency domain)
+- **[Autocorrelation](https://en.wikipedia.org/wiki/Autocorrelation) peak picking** (time domain)
+- **[FFT](https://en.wikipedia.org/wiki/Fast_Fourier_transform) peak picking** (frequency domain)
 
 Both are implemented in miniDSP and demonstrated in
 `examples/pitch_detection.c`.
@@ -70,7 +70,7 @@ double f0_hz = (best_lag > 0) ? (sample_rate / (double)best_lag) : 0.0;
 
 ## FFT-based F0
 
-This method applies a Hann window, computes the one-sided FFT magnitude,
+This method applies a [Hann window](https://en.wikipedia.org/wiki/Hann_function), computes the one-sided FFT magnitude,
 and picks the dominant peak in a frequency range:
 
 \f[
@@ -147,7 +147,7 @@ In practice, pitch is estimated frame-by-frame over time:
 
 - **Autocorrelation** can fail on weakly voiced/noisy frames where no clear
   lag peak exists.
-- **FFT peak pick** can lock onto harmonics (e.g. 2f0, 3f0) when the
+- **FFT peak pick** can lock onto [harmonics](https://en.wikipedia.org/wiki/Harmonic) (e.g. 2f0, 3f0) when the
   fundamental is weak.
 - Restricting the search range (`min_freq_hz`, `max_freq_hz`) is critical for
   both methods.
