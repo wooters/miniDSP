@@ -1,1 +1,1 @@
-Read the [CLAUDE.md](CLAUDE.md) file.
+Read the @CLAUDE.md file.
