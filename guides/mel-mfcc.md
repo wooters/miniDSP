@@ -52,6 +52,18 @@ miniDSP returns **C0 in `mfcc_out[0]`**.
 
 \snippet mel_mfcc.c compute-mfcc
 
+## Visualisations
+
+\htmlonly
+<div style="display:flex;gap:12px;flex-wrap:wrap;">
+  <iframe src="mel_filterbank_shapes.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="mel_energies_frame.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+<p style="margin-top:0.8rem;">
+  <iframe src="mfcc_frame.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</p>
+\endhtmlonly
+
 ## Practical notes
 
 - Requested frequency bounds are runtime-clamped to `[0, Nyquist]`.
@@ -65,4 +77,3 @@ miniDSP returns **C0 in `mfcc_out[0]`**.
 - MD_mel_energies() — compute mel-band energies from one frame
 - MD_mfcc() — compute MFCC vector (C0 included)
 - MD_shutdown() — release cached FFT resources
-

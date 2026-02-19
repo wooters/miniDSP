@@ -8,6 +8,7 @@
  *   - 8 window-function plots (4 time-domain + 4 spectra)
  *   - 8 FIR/convolution plots (4 responses + 4 spectra)
  *   - 3 pitch-detection plots (F0 tracks + ACF peak + FFT peak)
+ *   - 3 mel/MFCC plots (filterbank shapes + mel energies + MFCC bars)
  * into guides/plots/ for embedding as iframes in Doxygen guides.
  *
  * It is NOT a user-facing example — it is invoked automatically by
@@ -42,6 +43,13 @@
 #define PITCH_HOP      128u
 #define PITCH_MIN_F0    80.0
 #define PITCH_MAX_F0   400.0
+
+/* Mel/MFCC visualisation parameters */
+#define MEL_FRAME_N    1024u
+#define MEL_NUM_MELS     26u
+#define MEL_NUM_COEFFS   13u
+#define MEL_MIN_FREQ    80.0
+#define MEL_MAX_FREQ  3900.0
 
 static void write_head(FILE *fp, const char *title)
 {
@@ -526,6 +534,126 @@ static int write_pitch_fft_peak_html(const char *path, const char *title,
     return 0;
 }
 
+/** Write mel filterbank triangular shapes over frequency. */
+static int write_mel_filterbank_html(const char *path, const char *title,
+                                     const double *fb, unsigned num_mels,
+                                     unsigned N, double sample_rate)
+{
+    unsigned num_bins = N / 2 + 1;
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    write_head(fp, title);
+    const double freq_step = sample_rate / (double)N;
+
+    fprintf(fp,
+            "    const freqs = Array.from({length: %u}, (_, k) => k * %.10g);\n"
+            "    const traces = [];\n",
+            num_bins, freq_step);
+
+    for (unsigned m = 0; m < num_mels; m++) {
+        const double *row = fb + (size_t)m * num_bins;
+        fprintf(fp, "    traces.push({ x: freqs, y: [");
+        for (unsigned k = 0; k < num_bins; k++) {
+            fprintf(fp, "%.7g", row[k]);
+            if (k + 1 < num_bins) fprintf(fp, ",");
+        }
+        fprintf(fp,
+            "], type: 'scatter', mode: 'lines',\n"
+            "      line: { width: 1.2 }, opacity: 0.85,\n"
+            "      showlegend: false,\n"
+            "      hovertemplate: 'Band %u<br>f: %%{x:.1f} Hz<br>w: %%{y:.3f}<extra></extra>'\n"
+            "    });\n", m);
+    }
+
+    fprintf(fp,
+        "    Plotly.newPlot('plot', traces, {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Frequency (Hz)', range: [0, %.8g] },\n"
+        "      yaxis: { title: 'Weight', range: [0, 1.05] },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360\n"
+        "    }, { responsive: true });\n",
+        title, sample_rate * 0.5);
+
+    write_foot(fp);
+    fclose(fp);
+    printf("  %s\n", path);
+    return 0;
+}
+
+/** Write a mel-energy bar chart for one analysis frame. */
+static int write_mel_energies_html(const char *path, const char *title,
+                                   const double *centers_hz,
+                                   const double *mel, unsigned num_mels)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    write_head(fp, title);
+    plot_html_js_array(fp, "centers", centers_hz, num_mels, "%.8g");
+    plot_html_js_array(fp, "melVals", mel, num_mels, "%.10g");
+
+    fprintf(fp,
+        "    Plotly.newPlot('plot', [{\n"
+        "      x: centers, y: melVals,\n"
+        "      type: 'bar', marker: { color: '#2563eb' },\n"
+        "      hovertemplate: 'Center: %%{x:.1f} Hz<br>Energy: %%{y:.6f}<extra></extra>'\n"
+        "    }], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Approximate Mel Band Center (Hz)' },\n"
+        "      yaxis: { title: 'Mel Energy', rangemode: 'tozero' },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 70 },\n"
+        "      height: 360\n"
+        "    }, { responsive: true });\n",
+        title);
+
+    write_foot(fp);
+    fclose(fp);
+    printf("  %s\n", path);
+    return 0;
+}
+
+/** Write a bar chart of MFCC coefficients (C0 included). */
+static int write_mfcc_html(const char *path, const char *title,
+                           const double *mfcc, unsigned num_coeffs)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    write_head(fp, title);
+    plot_html_js_array(fp, "coeffs", mfcc, num_coeffs, "%.10g");
+
+    fprintf(fp,
+        "    const idx = Array.from({length: %u}, (_, i) => i);\n"
+        "    Plotly.newPlot('plot', [{\n"
+        "      x: idx, y: coeffs,\n"
+        "      type: 'bar', marker: { color: '#dc2626' },\n"
+        "      hovertemplate: 'C%%{x}: %%{y:.6f}<extra></extra>'\n"
+        "    }], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Coefficient Index' },\n"
+        "      yaxis: { title: 'Value' },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360\n"
+        "    }, { responsive: true });\n",
+        num_coeffs, title);
+
+    write_foot(fp);
+    fclose(fp);
+    printf("  %s\n", path);
+    return 0;
+}
+
 int main(void)
 {
     double *buf = malloc(N_SIGNAL * sizeof(double));
@@ -902,7 +1030,69 @@ int main(void)
     free(pitch_truth);
     free(pitch_t);
 
-    MD_shutdown();   /* release any cached FFT plans used in FIR visuals */
+    /* ----------------------------------------------------------------
+     * Phase 6: mel/MFCC visuals
+     * ----------------------------------------------------------------*/
+    printf("Mel/MFCC visuals:\n");
+
+    double mel_frame[MEL_FRAME_N];
+    double mel_vals[MEL_NUM_MELS];
+    double mfcc_vals[MEL_NUM_COEFFS];
+    unsigned mel_bins = MEL_FRAME_N / 2 + 1;
+    double *mel_fb = malloc((size_t)MEL_NUM_MELS * mel_bins * sizeof(double));
+    double *mel_centers = malloc(MEL_NUM_MELS * sizeof(double));
+    if (!mel_fb || !mel_centers) {
+        fprintf(stderr, "allocation failed\n");
+        free(mel_centers);
+        free(mel_fb);
+        free(conv_in);
+        free(work_b);
+        free(work_a);
+        free(fx);
+        free(buf);
+        return 1;
+    }
+
+    for (unsigned n = 0; n < MEL_FRAME_N; n++) {
+        double t = (double)n / (double)SAMPLE_RATE;
+        mel_frame[n] = 0.7 * sin(2.0 * M_PI * 440.0 * t)
+                     + 0.2 * cos(2.0 * M_PI * 1000.0 * t)
+                     + 0.1 * sin(2.0 * M_PI * 3000.0 * t);
+    }
+
+    MD_mel_filterbank(MEL_FRAME_N, (double)SAMPLE_RATE, MEL_NUM_MELS,
+                      MEL_MIN_FREQ, MEL_MAX_FREQ, mel_fb);
+    MD_mel_energies(mel_frame, MEL_FRAME_N, (double)SAMPLE_RATE, MEL_NUM_MELS,
+                    MEL_MIN_FREQ, MEL_MAX_FREQ, mel_vals);
+    MD_mfcc(mel_frame, MEL_FRAME_N, (double)SAMPLE_RATE,
+            MEL_NUM_MELS, MEL_NUM_COEFFS, MEL_MIN_FREQ, MEL_MAX_FREQ, mfcc_vals);
+
+    for (unsigned m = 0; m < MEL_NUM_MELS; m++) {
+        const double *row = mel_fb + (size_t)m * mel_bins;
+        double sum_w = 0.0;
+        double sum_fw = 0.0;
+        for (unsigned k = 0; k < mel_bins; k++) {
+            double f_hz = (double)k * (double)SAMPLE_RATE / (double)MEL_FRAME_N;
+            sum_w += row[k];
+            sum_fw += f_hz * row[k];
+        }
+        mel_centers[m] = (sum_w > 0.0) ? (sum_fw / sum_w) : 0.0;
+    }
+
+    write_mel_filterbank_html("guides/plots/mel_filterbank_shapes.html",
+                              "Mel Filterbank Shapes (HTK Mapping)",
+                              mel_fb, MEL_NUM_MELS, MEL_FRAME_N, (double)SAMPLE_RATE);
+    write_mel_energies_html("guides/plots/mel_energies_frame.html",
+                            "Mel Energies (One Frame Example)",
+                            mel_centers, mel_vals, MEL_NUM_MELS);
+    write_mfcc_html("guides/plots/mfcc_frame.html",
+                    "MFCCs (One Frame, C0 Included)",
+                    mfcc_vals, MEL_NUM_COEFFS);
+
+    free(mel_centers);
+    free(mel_fb);
+
+    MD_shutdown();   /* release any cached FFT plans used in visuals */
     free(conv_in);
     free(work_b);
     free(work_a);

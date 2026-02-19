@@ -86,7 +86,10 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/plots/conv_fft_ola_spectrum.html \
                          guides/plots/pitch_f0_tracks.html \
                          guides/plots/pitch_acf_peak_frame.html \
-                         guides/plots/pitch_fft_peak_frame.html
+                         guides/plots/pitch_fft_peak_frame.html \
+                         guides/plots/mel_filterbank_shapes.html \
+                         guides/plots/mel_energies_frame.html \
+                         guides/plots/mfcc_frame.html
 
 HTML_HEADER            = doxygen-custom/header.html
 
