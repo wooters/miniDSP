@@ -54,8 +54,17 @@ miniDSP returns **C0 in `mfcc_out[0]`**.
 
 ## Visualisations
 
+These plots are generated from one deterministic signal:
+\f$x[n] = 0.7\sin(2\pi\cdot440t) + 0.2\cos(2\pi\cdot1000t) + 0.1\sin(2\pi\cdot3000t)\f$,
+with \f$t=n/f_s\f$ and \f$f_s=8192\f$ Hz.
+Mel energies and MFCCs are computed from the first 1024-sample analysis frame.
+
 \htmlonly
 <div style="display:flex;gap:12px;flex-wrap:wrap;">
+  <iframe src="mel_input_waveform.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="mel_input_spectrogram.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:0.8rem;">
   <iframe src="mel_filterbank_shapes.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
   <iframe src="mel_energies_frame.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
 </div>

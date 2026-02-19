@@ -8,7 +8,8 @@
  *   - 8 window-function plots (4 time-domain + 4 spectra)
  *   - 8 FIR/convolution plots (4 responses + 4 spectra)
  *   - 3 pitch-detection plots (F0 tracks + ACF peak + FFT peak)
- *   - 3 mel/MFCC plots (filterbank shapes + mel energies + MFCC bars)
+ *   - 5 mel/MFCC plots (input waveform + input spectrogram + filterbank
+ *     shapes + mel energies + MFCC bars)
  * into guides/plots/ for embedding as iframes in Doxygen guides.
  *
  * It is NOT a user-facing example — it is invoked automatically by
@@ -1053,12 +1054,22 @@ int main(void)
         return 1;
     }
 
-    for (unsigned n = 0; n < MEL_FRAME_N; n++) {
+    /* Deterministic signal used by all mel/MFCC visualisations. */
+    for (unsigned n = 0; n < N_SIGNAL; n++) {
         double t = (double)n / (double)SAMPLE_RATE;
-        mel_frame[n] = 0.7 * sin(2.0 * M_PI * 440.0 * t)
-                     + 0.2 * cos(2.0 * M_PI * 1000.0 * t)
-                     + 0.1 * sin(2.0 * M_PI * 3000.0 * t);
+        buf[n] = 0.7 * sin(2.0 * M_PI * 440.0 * t)
+               + 0.2 * cos(2.0 * M_PI * 1000.0 * t)
+               + 0.1 * sin(2.0 * M_PI * 3000.0 * t);
     }
+    write_signal_time_html("guides/plots/mel_input_waveform.html",
+                           "Mel/MFCC Input Signal - Waveform",
+                           buf, N_SIGNAL, 512);
+    write_spectrogram_html("guides/plots/mel_input_spectrogram.html",
+                           "Mel/MFCC Input Signal - Spectrogram",
+                           buf);
+
+    /* Use the first analysis frame from the deterministic signal. */
+    memcpy(mel_frame, buf, MEL_FRAME_N * sizeof(double));
 
     MD_mel_filterbank(MEL_FRAME_N, (double)SAMPLE_RATE, MEL_NUM_MELS,
                       MEL_MIN_FREQ, MEL_MAX_FREQ, mel_fb);
