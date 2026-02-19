@@ -20,6 +20,16 @@ Given the DFT coefficients \f$X(k)\f$ of an \f$N\f$-sample signal, the
 \text{PSD}(k) = \frac{|X(k)|^2}{N}
 \f]
 
+**Reading the formula in C:**
+
+```c
+// X(k) -> (X_re[k], X_im[k]), PSD(k) -> psd[k], N -> num_samples
+for (unsigned k = 0; k <= num_samples / 2; k++) {
+    double mag2 = X_re[k] * X_re[k] + X_im[k] * X_im[k];
+    psd[k] = mag2 / (double)num_samples;
+}
+```
+
 The key difference from the magnitude spectrum is the **squaring** --
 we use \f$|X(k)|^2\f$ (power) instead of \f$|X(k)|\f$ (amplitude).
 
@@ -46,6 +56,21 @@ the total energy in the frequency domain:
 \sum_{n=0}^{N-1} |x[n]|^2 = \frac{1}{N} \sum_{k=0}^{N-1} |X(k)|^2
   = \sum_{k=0}^{N-1} \text{PSD}(k)
 \f]
+
+**Reading the formula in C:**
+
+```c
+// sum_n |x[n]|^2 -> time_energy, sum_k PSD(k) -> freq_energy
+double time_energy = 0.0;
+for (unsigned n = 0; n < num_samples; n++) {
+    time_energy += signal[n] * signal[n];
+}
+
+double freq_energy = 0.0;
+for (unsigned k = 0; k < num_samples; k++) {
+    freq_energy += psd_full[k];
+}
+```
 
 This is a useful sanity check: the sum of all PSD bins should equal
 \f$\sum x[n]^2\f$ (the signal's total energy). The miniDSP test suite

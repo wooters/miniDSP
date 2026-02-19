@@ -28,6 +28,13 @@ miniDSP uses:
 - Internal Hann windowing
 - One-sided PSD bins: \f$|X(k)|^2 / N\f$
 
+**Reading the formula in C:**
+
+```c
+// f -> freq_hz, m(f) -> mel
+double mel = 2595.0 * log10(1.0 + freq_hz / 700.0);
+```
+
 Compute one frame of mel energies:
 
 \snippet mel_mfcc.c compute-mel
@@ -41,6 +48,25 @@ c_n = \alpha_n \sum_{m=0}^{M-1}
 \log(\max(E_m, 10^{-12}))
 \cos\!\left(\frac{\pi n (m + 1/2)}{M}\right)
 \f]
+
+**Reading the formula in C:**
+
+```c
+// E_m -> mel_energy[m], c_n -> mfcc[n], M -> num_mels, n -> coeff index
+for (unsigned n = 0; n < num_coeffs; n++) {
+    double alpha = (n == 0)
+        ? sqrt(1.0 / (double)num_mels)
+        : sqrt(2.0 / (double)num_mels);
+
+    double acc = 0.0;
+    for (unsigned m = 0; m < num_mels; m++) {
+        double log_em = log(fmax(mel_energy[m], 1e-12));
+        double basis = cos(M_PI * (double)n * ((double)m + 0.5) / (double)num_mels);
+        acc += log_em * basis;
+    }
+    mfcc[n] = alpha * acc;
+}
+```
 
 where:
 

@@ -166,15 +166,41 @@ y_b[n] = \mathrm{IFFT}(Y_b(k))
 Each block's time-domain result is added into the output with overlap
 between adjacent blocks, after an [inverse FFT (IFFT)](https://en.wikipedia.org/wiki/Fast_Fourier_transform#Inverse_transform) per block.
 
-**Reading the algorithm in C:**
+**Reading the formula in C:**
 
 ```c
-// 1) Zero-pad one input block to nfft and FFT it
-// 2) Multiply by precomputed FFT(kernel)
-// 3) IFFT back to time domain
-// 4) Add (overlap-add) into full output buffer
+// x_b[n] -> block_time[n], H(k) -> (H_re[k], H_im[k]), y[n] -> out[n]
+// Y_b(k) = X_b(k) * H(k), then overlap-add IFFT(Y_b) into out[]
 for (unsigned start = 0; start < signal_len; start += block_len) {
-    // load block, FFT, multiply in frequency domain, IFFT, overlap-add
+    for (unsigned n = 0; n < nfft; n++) block_time[n] = 0.0;
+    for (unsigned n = 0; n < block_len && start + n < signal_len; n++) {
+        block_time[n] = signal[start + n];
+    }
+
+    // Educational DFT form for X_b(k) (FFT is used in production code).
+    for (unsigned k = 0; k < nfft; k++) {
+        double x_re = 0.0, x_im = 0.0;
+        for (unsigned n = 0; n < nfft; n++) {
+            double theta = 2.0 * M_PI * (double)k * (double)n / (double)nfft;
+            x_re += block_time[n] * cos(theta);
+            x_im -= block_time[n] * sin(theta);
+        }
+
+        // Complex multiply: Y_b(k) = X_b(k) * H(k)
+        Y_re[k] = x_re * H_re[k] - x_im * H_im[k];
+        Y_im[k] = x_re * H_im[k] + x_im * H_re[k];
+    }
+
+    // Educational inverse DFT + overlap-add.
+    for (unsigned n = 0; n < nfft; n++) {
+        double yb = 0.0;
+        for (unsigned k = 0; k < nfft; k++) {
+            double theta = 2.0 * M_PI * (double)k * (double)n / (double)nfft;
+            yb += Y_re[k] * cos(theta) - Y_im[k] * sin(theta);
+        }
+        yb /= (double)nfft;
+        if (start + n < out_len) out[start + n] += yb;
+    }
 }
 ```
 

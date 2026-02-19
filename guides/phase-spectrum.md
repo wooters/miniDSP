@@ -20,6 +20,15 @@ much energy is at frequency \f$k\f$.  The **phase spectrum**
 \qquad \phi(k) \in [-\pi,\, \pi]
 \f]
 
+**Reading the formula in C:**
+
+```c
+// Re X(k) -> X_re[k], Im X(k) -> X_im[k], phi(k) -> phase[k]
+for (unsigned k = 0; k <= num_samples / 2; k++) {
+    phase[k] = atan2(X_im[k], X_re[k]);
+}
+```
+
 ### Intuitive meaning
 
 | Signal | Phase at its bin |

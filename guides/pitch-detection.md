@@ -33,7 +33,7 @@ f_0 = \frac{f_s}{\tau_{\text{peak}}}
 We search only lags mapped from a desired F0 range
 (`min_freq_hz..max_freq_hz`), then choose the strongest local peak.
 
-### Reading the algorithm in C
+**Reading the formula in C:**
 
 ```c
 // x[n] -> frame[n], fs -> sample_rate
@@ -80,7 +80,7 @@ f_0 = \frac{k_{\text{peak}} f_s}{N}
 It is simple and fast, but more sensitive to noise and harmonic dominance
 than autocorrelation.
 
-### Reading the algorithm in C
+**Reading the formula in C:**
 
 ```c
 // x[n] -> frame[n], fs -> sample_rate

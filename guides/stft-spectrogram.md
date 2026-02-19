@@ -24,6 +24,26 @@ For frame \f$f\f$ and frequency bin \f$k\f$, the STFT is:
 X_f(k) = \sum_{n=0}^{N-1} w[n]\, x[f \cdot H + n]\, e^{-j 2\pi k n / N}
 \f]
 
+**Reading the formula in C:**
+
+```c
+// f -> frame index, k -> bin index, n -> sample index
+// x[f*H+n] -> signal[sample_idx], w[n] -> window[n], |X_f(k)| -> mag_out[f*(N/2+1)+k]
+for (unsigned f = 0; f < num_frames; f++) {
+    for (unsigned k = 0; k <= N / 2; k++) {
+        double re = 0.0, im = 0.0;
+        for (unsigned n = 0; n < N; n++) {
+            unsigned sample_idx = f * hop + n;
+            double xw = signal[sample_idx] * window[n];
+            double theta = 2.0 * M_PI * (double)k * (double)n / (double)N;
+            re += xw * cos(theta);
+            im -= xw * sin(theta);
+        }
+        mag_out[f * (N / 2 + 1) + k] = sqrt(re * re + im * im);
+    }
+}
+```
+
 where:
 - \f$N\f$ is the FFT window size (samples per frame)
 - \f$H\f$ is the hop size (samples between successive frames)
@@ -58,6 +78,18 @@ linearly over a duration \f$T\f$:
 \f[
 x(t) = \sin\!\left(2\pi \left(f_0 + \frac{f_1 - f_0}{2T}\,t\right) t\right)
 \f]
+
+**Reading the formula in C:**
+
+```c
+// t -> time_s, x(t) -> out[n], f0/f1 -> f0_hz/f1_hz, T -> duration_s
+for (unsigned n = 0; n < num_samples; n++) {
+    double time_s = (double)n / sample_rate;
+    double slope = (f1_hz - f0_hz) / (2.0 * duration_s);
+    double phase = 2.0 * M_PI * (f0_hz + slope * time_s) * time_s;
+    out[n] = sin(phase);
+}
+```
 
 A chirp is the ideal test signal for a spectrogram because its instantaneous
 frequency changes over time, producing a clearly visible diagonal stripe across

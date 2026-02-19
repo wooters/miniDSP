@@ -18,6 +18,22 @@ coefficients:
 X(k) = \sum_{n=0}^{N-1} x[n] \, e^{-j\,2\pi\,k\,n/N}, \qquad k = 0, 1, \ldots, N-1
 \f]
 
+**Reading the formula in C:**
+
+```c
+// x[n] -> signal[n], X(k) -> (X_re[k], X_im[k]), N -> num_samples
+for (unsigned k = 0; k < num_samples; k++) {
+    double re = 0.0, im = 0.0;
+    for (unsigned n = 0; n < num_samples; n++) {
+        double theta = 2.0 * M_PI * (double)k * (double)n / (double)num_samples;
+        re += signal[n] * cos(theta);
+        im -= signal[n] * sin(theta);
+    }
+    X_re[k] = re;
+    X_im[k] = im;
+}
+```
+
 The **magnitude spectrum** is simply the absolute value of these
 coefficients: \f$|X(k)|\f$. Each bin \f$k\f$ corresponds to frequency
 \f$f_k = k \cdot f_s / N\f$, where \f$f_s\f$ is the sample rate.
@@ -52,6 +68,16 @@ eliminating the discontinuity:
 \f[
 w[n] = 0.5 \left(1 - \cos\!\left(\frac{2\pi\,n}{N-1}\right)\right)
 \f]
+
+**Reading the formula in C:**
+
+```c
+// w[n] -> window[n], x[n] -> signal[n], x_w[n] -> windowed[n], N -> num_samples
+for (unsigned n = 0; n < num_samples; n++) {
+    window[n] = 0.5 * (1.0 - cos(2.0 * M_PI * (double)n / (double)(num_samples - 1)));
+    windowed[n] = signal[n] * window[n];
+}
+```
 
 \snippet magnitude_spectrum.c apply-window
 
