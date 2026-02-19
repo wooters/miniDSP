@@ -7,6 +7,7 @@
  *   - 6 simple-effects spectrograms (delay/tremolo/comb, before + after)
  *   - 8 window-function plots (4 time-domain + 4 spectra)
  *   - 8 FIR/convolution plots (4 responses + 4 spectra)
+ *   - 3 pitch-detection plots (F0 tracks + ACF peak + FFT peak)
  * into guides/plots/ for embedding as iframes in Doxygen guides.
  *
  * It is NOT a user-facing example — it is invoked automatically by
@@ -35,6 +36,12 @@
 #define WINDOW_N        256u
 #define WINDOW_FFT_VIS 4096u
 #define FIR_TIME_SHOW    512u
+
+/* Pitch-detection visualisation parameters */
+#define PITCH_FRAME_N 1024u
+#define PITCH_HOP      128u
+#define PITCH_MIN_F0    80.0
+#define PITCH_MAX_F0   400.0
 
 static void write_head(FILE *fp, const char *title)
 {
@@ -365,6 +372,160 @@ static int write_signal_time_html(const char *path, const char *title,
     return 0;
 }
 
+/** Write an F0 track comparison plot (truth vs autocorrelation vs FFT). */
+static int write_pitch_tracks_html(const char *path, const char *title,
+                                   const double *times, const double *truth,
+                                   const double *acf, const double *fft,
+                                   unsigned num_frames)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    write_head(fp, title);
+    plot_html_js_array(fp, "times", times, num_frames, "%.8g");
+    plot_html_js_array(fp, "f0Truth", truth, num_frames, "%.8g");
+    plot_html_js_array(fp, "f0Acf", acf, num_frames, "%.8g");
+    plot_html_js_array(fp, "f0Fft", fft, num_frames, "%.8g");
+
+    fprintf(fp,
+        "    Plotly.newPlot('plot', [\n"
+        "      { x: times, y: f0Truth, name: 'Ground Truth', type: 'scatter', mode: 'lines',\n"
+        "        line: { color: '#111827', width: 2.0 } },\n"
+        "      { x: times, y: f0Acf, name: 'Autocorrelation F0', type: 'scatter', mode: 'lines+markers',\n"
+        "        marker: { size: 4 }, line: { color: '#2563eb', width: 1.4 } },\n"
+        "      { x: times, y: f0Fft, name: 'FFT F0', type: 'scatter', mode: 'lines+markers',\n"
+        "        marker: { size: 4 }, line: { color: '#dc2626', width: 1.3 } }\n"
+        "    ], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Time (s)' },\n"
+        "      yaxis: { title: 'F0 (Hz)' },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360,\n"
+        "      legend: { x: 1, y: 1, xanchor: 'right' }\n"
+        "    }, { responsive: true });\n",
+        title);
+
+    write_foot(fp);
+    fclose(fp);
+    printf("  %s\n", path);
+    return 0;
+}
+
+/** Write an autocorrelation-vs-lag plot with selected F0 lag marker. */
+static int write_pitch_acf_peak_html(const char *path, const char *title,
+                                     const double *acf, unsigned lag_min,
+                                     unsigned lag_max, double selected_lag)
+{
+    unsigned len = lag_max - lag_min + 1;
+    double *lags = malloc(len * sizeof(double));
+    double *vals = malloc(len * sizeof(double));
+    if (!lags || !vals) {
+        fprintf(stderr, "allocation failed for %s\n", path);
+        free(vals);
+        free(lags);
+        return -1;
+    }
+
+    for (unsigned i = 0; i < len; i++) {
+        lags[i] = (double)(lag_min + i);
+        vals[i] = acf[lag_min + i];
+    }
+
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        free(vals);
+        free(lags);
+        return -1;
+    }
+
+    write_head(fp, title);
+    plot_html_js_array(fp, "lags", lags, len, "%.8g");
+    plot_html_js_array(fp, "acfVals", vals, len, "%.8g");
+
+    double selected_val = 0.0;
+    if (selected_lag > 0.0) {
+        unsigned idx = (unsigned)lround(selected_lag);
+        if (idx >= lag_min && idx <= lag_max) {
+            selected_val = acf[idx];
+        }
+    }
+
+    fprintf(fp,
+        "    Plotly.newPlot('plot', [\n"
+        "      { x: lags, y: acfVals, name: 'Autocorrelation', type: 'scatter', mode: 'lines',\n"
+        "        line: { color: '#2563eb', width: 1.4 } },\n"
+        "      { x: [%.8g], y: [%.8g], name: 'Selected Lag', mode: 'markers',\n"
+        "        marker: { color: '#dc2626', size: 9, symbol: 'diamond' } }\n"
+        "    ], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Lag (samples)' },\n"
+        "      yaxis: { title: 'Normalised R[lag]', range: [-1.1, 1.1] },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360,\n"
+        "      legend: { x: 1, y: 1, xanchor: 'right' }\n"
+        "    }, { responsive: true });\n",
+        selected_lag, selected_val, title);
+
+    write_foot(fp);
+    fclose(fp);
+    free(vals);
+    free(lags);
+    printf("  %s\n", path);
+    return 0;
+}
+
+/** Write an FFT magnitude plot with selected peak marker. */
+static int write_pitch_fft_peak_html(const char *path, const char *title,
+                                     const double *mag, unsigned num_bins,
+                                     double selected_freq_hz)
+{
+    FILE *fp = fopen(path, "w");
+    if (!fp) {
+        fprintf(stderr, "cannot open %s for writing\n", path);
+        return -1;
+    }
+
+    write_head(fp, title);
+    plot_html_js_array(fp, "magVals", mag, num_bins, "%.8g");
+
+    const double freq_step = (double)SAMPLE_RATE / (double)PITCH_FRAME_N;
+
+    double selected_mag_db = -120.0;
+    if (selected_freq_hz > 0.0) {
+        unsigned k = (unsigned)lround(selected_freq_hz / freq_step);
+        if (k < num_bins) {
+            selected_mag_db = 20.0 * log10(fmax(mag[k], 1e-6));
+        }
+    }
+
+    fprintf(fp,
+        "    const freqs = Array.from({length: %u}, (_, k) => k * %.10g);\n"
+        "    const magsDb = magVals.map(m => 20 * Math.log10(Math.max(m, 1e-6)));\n"
+        "    Plotly.newPlot('plot', [\n"
+        "      { x: freqs, y: magsDb, name: 'Magnitude (dB)', type: 'scatter', mode: 'lines',\n"
+        "        line: { color: '#dc2626', width: 1.3 } },\n"
+        "      { x: [%.8g], y: [%.8g], name: 'Selected Peak', mode: 'markers',\n"
+        "        marker: { color: '#2563eb', size: 9, symbol: 'diamond' } }\n"
+        "    ], {\n"
+        "      title: { text: '%s', font: { size: 13 } },\n"
+        "      xaxis: { title: 'Frequency (Hz)', range: [0, %u] },\n"
+        "      yaxis: { title: 'Magnitude (dB)', range: [-100, 10] },\n"
+        "      margin: { t: 35, r: 20, b: 50, l: 60 },\n"
+        "      height: 360,\n"
+        "      legend: { x: 1, y: 1, xanchor: 'right' }\n"
+        "    }, { responsive: true });\n",
+        num_bins, freq_step, selected_freq_hz, selected_mag_db, title, SAMPLE_RATE / 2);
+
+    write_foot(fp);
+    fclose(fp);
+    printf("  %s\n", path);
+    return 0;
+}
+
 int main(void)
 {
     double *buf = malloc(N_SIGNAL * sizeof(double));
@@ -608,6 +769,138 @@ int main(void)
                            N_SIGNAL, FIR_TIME_SHOW);
     write_spectrum_html("guides/plots/conv_fft_ola_spectrum.html",
                         "FFT Overlap-Add Convolution - Spectrum", work_a);
+
+    /* ----------------------------------------------------------------
+     * Phase 5: pitch-detection visuals
+     * ----------------------------------------------------------------*/
+    printf("Pitch detection visuals:\n");
+
+    /* Build a voiced signal with piecewise F0 segments. */
+    MD_white_noise(work_b, N_SIGNAL, 0.08, 777);
+    const unsigned seg1 = N_SIGNAL / 3;
+    const unsigned seg2 = 2 * N_SIGNAL / 3;
+    double phase = 0.0;
+    for (unsigned n = 0; n < N_SIGNAL; n++) {
+        double f0 = (n < seg1) ? 140.0 : (n < seg2 ? 220.0 : 320.0);
+        phase += 2.0 * M_PI * f0 / (double)SAMPLE_RATE;
+        buf[n] = 0.75 * sin(phase)
+               + 0.22 * sin(2.0 * phase)
+               + 0.12 * sin(3.0 * phase)
+               + work_b[n];
+    }
+
+    unsigned pitch_frames = MD_stft_num_frames(N_SIGNAL, PITCH_FRAME_N, PITCH_HOP);
+    double *pitch_t = malloc(pitch_frames * sizeof(double));
+    double *pitch_truth = malloc(pitch_frames * sizeof(double));
+    double *pitch_acf = malloc(pitch_frames * sizeof(double));
+    double *pitch_fft = malloc(pitch_frames * sizeof(double));
+    if (!pitch_t || !pitch_truth || !pitch_acf || !pitch_fft) {
+        fprintf(stderr, "allocation failed\n");
+        free(pitch_fft);
+        free(pitch_acf);
+        free(pitch_truth);
+        free(pitch_t);
+        free(conv_in);
+        free(work_b);
+        free(work_a);
+        free(fx);
+        free(buf);
+        return 1;
+    }
+
+    for (unsigned f = 0; f < pitch_frames; f++) {
+        unsigned start = f * PITCH_HOP;
+        const double *frame = buf + start;
+        unsigned center = start + PITCH_FRAME_N / 2;
+        if (center >= N_SIGNAL) center = N_SIGNAL - 1;
+
+        pitch_t[f] = (double)center / (double)SAMPLE_RATE;
+        pitch_truth[f] = (center < seg1) ? 140.0 : (center < seg2 ? 220.0 : 320.0);
+        pitch_acf[f] = MD_f0_autocorrelation(frame, PITCH_FRAME_N, SAMPLE_RATE,
+                                             PITCH_MIN_F0, PITCH_MAX_F0);
+        pitch_fft[f] = MD_f0_fft(frame, PITCH_FRAME_N, SAMPLE_RATE,
+                                 PITCH_MIN_F0, PITCH_MAX_F0);
+    }
+
+    write_pitch_tracks_html("guides/plots/pitch_f0_tracks.html",
+                            "Pitch Detection - Ground Truth vs Estimated F0",
+                            pitch_t, pitch_truth, pitch_acf, pitch_fft, pitch_frames);
+
+    /* Visualise one representative frame (middle segment around 220 Hz). */
+    unsigned frame_idx = pitch_frames / 2;
+    const double *frame = buf + frame_idx * PITCH_HOP;
+
+    unsigned lag_min = (unsigned)floor((double)SAMPLE_RATE / PITCH_MAX_F0);
+    unsigned lag_max = (unsigned)ceil((double)SAMPLE_RATE / PITCH_MIN_F0);
+    if (lag_min < 1) lag_min = 1;
+    if (lag_max > PITCH_FRAME_N - 1) lag_max = PITCH_FRAME_N - 1;
+
+    double *acf = malloc((lag_max + 1) * sizeof(double));
+    if (!acf) {
+        fprintf(stderr, "allocation failed\n");
+        free(pitch_fft);
+        free(pitch_acf);
+        free(pitch_truth);
+        free(pitch_t);
+        free(conv_in);
+        free(work_b);
+        free(work_a);
+        free(fx);
+        free(buf);
+        return 1;
+    }
+    MD_autocorrelation(frame, PITCH_FRAME_N, acf, lag_max + 1);
+    double f0_acf_one = MD_f0_autocorrelation(frame, PITCH_FRAME_N, SAMPLE_RATE,
+                                              PITCH_MIN_F0, PITCH_MAX_F0);
+    double selected_lag = (f0_acf_one > 0.0) ? ((double)SAMPLE_RATE / f0_acf_one) : 0.0;
+    write_pitch_acf_peak_html("guides/plots/pitch_acf_peak_frame.html",
+                              "Pitch Detection - Autocorrelation Peak (One Frame)",
+                              acf, lag_min, lag_max, selected_lag);
+    free(acf);
+
+    unsigned num_bins = PITCH_FRAME_N / 2 + 1;
+    double *window = malloc(PITCH_FRAME_N * sizeof(double));
+    double *frame_win = malloc(PITCH_FRAME_N * sizeof(double));
+    double *mag = malloc(num_bins * sizeof(double));
+    if (!window || !frame_win || !mag) {
+        fprintf(stderr, "allocation failed\n");
+        free(mag);
+        free(frame_win);
+        free(window);
+        free(pitch_fft);
+        free(pitch_acf);
+        free(pitch_truth);
+        free(pitch_t);
+        free(conv_in);
+        free(work_b);
+        free(work_a);
+        free(fx);
+        free(buf);
+        return 1;
+    }
+
+    MD_Gen_Hann_Win(window, PITCH_FRAME_N);
+    for (unsigned n = 0; n < PITCH_FRAME_N; n++) {
+        frame_win[n] = frame[n] * window[n];
+    }
+    MD_magnitude_spectrum(frame_win, PITCH_FRAME_N, mag);
+    for (unsigned k = 0; k < num_bins; k++) {
+        mag[k] /= (double)PITCH_FRAME_N;
+        if (k > 0 && k < PITCH_FRAME_N / 2) mag[k] *= 2.0;
+    }
+    double f0_fft_one = MD_f0_fft(frame, PITCH_FRAME_N, SAMPLE_RATE,
+                                  PITCH_MIN_F0, PITCH_MAX_F0);
+    write_pitch_fft_peak_html("guides/plots/pitch_fft_peak_frame.html",
+                              "Pitch Detection - FFT Peak Pick (One Frame)",
+                              mag, num_bins, f0_fft_one);
+    free(mag);
+    free(frame_win);
+    free(window);
+
+    free(pitch_fft);
+    free(pitch_acf);
+    free(pitch_truth);
+    free(pitch_t);
 
     MD_shutdown();   /* release any cached FFT plans used in FIR visuals */
     free(conv_in);

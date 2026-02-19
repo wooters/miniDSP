@@ -1,7 +1,8 @@
 /**
  * @file minidsp_core.c
  * @brief Stateless signal math: dot product, energy, power, entropy,
- *        scaling, AGC, simple effects, and window function generation.
+ *        scaling, AGC, time-domain pitch estimation, simple effects,
+ *        and window function generation.
  * @author Chuck Wooters <wooters@hey.com>
  * @copyright 2013 International Computer Science Institute
  */
@@ -255,6 +256,22 @@ double MD_entropy(const double *a, unsigned N, bool clip)
  * Public API: signal analysis
  * -----------------------------------------------------------------------*/
 
+/** Minimum normalised autocorrelation peak height accepted as voiced F0. */
+#define MD_F0_ACF_PEAK_THRESHOLD 0.15
+
+/** Three-point parabolic refinement around a discrete peak index.
+ *  Returns a fractional offset in [-0.5, 0.5]. */
+static double md_parabolic_offset(double y_left, double y_mid, double y_right)
+{
+    double denom = y_left - 2.0 * y_mid + y_right;
+    if (fabs(denom) < 1e-12) return 0.0;
+
+    double delta = 0.5 * (y_left - y_right) / denom;
+    if (delta < -0.5) delta = -0.5;
+    if (delta >  0.5) delta =  0.5;
+    return delta;
+}
+
 /**
  * Root mean square: the standard measure of signal "loudness".
  *
@@ -342,6 +359,63 @@ void MD_peak_detect(const double *a, unsigned N, double threshold,
         }
     }
     *num_peaks_out = count;
+}
+
+double MD_f0_autocorrelation(const double *signal, unsigned N,
+                             double sample_rate,
+                             double min_freq_hz, double max_freq_hz)
+{
+    assert(signal != nullptr);
+    assert(N >= 2);
+    assert(sample_rate > 0.0);
+    assert(min_freq_hz > 0.0);
+    assert(max_freq_hz > min_freq_hz);
+
+    unsigned lag_min = (unsigned)floor(sample_rate / max_freq_hz);
+    unsigned lag_max = (unsigned)ceil(sample_rate / min_freq_hz);
+
+    if (lag_min < 1) lag_min = 1;
+    if (lag_max > N - 2) lag_max = N - 2;
+    if (lag_min > lag_max) return 0.0;
+    if (lag_max < 2) return 0.0;  /* need lag-1 and lag+1 neighbors */
+
+    double *acf = malloc((lag_max + 1) * sizeof(double));
+    if (!acf) return 0.0;
+
+    MD_autocorrelation(signal, N, acf, lag_max + 1);
+
+    unsigned start = (lag_min < 1) ? 1 : lag_min;
+    unsigned stop  = (lag_max > N - 2) ? (N - 2) : lag_max;
+
+    double best_peak = -DBL_MAX;
+    unsigned best_lag = 0;
+
+    for (unsigned lag = start; lag <= stop; lag++) {
+        double y = acf[lag];
+        if (y < MD_F0_ACF_PEAK_THRESHOLD) continue;
+        if (y <= acf[lag - 1] || y <= acf[lag + 1]) continue;
+
+        if (y > best_peak) {
+            best_peak = y;
+            best_lag = lag;
+        }
+    }
+
+    if (best_lag == 0) {
+        free(acf);
+        return 0.0;
+    }
+
+    double lag_est = (double)best_lag;
+    if (best_lag > 0 && best_lag + 1 <= lag_max) {
+        lag_est += md_parabolic_offset(acf[best_lag - 1],
+                                       acf[best_lag],
+                                       acf[best_lag + 1]);
+    }
+    free(acf);
+
+    if (lag_est <= 0.0) return 0.0;
+    return sample_rate / lag_est;
 }
 
 /**

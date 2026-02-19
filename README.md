@@ -45,6 +45,8 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 - **Zero-crossing rate** -- fraction of adjacent samples that change sign; simple proxy for pitch and noisiness.
 - **Autocorrelation** -- normalised self-similarity at different lags; foundation of pitch detection.
 - **Peak detection** -- find local maxima above a threshold with minimum-distance suppression.
+- **F0 estimation (autocorrelation)** -- estimate pitch by finding the dominant autocorrelation lag in a frequency range.
+- **F0 estimation (FFT peak-pick)** -- estimate pitch from the dominant Hann-windowed spectral peak.
 - **Signal mixing** -- weighted sum of two signals; needed for any multi-source demo.
 
 ### Simple Effects (minidsp.h)
@@ -246,6 +248,25 @@ A full example generating an interactive HTML heatmap is in
 `examples/spectrogram.c`.
 See the [Spectrogram tutorial](https://wooters.github.io/miniDSP/stft-spectrogram.html)
 for a step-by-step explanation.
+
+### Estimate fundamental frequency (F0)
+
+```c
+#include "minidsp.h"
+
+double frame[1024];
+// ... fill frame with one analysis frame of audio ...
+
+double f0_acf = MD_f0_autocorrelation(frame, 1024, 16000.0, 80.0, 400.0);
+double f0_fft = MD_f0_fft(frame, 1024, 16000.0, 80.0, 400.0);
+
+/* Either value may be 0.0 if no reliable F0 is found. */
+MD_shutdown();
+```
+
+A runnable frame-tracking example is in `examples/pitch_detection.c`.
+See the [Pitch Detection tutorial](https://wooters.github.io/miniDSP/pitch-detection.html)
+for method comparison and visuals.
 
 ### FIR filtering and convolution
 

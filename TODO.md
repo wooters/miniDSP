@@ -50,8 +50,8 @@ so students can compare sidelobe trade-offs.
 
 ## Pitch Detection
 
-- [ ] **F0 estimation (autocorrelation)** -- find the fundamental frequency by locating the autocorrelation peak; classic speech/music analysis
-- [ ] **F0 estimation (FFT-based)** -- peak-pick the magnitude spectrum; simpler but less robust than autocorrelation
+- [x] **F0 estimation (autocorrelation)** -- find the fundamental frequency by locating the autocorrelation peak; classic speech/music analysis
+- [x] **F0 estimation (FFT-based)** -- peak-pick the magnitude spectrum; simpler but less robust than autocorrelation
 
 ## Mel-scale / MFCCs
 

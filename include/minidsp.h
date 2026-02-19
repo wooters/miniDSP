@@ -4,7 +4,7 @@
  *
  * This header declares functions for:
  *   - Basic signal measurements (energy, power, entropy)
- *   - Signal analysis (RMS, zero-crossing rate, autocorrelation, peak detection, mixing)
+ *   - Signal analysis (RMS, zero-crossing rate, autocorrelation, peak detection, F0 estimation, mixing)
  *   - Simple effects (delay/echo, tremolo, and comb-filter reverb)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning, Hamming, Blackman, rectangular)
@@ -179,6 +179,75 @@ void MD_autocorrelation(const double *a, unsigned N,
 void MD_peak_detect(const double *a, unsigned N, double threshold,
                     unsigned min_distance, unsigned *peaks_out,
                     unsigned *num_peaks_out);
+
+/**
+ * Estimate the fundamental frequency (F0) using autocorrelation.
+ *
+ * This method searches for the strongest local peak in the normalised
+ * autocorrelation sequence over lags corresponding to the requested
+ * frequency range:
+ *
+ * \f[
+ * f_0 = \frac{f_s}{\tau_\text{peak}}
+ * \f]
+ *
+ * where \f$\tau_\text{peak}\f$ is the selected lag and \f$f_s\f$ is the
+ * sample rate.
+ *
+ * @param signal       Input signal of length N.
+ * @param N            Number of samples (must be >= 2).
+ * @param sample_rate  Sampling rate in Hz (must be > 0).
+ * @param min_freq_hz  Minimum search frequency in Hz (must be > 0).
+ * @param max_freq_hz  Maximum search frequency in Hz (must be > min_freq_hz).
+ * @return             Estimated F0 in Hz, or 0.0 if no reliable F0 is found.
+ *
+ * @note Invalid API usage is guarded by assertions.  A return value of
+ *       0.0 means the call was valid but no usable pitch peak was found
+ *       (for example, silence or an unvoiced/noisy frame).
+ *
+ * @code
+ * double f0 = MD_f0_autocorrelation(frame, frame_len, 16000.0, 80.0, 400.0);
+ * @endcode
+ */
+double MD_f0_autocorrelation(const double *signal, unsigned N,
+                             double sample_rate,
+                             double min_freq_hz, double max_freq_hz);
+
+/**
+ * Estimate the fundamental frequency (F0) using FFT peak picking.
+ *
+ * The signal is internally Hann-windowed, transformed with a one-sided FFT,
+ * then the dominant magnitude peak in the requested frequency range is mapped
+ * back to Hz:
+ *
+ * \f[
+ * f_0 = \frac{k_\text{peak} f_s}{N}
+ * \f]
+ *
+ * where \f$k_\text{peak}\f$ is the selected FFT bin.
+ *
+ * This method is simple and fast but generally less robust than
+ * MD_f0_autocorrelation() for noisy or strongly harmonic signals.
+ *
+ * @param signal       Input signal of length N.
+ * @param N            Number of samples (must be >= 2).
+ * @param sample_rate  Sampling rate in Hz (must be > 0).
+ * @param min_freq_hz  Minimum search frequency in Hz (must be > 0).
+ * @param max_freq_hz  Maximum search frequency in Hz (must be > min_freq_hz).
+ * @return             Estimated F0 in Hz, or 0.0 if no reliable F0 is found.
+ *
+ * @note This function uses the internal FFT cache.  Call MD_shutdown()
+ *       when done with FFT-based APIs.
+ * @note Invalid API usage is guarded by assertions.  A return value of
+ *       0.0 means the call was valid but no usable pitch peak was found.
+ *
+ * @code
+ * double f0 = MD_f0_fft(frame, frame_len, 16000.0, 80.0, 400.0);
+ * @endcode
+ */
+double MD_f0_fft(const double *signal, unsigned N,
+                 double sample_rate,
+                 double min_freq_hz, double max_freq_hz);
 
 /**
  * Mix (weighted sum) two signals.

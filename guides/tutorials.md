@@ -13,3 +13,4 @@ and shows the resulting plots.
 - \subpage basic-signal-operations — RMS, zero-crossing rate, autocorrelation, peak detection, and signal mixing.
 - \subpage simple-effects — Delay/echo, tremolo, and comb-filter reverb.
 - \subpage fir-convolution — Time-domain convolution, moving-average FIR, general FIR, and FFT overlap-add fast convolution.
+- \subpage pitch-detection — Fundamental frequency (F0) estimation with autocorrelation and FFT peak picking.

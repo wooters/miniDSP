@@ -1,7 +1,7 @@
 /**
  * @file minidsp_spectrum.c
  * @brief FFT-based spectrum analysis: magnitude spectrum, PSD, phase
- *        spectrum, STFT, and resource cleanup (MD_shutdown).
+ *        spectrum, STFT, FFT-based F0 estimation, and MD_shutdown().
  * @author Chuck Wooters <wooters@hey.com>
  * @copyright 2013 International Computer Science Institute
  */
@@ -31,6 +31,24 @@ static fftw_plan     _spec_plan    = nullptr;  /* FFTW r2c plan             */
 
 static double  *_stft_win   = nullptr; /* Cached Hanning window             */
 static unsigned _stft_win_N = 0;       /* Window length corresponding to above */
+
+/** F0-FFT peak must stand out from the average in-range spectrum. */
+#define MD_F0_FFT_PROMINENCE_RATIO 2.5
+/** Candidate must also be a meaningful fraction of the frame's global peak. */
+#define MD_F0_FFT_GLOBAL_RATIO 0.2
+
+/** Three-point parabolic refinement around a discrete peak index.
+ *  Returns a fractional offset in [-0.5, 0.5]. */
+static double md_parabolic_offset(double y_left, double y_mid, double y_right)
+{
+    double denom = y_left - 2.0 * y_mid + y_right;
+    if (fabs(denom) < 1e-12) return 0.0;
+
+    double delta = 0.5 * (y_left - y_right) / denom;
+    if (delta < -0.5) delta = -0.5;
+    if (delta >  0.5) delta =  0.5;
+    return delta;
+}
 
 /** Free spectrum analysis buffers. */
 static void _spec_free(void)
@@ -233,6 +251,75 @@ void MD_phase_spectrum(const double *signal, unsigned N, double *phase_out)
     for (unsigned k = 0; k < num_bins; k++) {
         phase_out[k] = carg(_spec_out[k]);
     }
+}
+
+double MD_f0_fft(const double *signal, unsigned N,
+                 double sample_rate,
+                 double min_freq_hz, double max_freq_hz)
+{
+    assert(signal != nullptr);
+    assert(N >= 2);
+    assert(sample_rate > 0.0);
+    assert(min_freq_hz > 0.0);
+    assert(max_freq_hz > min_freq_hz);
+
+    unsigned k_min = (unsigned)ceil(min_freq_hz * (double)N / sample_rate);
+    unsigned k_max = (unsigned)floor(max_freq_hz * (double)N / sample_rate);
+
+    if (k_min < 1) k_min = 1;           /* skip DC */
+    if (k_max > N / 2) k_max = N / 2;   /* one-sided Nyquist bound */
+    if (k_min > k_max) return 0.0;
+
+    if (MD_energy(signal, N) == 0.0) return 0.0;
+
+    /* Reuse the shared STFT Hann cache to window this frame. */
+    _stft_setup(N);
+    for (unsigned n = 0; n < N; n++) {
+        _spec_in[n] = signal[n] * _stft_win[n];
+    }
+    fftw_execute(_spec_plan);
+
+    double global_max = 0.0;
+    for (unsigned k = 1; k <= N / 2; k++) {
+        double mag = cabs(_spec_out[k]);
+        if (mag > global_max) global_max = mag;
+    }
+
+    double sum_mag = 0.0;
+    double best_mag = -DBL_MAX;
+    unsigned best_k = 0;
+    unsigned num_bins = 0;
+
+    for (unsigned k = k_min; k <= k_max; k++) {
+        double mag = cabs(_spec_out[k]);
+        sum_mag += mag;
+        num_bins++;
+        if (mag > best_mag) {
+            best_mag = mag;
+            best_k = k;
+        }
+    }
+
+    if (best_k == 0 || best_mag <= 0.0 || num_bins == 0) return 0.0;
+
+    double mean_mag = sum_mag / (double)num_bins;
+    if (mean_mag <= 0.0) return 0.0;
+    if (best_mag < MD_F0_FFT_PROMINENCE_RATIO * mean_mag) return 0.0;
+    if (global_max <= 0.0) return 0.0;
+    if (best_mag < MD_F0_FFT_GLOBAL_RATIO * global_max) return 0.0;
+
+    double k_est = (double)best_k;
+    if (best_k > 0 && best_k < N / 2) {
+        double m_left  = cabs(_spec_out[best_k - 1]);
+        double m_mid   = cabs(_spec_out[best_k]);
+        double m_right = cabs(_spec_out[best_k + 1]);
+        k_est += md_parabolic_offset(m_left, m_mid, m_right);
+    }
+
+    if (k_est < (double)k_min) k_est = (double)k_min;
+    if (k_est > (double)k_max) k_est = (double)k_max;
+
+    return k_est * sample_rate / (double)N;
 }
 
 /**

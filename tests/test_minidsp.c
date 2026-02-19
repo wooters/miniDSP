@@ -582,6 +582,172 @@ static int test_peaks_single_sample(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for pitch detection (MD_f0_autocorrelation, MD_f0_fft)
+ * -----------------------------------------------------------------------*/
+
+/** Autocorrelation F0 should recover a clean sine tone. */
+static int test_f0_acf_clean_sine(void)
+{
+    const unsigned N = 4096;
+    const double fs = 16000.0;
+    const double f0 = 220.0;
+    double sig[N];
+
+    MD_sine_wave(sig, N, 1.0, f0, fs);
+    double est = MD_f0_autocorrelation(sig, N, fs, 80.0, 400.0);
+    return approx_equal(est, f0, 1.0);
+}
+
+/** Autocorrelation should prefer the fundamental on harmonic-rich signals. */
+static int test_f0_acf_harmonic_signal(void)
+{
+    const unsigned N = 4096;
+    const double fs = 8000.0;
+    const double f0 = 200.0;
+    double sig[N];
+
+    MD_square_wave(sig, N, 1.0, f0, fs);
+    double est = MD_f0_autocorrelation(sig, N, fs, 80.0, 400.0);
+    return approx_equal(est, f0, 2.0);
+}
+
+/** Autocorrelation F0 should remain close on a noisy sine. */
+static int test_f0_acf_noisy_sine(void)
+{
+    const unsigned N = 4096;
+    const double fs = 16000.0;
+    const double f0 = 220.0;
+    double sig[N], noise[N];
+
+    MD_sine_wave(sig, N, 0.8, f0, fs);
+    MD_white_noise(noise, N, 0.2, 42);
+    for (unsigned i = 0; i < N; i++) {
+        sig[i] += noise[i];
+    }
+
+    double est = MD_f0_autocorrelation(sig, N, fs, 80.0, 400.0);
+    return approx_equal(est, f0, 5.0);
+}
+
+/** Autocorrelation F0 should return 0 for silence. */
+static int test_f0_acf_silence(void)
+{
+    double sig[2048] = {0};
+    double est = MD_f0_autocorrelation(sig, 2048, 16000.0, 80.0, 400.0);
+    return approx_equal(est, 0.0, 1e-15);
+}
+
+/** Autocorrelation F0 should return 0 when the true F0 is outside range. */
+static int test_f0_acf_out_of_range(void)
+{
+    const unsigned N = 4096;
+    double sig[N];
+    MD_sine_wave(sig, N, 1.0, 220.0, 16000.0);
+    double est = MD_f0_autocorrelation(sig, N, 16000.0, 300.0, 500.0);
+    return approx_equal(est, 0.0, 1e-15);
+}
+
+/** Autocorrelation F0 should handle lag-bound clamping at both edges. */
+static int test_f0_acf_lag_edge_mapping(void)
+{
+    const unsigned N = 1024;
+    const double fs = 8000.0;
+    const double f0 = 500.0;
+    double sig[N];
+
+    MD_sine_wave(sig, N, 1.0, f0, fs);
+    /* min/max intentionally exceed practical bounds to trigger clamping:
+     * lag_min -> 1, lag_max -> N-1. */
+    double est = MD_f0_autocorrelation(sig, N, fs, 1.0, 20000.0);
+    return approx_equal(est, f0, 2.0);
+}
+
+/** FFT F0 should recover a clean sine tone. */
+static int test_f0_fft_clean_sine(void)
+{
+    const unsigned N = 4096;
+    const double fs = 16000.0;
+    const double f0 = 220.0;
+    double sig[N];
+
+    MD_sine_wave(sig, N, 1.0, f0, fs);
+    double est = MD_f0_fft(sig, N, fs, 80.0, 400.0);
+    return approx_equal(est, f0, 2.0);
+}
+
+/** FFT F0 should pick the dominant tone when two tones are present. */
+static int test_f0_fft_two_tone_dominance(void)
+{
+    const unsigned N = 4096;
+    const double fs = 16000.0;
+    double tone_a[N], tone_b[N], mix[N];
+
+    MD_sine_wave(tone_a, N, 1.0, 220.0, fs);
+    MD_sine_wave(tone_b, N, 0.35, 330.0, fs);
+    for (unsigned i = 0; i < N; i++) {
+        mix[i] = tone_a[i] + tone_b[i];
+    }
+
+    double est = MD_f0_fft(mix, N, fs, 80.0, 400.0);
+    return approx_equal(est, 220.0, 2.0);
+}
+
+/** FFT F0 should return 0 for silence. */
+static int test_f0_fft_silence(void)
+{
+    double sig[2048] = {0};
+    double est = MD_f0_fft(sig, 2048, 16000.0, 80.0, 400.0);
+    return approx_equal(est, 0.0, 1e-15);
+}
+
+/** FFT F0 should return 0 when the true F0 is outside range. */
+static int test_f0_fft_out_of_range(void)
+{
+    const unsigned N = 4096;
+    double sig[N];
+    MD_sine_wave(sig, N, 1.0, 220.0, 16000.0);
+    double est = MD_f0_fft(sig, N, 16000.0, 300.0, 500.0);
+    return approx_equal(est, 0.0, 1e-15);
+}
+
+/** FFT F0 should handle bin-bound clamping at DC/Nyquist limits. */
+static int test_f0_fft_bin_edge_mapping(void)
+{
+    const unsigned N = 2048;
+    const double fs = 8192.0;
+    const double f0 = 84.0;
+    double sig[N];
+
+    MD_sine_wave(sig, N, 1.0, f0, fs);
+    double est = MD_f0_fft(sig, N, fs, 0.5, 50000.0);
+    return approx_equal(est, f0, 3.0);
+}
+
+/** FFT F0 should work across consecutive calls with different frame sizes. */
+static int test_f0_fft_plan_recache(void)
+{
+    int ok = 1;
+
+    {
+        const unsigned N = 4096;
+        double sig[N];
+        MD_sine_wave(sig, N, 1.0, 220.0, 16000.0);
+        double est = MD_f0_fft(sig, N, 16000.0, 80.0, 400.0);
+        ok &= approx_equal(est, 220.0, 2.0);
+    }
+
+    {
+        const unsigned N = 1024;
+        double sig[N];
+        MD_sine_wave(sig, N, 1.0, 300.0, 8000.0);
+        double est = MD_f0_fft(sig, N, 8000.0, 80.0, 400.0);
+        ok &= approx_equal(est, 300.0, 4.0);
+    }
+
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for MD_mix()
  * -----------------------------------------------------------------------*/
 
@@ -3362,6 +3528,20 @@ int main(void)
     RUN_TEST(test_peaks_none);
     RUN_TEST(test_peaks_flat_signal);
     RUN_TEST(test_peaks_single_sample);
+
+    printf("\n--- Pitch detection ---\n");
+    RUN_TEST(test_f0_acf_clean_sine);
+    RUN_TEST(test_f0_acf_harmonic_signal);
+    RUN_TEST(test_f0_acf_noisy_sine);
+    RUN_TEST(test_f0_acf_silence);
+    RUN_TEST(test_f0_acf_out_of_range);
+    RUN_TEST(test_f0_acf_lag_edge_mapping);
+    RUN_TEST(test_f0_fft_clean_sine);
+    RUN_TEST(test_f0_fft_two_tone_dominance);
+    RUN_TEST(test_f0_fft_silence);
+    RUN_TEST(test_f0_fft_out_of_range);
+    RUN_TEST(test_f0_fft_bin_edge_mapping);
+    RUN_TEST(test_f0_fft_plan_recache);
 
     printf("\n--- MD_mix ---\n");
     RUN_TEST(test_mix_equal_weights);
