@@ -17,6 +17,8 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Power spectral density** -- compute |X(k)|^2 / N (periodogram); shows how signal power distributes across frequencies.
 - **Phase spectrum** -- compute arg(X(k)) in radians; reveals the timing of each frequency component and is a prerequisite for phase-vocoder effects.
 - **Spectrogram (STFT)** -- sliding-window FFT producing a time-frequency magnitude matrix; the standard tool for visualising time-varying audio.
+- **Mel filterbank** -- triangular filters spaced on the mel scale for perceptually motivated spectral features.
+- **MFCCs** -- mel-frequency cepstral coefficients from log mel energies via DCT-II (C0 included).
 - **Window functions** -- Hanning, Hamming, Blackman, and rectangular windows for FFT analysis trade-off studies.
 
 ### Signal Generators (minidsp.h)
@@ -267,6 +269,27 @@ MD_shutdown();
 A runnable frame-tracking example is in `examples/pitch_detection.c`.
 See the [Pitch Detection tutorial](https://wooters.github.io/miniDSP/pitch-detection.html)
 for method comparison and visuals.
+
+### Compute mel energies and MFCCs
+
+```c
+#include "minidsp.h"
+
+double frame[1024];
+// ... fill frame with one analysis frame ...
+
+double mel[26];
+double mfcc[13];
+
+MD_mel_energies(frame, 1024, 16000.0, 26, 80.0, 7600.0, mel);
+MD_mfcc(frame, 1024, 16000.0, 26, 13, 80.0, 7600.0, mfcc);
+
+/* mfcc[0] is C0 */
+MD_shutdown();
+```
+
+A runnable example is in `examples/mel_mfcc.c`.
+See the [Mel/MFCC tutorial](https://wooters.github.io/miniDSP/mel-mfcc.html).
 
 ### FIR filtering and convolution
 

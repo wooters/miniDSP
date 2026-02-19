@@ -55,5 +55,5 @@ so students can compare sidelobe trade-offs.
 
 ## Mel-scale / MFCCs
 
-- [ ] **Mel filterbank** -- triangular filters spaced on the mel scale; bridges DSP and machine-learning feature extraction
-- [ ] **MFCCs (Mel-frequency cepstral coefficients)** -- DCT of log mel energies; the standard front-end for speech and audio ML
+- [x] **Mel filterbank** -- triangular filters spaced on the mel scale; bridges DSP and machine-learning feature extraction
+- [x] **MFCCs (Mel-frequency cepstral coefficients)** -- DCT of log mel energies; the standard front-end for speech and audio ML

@@ -10,7 +10,7 @@
  *   - Window generation (Hanning, Hamming, Blackman, rectangular)
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
  *   - FIR filtering and convolution (time-domain and FFT overlap-add)
- *   - FFT-based magnitude spectrum, power spectral density, and STFT
+ *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, and MFCCs
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
  * These are the kinds of building blocks you'd use in an audio processing
@@ -701,6 +701,87 @@ unsigned MD_stft_num_frames(unsigned signal_len, unsigned N, unsigned hop);
 void MD_stft(const double *signal, unsigned signal_len,
              unsigned N, unsigned hop,
              double *mag_out);
+
+/**
+ * Build a mel-spaced triangular filterbank matrix.
+ *
+ * This function creates @p num_mels triangular filters over one-sided FFT bins
+ * (0..N/2), using the HTK mel mapping:
+ *
+ *   mel(f) = 2595 * log10(1 + f / 700)
+ *
+ * The requested frequency range [@p min_freq_hz, @p max_freq_hz] is clamped at
+ * runtime to [0, sample_rate/2].  If the clamped range is empty, all output
+ * weights are zero.
+ *
+ * Output layout is row-major:
+ *   filterbank_out[m * (N/2 + 1) + k]
+ * where @p m is the mel band index and @p k is the FFT bin index.
+ *
+ * @param N              FFT size (must be >= 2).
+ * @param sample_rate    Sampling rate in Hz (must be > 0).
+ * @param num_mels       Number of mel filters (must be > 0).
+ * @param min_freq_hz    Requested lower frequency bound in Hz.
+ * @param max_freq_hz    Requested upper frequency bound in Hz (must be > min_freq_hz).
+ * @param filterbank_out Output matrix, caller-allocated, length
+ *                       num_mels * (N/2 + 1) doubles.
+ */
+void MD_mel_filterbank(unsigned N, double sample_rate,
+                       unsigned num_mels,
+                       double min_freq_hz, double max_freq_hz,
+                       double *filterbank_out);
+
+/**
+ * Compute mel-band energies from a single frame.
+ *
+ * Processing steps:
+ *   1) Apply an internal Hann window.
+ *   2) Compute one-sided PSD bins via FFT: |X(k)|^2 / N.
+ *   3) Apply mel filterbank weights and sum per band.
+ *
+ * This function uses the same internal FFT cache as MD_stft() and spectrum APIs.
+ *
+ * @param signal       Input frame of length N.
+ * @param N            Frame length / FFT size (must be >= 2).
+ * @param sample_rate  Sampling rate in Hz (must be > 0).
+ * @param num_mels     Number of mel bands (must be > 0).
+ * @param min_freq_hz  Requested lower frequency bound in Hz.
+ * @param max_freq_hz  Requested upper frequency bound in Hz (must be > min_freq_hz).
+ * @param mel_out      Output mel energies, caller-allocated length num_mels.
+ */
+void MD_mel_energies(const double *signal, unsigned N,
+                     double sample_rate, unsigned num_mels,
+                     double min_freq_hz, double max_freq_hz,
+                     double *mel_out);
+
+/**
+ * Compute mel-frequency cepstral coefficients (MFCCs) from a single frame.
+ *
+ * Conventions used by this API:
+ *   - HTK mel mapping for filter placement.
+ *   - Internal Hann windowing and one-sided PSD mel energies.
+ *   - Natural-log compression: log(max(E_mel, 1e-12)).
+ *   - DCT-II with HTK-C0 profile:
+ *       c0 uses sqrt(1/M) normalization,
+ *       c_n (n>0) uses sqrt(2/M),
+ *     where M is num_mels.
+ *   - Coefficient 0 (C0) is written to mfcc_out[0].
+ *
+ * @param signal       Input frame of length N.
+ * @param N            Frame length / FFT size (must be >= 2).
+ * @param sample_rate  Sampling rate in Hz (must be > 0).
+ * @param num_mels     Number of mel bands (must be > 0).
+ * @param num_coeffs   Number of cepstral coefficients to output
+ *                     (must be in [1, num_mels]).
+ * @param min_freq_hz  Requested lower frequency bound in Hz.
+ * @param max_freq_hz  Requested upper frequency bound in Hz (must be > min_freq_hz).
+ * @param mfcc_out     Output array, caller-allocated length num_coeffs.
+ */
+void MD_mfcc(const double *signal, unsigned N,
+             double sample_rate,
+             unsigned num_mels, unsigned num_coeffs,
+             double min_freq_hz, double max_freq_hz,
+             double *mfcc_out);
 
 /* -----------------------------------------------------------------------
  * Window generation

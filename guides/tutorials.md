@@ -9,6 +9,7 @@ and shows the resulting plots.
 - \subpage magnitude-spectrum — Decompose a signal into its frequency components using the [DFT](https://en.wikipedia.org/wiki/Discrete_Fourier_transform).
 - \subpage power-spectral-density — Measure how signal power distributes across frequencies.
 - \subpage stft-spectrogram — Visualise how a signal's frequency content changes over time.
+- \subpage mel-mfcc — Build mel filterbank energies and MFCCs for speech/audio ML front-ends.
 - \subpage phase-spectrum — Inspect the per-frequency phase angle of a real signal.
 - \subpage basic-signal-operations — RMS, zero-crossing rate, [autocorrelation](https://en.wikipedia.org/wiki/Autocorrelation), peak detection, and signal mixing.
 - \subpage simple-effects — Delay/echo, tremolo, and comb-filter reverb.

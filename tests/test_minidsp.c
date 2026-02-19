@@ -3261,6 +3261,281 @@ static int test_stft_plan_recache(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for mel filterbanks and MFCCs
+ * -----------------------------------------------------------------------*/
+
+/** Mel filterbank weights should be finite, non-negative, bounded, and triangular. */
+static int test_mel_filterbank_bounds_and_triangles(void)
+{
+    const unsigned N = 512;
+    const unsigned num_mels = 20;
+    const double sample_rate = 16000.0;
+    const unsigned num_bins = N / 2 + 1;
+
+    double *fb = malloc((size_t)num_mels * num_bins * sizeof(double));
+    if (!fb) return 0;
+
+    MD_mel_filterbank(N, sample_rate, num_mels, 80.0, 7600.0, fb);
+
+    int ok = 1;
+    for (unsigned m = 0; m < num_mels; m++) {
+        const double *row = fb + (size_t)m * num_bins;
+
+        unsigned peak = 0;
+        for (unsigned k = 0; k < num_bins; k++) {
+            double w = row[k];
+            ok &= isfinite(w);
+            ok &= (w >= -1e-12);
+            ok &= (w <= 1.0 + 1e-12);
+            if (w > row[peak]) peak = k;
+        }
+
+        if (row[peak] <= 1e-12) continue;
+
+        for (unsigned k = 1; k <= peak; k++) {
+            ok &= (row[k] + 1e-10 >= row[k - 1]);
+        }
+        for (unsigned k = peak + 1; k < num_bins; k++) {
+            ok &= (row[k] <= row[k - 1] + 1e-10);
+        }
+    }
+
+    free(fb);
+    return ok;
+}
+
+/** A high-frequency tone should peak at a higher mel band than a low-frequency tone. */
+static int test_mel_energies_tone_band_shift(void)
+{
+    const unsigned N = 1024;
+    const unsigned num_mels = 26;
+    const double sample_rate = 16000.0;
+
+    double low[N], high[N];
+    double mel_low[num_mels], mel_high[num_mels];
+
+    MD_sine_wave(low, N, 1.0, 200.0, sample_rate);
+    MD_sine_wave(high, N, 1.0, 3200.0, sample_rate);
+
+    MD_mel_energies(low, N, sample_rate, num_mels, 80.0, 7600.0, mel_low);
+    MD_mel_energies(high, N, sample_rate, num_mels, 80.0, 7600.0, mel_high);
+
+    unsigned peak_low = 0, peak_high = 0;
+    for (unsigned m = 1; m < num_mels; m++) {
+        if (mel_low[m] > mel_low[peak_low]) peak_low = m;
+        if (mel_high[m] > mel_high[peak_high]) peak_high = m;
+    }
+
+    return peak_high > peak_low;
+}
+
+/** Silence should produce all-zero mel energies. */
+static int test_mel_energies_silence(void)
+{
+    const unsigned N = 1024;
+    const unsigned num_mels = 26;
+    double sig[N];
+    double mel[num_mels];
+
+    memset(sig, 0, sizeof(sig));
+    MD_mel_energies(sig, N, 16000.0, num_mels, 80.0, 7600.0, mel);
+
+    int ok = 1;
+    for (unsigned m = 0; m < num_mels; m++) {
+        ok &= approx_equal(mel[m], 0.0, 1e-15);
+    }
+    return ok;
+}
+
+/** Silence MFCCs should be finite; higher coefficients should be near zero. */
+static int test_mfcc_silence_finite(void)
+{
+    const unsigned N = 1024;
+    const unsigned num_mels = 26;
+    const unsigned num_coeffs = 13;
+    double sig[N];
+    double mfcc[num_coeffs];
+
+    memset(sig, 0, sizeof(sig));
+    MD_mfcc(sig, N, 16000.0, num_mels, num_coeffs, 80.0, 7600.0, mfcc);
+
+    int ok = 1;
+    for (unsigned c = 0; c < num_coeffs; c++) {
+        ok &= isfinite(mfcc[c]);
+    }
+    for (unsigned c = 1; c < num_coeffs; c++) {
+        ok &= (fabs(mfcc[c]) < 1e-10);
+    }
+    return ok;
+}
+
+/** Scaling a frame should mostly change C0; higher MFCCs should remain similar. */
+static int test_mfcc_amplitude_scaling_invariance(void)
+{
+    const unsigned N = 1024;
+    const unsigned num_mels = 26;
+    const unsigned num_coeffs = 13;
+    const double scale = 0.4;
+
+    double noise[N], scaled[N];
+    double mfcc_ref[num_coeffs], mfcc_scaled[num_coeffs];
+
+    MD_white_noise(noise, N, 0.4, 42);
+    for (unsigned i = 0; i < N; i++) {
+        scaled[i] = scale * noise[i];
+    }
+
+    MD_mfcc(noise, N, 16000.0, num_mels, num_coeffs, 80.0, 7600.0, mfcc_ref);
+    MD_mfcc(scaled, N, 16000.0, num_mels, num_coeffs, 80.0, 7600.0, mfcc_scaled);
+
+    int ok = 1;
+    for (unsigned c = 1; c < num_coeffs; c++) {
+        ok &= approx_equal(mfcc_ref[c], mfcc_scaled[c], 1e-3);
+    }
+
+    /* Power-domain scaling by scale^2 adds a constant in log-mel space,
+     * which maps only to C0 under orthonormal DCT-II. */
+    double expected_delta_c0 = sqrt((double)num_mels) * log(scale * scale);
+    double delta_c0 = mfcc_scaled[0] - mfcc_ref[0];
+    ok &= approx_equal(delta_c0, expected_delta_c0, 1e-3);
+
+    return ok;
+}
+
+/** Consecutive calls with different frame sizes should rebuild caches safely. */
+static int test_mel_mfcc_plan_recache(void)
+{
+    int ok = 1;
+
+    {
+        const unsigned N = 1024;
+        const unsigned num_mels = 26;
+        double sig[N], mel[num_mels], mfcc[13];
+        MD_sine_wave(sig, N, 1.0, 440.0, 16000.0);
+        MD_mel_energies(sig, N, 16000.0, num_mels, 80.0, 7600.0, mel);
+        MD_mfcc(sig, N, 16000.0, num_mels, 13, 80.0, 7600.0, mfcc);
+        for (unsigned i = 0; i < num_mels; i++) ok &= isfinite(mel[i]);
+        for (unsigned i = 0; i < 13; i++) ok &= isfinite(mfcc[i]);
+    }
+
+    {
+        const unsigned N = 512;
+        const unsigned num_mels = 20;
+        double sig[N], mel[num_mels], mfcc[12];
+        MD_sine_wave(sig, N, 1.0, 880.0, 8000.0);
+        MD_mel_energies(sig, N, 8000.0, num_mels, 50.0, 3900.0, mel);
+        MD_mfcc(sig, N, 8000.0, num_mels, 12, 50.0, 3900.0, mfcc);
+        for (unsigned i = 0; i < num_mels; i++) ok &= isfinite(mel[i]);
+        for (unsigned i = 0; i < 12; i++) ok &= isfinite(mfcc[i]);
+    }
+
+    return ok;
+}
+
+/** Out-of-range frequency bounds should clamp to [0, Nyquist]. */
+static int test_mel_frequency_clamp_behavior(void)
+{
+    const unsigned N = 1024;
+    const unsigned num_mels = 26;
+    const double sample_rate = 16000.0;
+    double sig[N];
+    double mel_clamped[num_mels], mel_ref[num_mels], mel_empty[num_mels];
+    double mfcc_empty[13];
+
+    MD_sine_wave(sig, N, 1.0, 440.0, sample_rate);
+
+    MD_mel_energies(sig, N, sample_rate, num_mels, -500.0, 50000.0, mel_clamped);
+    MD_mel_energies(sig, N, sample_rate, num_mels, 0.0, sample_rate / 2.0, mel_ref);
+
+    int ok = 1;
+    for (unsigned m = 0; m < num_mels; m++) {
+        ok &= approx_equal(mel_clamped[m], mel_ref[m], 1e-10);
+    }
+
+    /* Empty clamped band (both edges at Nyquist) should yield all-zero mel energies. */
+    MD_mel_energies(sig, N, sample_rate, num_mels, 9000.0, 10000.0, mel_empty);
+    for (unsigned m = 0; m < num_mels; m++) {
+        ok &= approx_equal(mel_empty[m], 0.0, 1e-15);
+    }
+
+    /* MFCCs should still be finite due log floor handling. */
+    MD_mfcc(sig, N, sample_rate, num_mels, 13, 9000.0, 10000.0, mfcc_empty);
+    for (unsigned c = 0; c < 13; c++) {
+        ok &= isfinite(mfcc_empty[c]);
+    }
+
+    return ok;
+}
+
+/** Extremely narrow mel ranges should produce degenerate all-zero rows safely. */
+static int test_mel_filterbank_degenerate_geometry(void)
+{
+    const unsigned N = 16;
+    const unsigned num_mels = 40;
+    const unsigned num_bins = N / 2 + 1;
+    double fb[(size_t)num_mels * num_bins];
+
+    MD_mel_filterbank(N, 16000.0, num_mels, 1000.0, 1010.0, fb);
+
+    int ok = 1;
+    unsigned zero_rows = 0;
+    for (unsigned m = 0; m < num_mels; m++) {
+        const double *row = fb + (size_t)m * num_bins;
+        double row_sum = 0.0;
+        for (unsigned k = 0; k < num_bins; k++) {
+            ok &= isfinite(row[k]);
+            ok &= (row[k] >= -1e-12);
+            row_sum += row[k];
+        }
+        if (fabs(row_sum) < 1e-12) zero_rows++;
+    }
+
+    ok &= (zero_rows > 0);
+    return ok;
+}
+
+/** Deterministic MFCC regression for a fixed frame and parameter set.
+ *
+ * Golden values were generated with an independent Python direct-DFT script using:
+ * - HTK mel mapping
+ * - Hann window
+ * - one-sided PSD (|X|^2 / N)
+ * - ln(max(E, 1e-12))
+ * - orthonormal DCT-II with C0 included */
+static int test_mfcc_golden_reference(void)
+{
+    const unsigned N = 512;
+    const unsigned num_mels = 26;
+    const unsigned num_coeffs = 13;
+    const double fs = 16000.0;
+    double sig[N];
+    double mfcc[num_coeffs];
+
+    for (unsigned n = 0; n < N; n++) {
+        double t = (double)n / fs;
+        sig[n] = 0.7 * sin(2.0 * M_PI * 440.0 * t)
+               + 0.2 * cos(2.0 * M_PI * 1000.0 * t)
+               + 0.1 * sin(2.0 * M_PI * 3000.0 * t);
+    }
+
+    MD_mfcc(sig, N, fs, num_mels, num_coeffs, 80.0, 7600.0, mfcc);
+
+    const double expected[13] = {
+        -75.381495813245806, 36.882955249179645, -4.552916285440863,
+        3.775663546970039, -18.417919467564612, -10.745741736169254,
+        12.729163817453310, -7.496995440686327, -17.500169058663040,
+        -2.934673446412961, -8.198452514267208, -3.352676395931926,
+        15.283540889806705
+    };
+
+    int ok = 1;
+    for (unsigned c = 0; c < num_coeffs; c++) {
+        ok &= approx_equal(mfcc[c], expected[c], 1e-6);
+    }
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Tests for FIO_write_npy()
  * -----------------------------------------------------------------------*/
 
@@ -3687,6 +3962,17 @@ int main(void)
     RUN_TEST(test_stft_non_negative);
     RUN_TEST(test_stft_parseval_per_frame);
     RUN_TEST(test_stft_plan_recache);
+
+    printf("\n--- Mel / MFCC ---\n");
+    RUN_TEST(test_mel_filterbank_bounds_and_triangles);
+    RUN_TEST(test_mel_energies_tone_band_shift);
+    RUN_TEST(test_mel_energies_silence);
+    RUN_TEST(test_mfcc_silence_finite);
+    RUN_TEST(test_mfcc_amplitude_scaling_invariance);
+    RUN_TEST(test_mel_mfcc_plan_recache);
+    RUN_TEST(test_mel_frequency_clamp_behavior);
+    RUN_TEST(test_mel_filterbank_degenerate_geometry);
+    RUN_TEST(test_mfcc_golden_reference);
 
     printf("\n--- File I/O writers ---\n");
     RUN_TEST(test_write_npy);

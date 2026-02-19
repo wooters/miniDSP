@@ -1,7 +1,8 @@
 /**
  * @file minidsp_spectrum.c
  * @brief FFT-based spectrum analysis: magnitude spectrum, PSD, phase
- *        spectrum, STFT, FFT-based F0 estimation, and MD_shutdown().
+ *        spectrum, STFT, mel filterbanks, MFCCs, FFT-based F0 estimation,
+ *        and MD_shutdown().
  * @author Chuck Wooters <wooters@hey.com>
  * @copyright 2013 International Computer Science Institute
  */
@@ -32,10 +33,26 @@ static fftw_plan     _spec_plan    = nullptr;  /* FFTW r2c plan             */
 static double  *_stft_win   = nullptr; /* Cached Hanning window             */
 static unsigned _stft_win_N = 0;       /* Window length corresponding to above */
 
+/* -----------------------------------------------------------------------
+ * Static variables for mel filterbank cache
+ *
+ * MFCC extraction is often called frame-by-frame with fixed parameters.
+ * Cache the triangular mel matrix to avoid rebuilding it on every frame.
+ * -----------------------------------------------------------------------*/
+
+static unsigned _mel_N = 0;
+static unsigned _mel_num_mels = 0;
+static double _mel_sample_rate = 0.0;
+static double _mel_min_freq_hz = 0.0;
+static double _mel_max_freq_hz = 0.0;
+static double *_mel_fb = nullptr;   /* Row-major: [num_mels][N/2+1] */
+
 /** F0-FFT peak must stand out from the average in-range spectrum. */
 #define MD_F0_FFT_PROMINENCE_RATIO 2.5
 /** Candidate must also be a meaningful fraction of the frame's global peak. */
 #define MD_F0_FFT_GLOBAL_RATIO 0.2
+/** Floor before logarithm in MFCC log-mel compression. */
+#define MD_MFCC_LOG_FLOOR 1e-12
 
 /** Three-point parabolic refinement around a discrete peak index.
  *  Returns a fractional offset in [-0.5, 0.5]. */
@@ -48,6 +65,18 @@ static double md_parabolic_offset(double y_left, double y_mid, double y_right)
     if (delta < -0.5) delta = -0.5;
     if (delta >  0.5) delta =  0.5;
     return delta;
+}
+
+/** HTK mel scale conversion: Hz -> mel. */
+static double md_hz_to_mel(double hz)
+{
+    return 2595.0 * log10(1.0 + hz / 700.0);
+}
+
+/** HTK mel scale conversion: mel -> Hz. */
+static double md_mel_to_hz(double mel)
+{
+    return 700.0 * (pow(10.0, mel / 2595.0) - 1.0);
 }
 
 /** Free spectrum analysis buffers. */
@@ -94,6 +123,98 @@ static void _stft_teardown(void)
     _stft_win_N = 0;
 }
 
+/** Free mel filterbank cache. */
+static void _mel_teardown(void)
+{
+    free(_mel_fb);
+    _mel_fb = nullptr;
+    _mel_N = 0;
+    _mel_num_mels = 0;
+    _mel_sample_rate = 0.0;
+    _mel_min_freq_hz = 0.0;
+    _mel_max_freq_hz = 0.0;
+}
+
+/** Build the cached mel filterbank for the requested parameters. */
+static void _mel_setup(unsigned N, double sample_rate, unsigned num_mels,
+                       double min_freq_hz, double max_freq_hz)
+{
+    double nyquist = 0.5 * sample_rate;
+    double f_lo = fmax(0.0, min_freq_hz);
+    double f_hi = fmin(max_freq_hz, nyquist);
+
+    if (_mel_fb != nullptr
+        && _mel_N == N
+        && _mel_num_mels == num_mels
+        && _mel_sample_rate == sample_rate
+        && _mel_min_freq_hz == f_lo
+        && _mel_max_freq_hz == f_hi) {
+        return;
+    }
+
+    _mel_teardown();
+
+    _mel_N = N;
+    _mel_num_mels = num_mels;
+    _mel_sample_rate = sample_rate;
+    _mel_min_freq_hz = f_lo;
+    _mel_max_freq_hz = f_hi;
+
+    unsigned num_bins = N / 2 + 1;
+    size_t fb_len = (size_t)num_mels * num_bins;
+    _mel_fb = calloc(fb_len, sizeof(double));
+    assert(_mel_fb != nullptr);
+
+    if (f_hi <= f_lo) return;
+
+    unsigned num_points = num_mels + 2;
+    double *mel_points = malloc(num_points * sizeof(double));
+    double *hz_points = malloc(num_points * sizeof(double));
+    assert(mel_points != nullptr);
+    assert(hz_points != nullptr);
+
+    double mel_min = md_hz_to_mel(f_lo);
+    double mel_max = md_hz_to_mel(f_hi);
+    if (mel_max <= mel_min) {
+        free(hz_points);
+        free(mel_points);
+        return;
+    }
+
+    double mel_step = (mel_max - mel_min) / (double)(num_mels + 1);
+    for (unsigned i = 0; i < num_points; i++) {
+        mel_points[i] = mel_min + mel_step * (double)i;
+        hz_points[i] = md_mel_to_hz(mel_points[i]);
+    }
+
+    for (unsigned m = 0; m < num_mels; m++) {
+        double f_left = hz_points[m];
+        double f_center = hz_points[m + 1];
+        double f_right = hz_points[m + 2];
+        if (f_center <= f_left || f_right <= f_center) {
+            continue;
+        }
+
+        for (unsigned k = 0; k < num_bins; k++) {
+            double f_bin = (double)k * sample_rate / (double)N;
+            double w = 0.0;
+            if (f_bin > f_left && f_bin < f_right) {
+                if (f_bin <= f_center) {
+                    w = (f_bin - f_left) / (f_center - f_left);
+                } else {
+                    w = (f_right - f_bin) / (f_right - f_center);
+                }
+            }
+            if (w < 0.0) w = 0.0;
+            if (w > 1.0) w = 1.0;
+            _mel_fb[(size_t)m * num_bins + k] = w;
+        }
+    }
+
+    free(hz_points);
+    free(mel_points);
+}
+
 /**
  * Ensure the shared r2c plan is ready for length N, and that the STFT
  * Hanning window buffer matches N.  Rebuilds the window only when N changes.
@@ -117,6 +238,7 @@ static void _stft_setup(unsigned N)
 void MD_shutdown(void)
 {
     md_gcc_teardown();
+    _mel_teardown();
     _stft_teardown();
     _spec_teardown();
     _spec_N = 0;
@@ -386,4 +508,101 @@ void MD_stft(const double *signal, unsigned signal_len,
             row[k] = cabs(_spec_out[k]);
         }
     }
+}
+
+void MD_mel_filterbank(unsigned N, double sample_rate,
+                       unsigned num_mels,
+                       double min_freq_hz, double max_freq_hz,
+                       double *filterbank_out)
+{
+    assert(N >= 2);
+    assert(sample_rate > 0.0);
+    assert(num_mels > 0);
+    assert(min_freq_hz < max_freq_hz);
+    assert(filterbank_out != nullptr);
+
+    _mel_setup(N, sample_rate, num_mels, min_freq_hz, max_freq_hz);
+
+    unsigned num_bins = N / 2 + 1;
+    size_t fb_len = (size_t)num_mels * num_bins;
+    memcpy(filterbank_out, _mel_fb, fb_len * sizeof(double));
+}
+
+void MD_mel_energies(const double *signal, unsigned N,
+                     double sample_rate, unsigned num_mels,
+                     double min_freq_hz, double max_freq_hz,
+                     double *mel_out)
+{
+    assert(signal != nullptr);
+    assert(mel_out != nullptr);
+    assert(N >= 2);
+    assert(sample_rate > 0.0);
+    assert(num_mels > 0);
+    assert(min_freq_hz < max_freq_hz);
+
+    _stft_setup(N);
+    _mel_setup(N, sample_rate, num_mels, min_freq_hz, max_freq_hz);
+
+    for (unsigned n = 0; n < N; n++) {
+        _spec_in[n] = signal[n] * _stft_win[n];
+    }
+    fftw_execute(_spec_plan);
+
+    unsigned num_bins = N / 2 + 1;
+    for (unsigned m = 0; m < num_mels; m++) {
+        mel_out[m] = 0.0;
+    }
+
+    for (unsigned k = 0; k < num_bins; k++) {
+        double re = creal(_spec_out[k]);
+        double im = cimag(_spec_out[k]);
+        double psd = (re * re + im * im) / (double)N;
+
+        for (unsigned m = 0; m < num_mels; m++) {
+            mel_out[m] += _mel_fb[(size_t)m * num_bins + k] * psd;
+        }
+    }
+}
+
+void MD_mfcc(const double *signal, unsigned N,
+             double sample_rate,
+             unsigned num_mels, unsigned num_coeffs,
+             double min_freq_hz, double max_freq_hz,
+             double *mfcc_out)
+{
+    assert(signal != nullptr);
+    assert(mfcc_out != nullptr);
+    assert(N >= 2);
+    assert(sample_rate > 0.0);
+    assert(num_mels > 0);
+    assert(num_coeffs >= 1 && num_coeffs <= num_mels);
+    assert(min_freq_hz < max_freq_hz);
+
+    double *mel = malloc(num_mels * sizeof(double));
+    double *log_mel = malloc(num_mels * sizeof(double));
+    assert(mel != nullptr);
+    assert(log_mel != nullptr);
+
+    MD_mel_energies(signal, N, sample_rate, num_mels,
+                    min_freq_hz, max_freq_hz, mel);
+
+    for (unsigned m = 0; m < num_mels; m++) {
+        log_mel[m] = log(fmax(mel[m], MD_MFCC_LOG_FLOOR));
+    }
+
+    for (unsigned c = 0; c < num_coeffs; c++) {
+        double norm = (c == 0)
+                    ? sqrt(1.0 / (double)num_mels)
+                    : sqrt(2.0 / (double)num_mels);
+        double sum = 0.0;
+        for (unsigned m = 0; m < num_mels; m++) {
+            double angle = M_PI * (double)c * ((double)m + 0.5)
+                         / (double)num_mels;
+            sum += log_mel[m] * cos(angle);
+        }
+        mfcc_out[c] = norm * sum;
+    }
+
+    free(log_mel);
+    free(mel);
 }
