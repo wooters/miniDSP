@@ -42,6 +42,11 @@ static int generate_wav(const char *digits, const char *outfile)
     const unsigned tone_ms   = 70;
     const unsigned pause_ms  = 70;
 
+    if (digits[0] == '\0') {
+        fprintf(stderr, "Digit string must not be empty\n");
+        return 1;
+    }
+
     for (const char *p = digits; *p; p++) {
         if (!valid_dtmf_char(*p)) {
             fprintf(stderr, "Invalid DTMF character '%c'. "
@@ -93,9 +98,6 @@ static int detect_file(const char *infile)
         return 1;
     }
 
-    printf("Read %s: %zu samples at %u Hz (%.3f s)\n",
-           infile, datalen, samprate, (double)datalen / (double)samprate);
-
     if (datalen == 0) {
         fprintf(stderr, "File contains no audio samples\n");
         free(fdata);
@@ -115,6 +117,9 @@ static int detect_file(const char *infile)
         free(fdata);
         return 1;
     }
+
+    printf("Read %s: %zu samples at %u Hz (%.3f s)\n",
+           infile, datalen, samprate, (double)datalen / (double)samprate);
 
     /* Convert float -> double for the library. */
     double *signal = malloc(datalen * sizeof(double));
