@@ -33,6 +33,14 @@ The frequencies were chosen so that no tone is a harmonic of another
 (ratios are never simple integers), preventing false triggers from
 harmonically rich signals like speech.
 
+**Spectrogram** of the sequence "159#" (70 ms tones, 70 ms pauses, 8 kHz).
+Each digit appears as a pair of horizontal bands — one row frequency and
+one column frequency.  Dashed lines mark the eight DTMF frequencies:
+
+\htmlonly
+<iframe src="dtmf_spectrogram.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+\endhtmlonly
+
 ---
 
 ## ITU-T Q.24 timing constraints

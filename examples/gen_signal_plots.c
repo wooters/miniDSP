@@ -10,6 +10,7 @@
  *   - 3 pitch-detection plots (F0 tracks + ACF peak + FFT peak)
  *   - 5 mel/MFCC plots (input waveform + input spectrogram + filterbank
  *     shapes + mel energies + MFCC bars)
+ *   - 1 DTMF spectrogram
  * into guides/plots/ for embedding as iframes in Doxygen guides.
  *
  * It is NOT a user-facing example — it is invoked automatically by
@@ -51,6 +52,13 @@
 #define MEL_NUM_COEFFS   13u
 #define MEL_MIN_FREQ    80.0
 #define MEL_MAX_FREQ  3900.0
+
+/* DTMF spectrogram parameters */
+#define DTMF_SAMPLE_RATE 8000.0
+#define DTMF_TONE_MS      70u
+#define DTMF_PAUSE_MS     70u
+#define DTMF_N_FFT       256u
+#define DTMF_HOP          64u
 
 static void write_head(FILE *fp, const char *title)
 {
@@ -1103,7 +1111,146 @@ int main(void)
     free(mel_centers);
     free(mel_fb);
 
-    MD_shutdown();   /* release any cached FFT plans used in visuals */
+    MD_shutdown();   /* release mel/MFCC plans before DTMF phase */
+
+    /* ----------------------------------------------------------------
+     * Phase 7: DTMF spectrogram
+     * Uses 8000 Hz sample rate (standard telephony) with N=256, hop=64
+     * matching the detector parameters.
+     * ----------------------------------------------------------------*/
+    printf("DTMF spectrogram:\n");
+
+    const char *dtmf_digits = "159#";
+    unsigned dtmf_len = MD_dtmf_signal_length(4, DTMF_SAMPLE_RATE,
+                                              DTMF_TONE_MS, DTMF_PAUSE_MS);
+    double *dtmf_sig = malloc(dtmf_len * sizeof(double));
+    if (!dtmf_sig) {
+        fprintf(stderr, "allocation failed for DTMF signal\n");
+        free(conv_in);
+        free(work_b);
+        free(work_a);
+        free(fx);
+        free(buf);
+        return 1;
+    }
+    MD_dtmf_generate(dtmf_sig, dtmf_digits, DTMF_SAMPLE_RATE,
+                     DTMF_TONE_MS, DTMF_PAUSE_MS);
+
+    const unsigned dtmf_bins   = DTMF_N_FFT / 2 + 1;
+    const unsigned dtmf_frames = MD_stft_num_frames(dtmf_len, DTMF_N_FFT, DTMF_HOP);
+
+    double *dtmf_mag = malloc((size_t)dtmf_frames * dtmf_bins * sizeof(double));
+    if (!dtmf_mag) {
+        fprintf(stderr, "allocation failed for DTMF STFT\n");
+        free(dtmf_sig);
+        free(conv_in);
+        free(work_b);
+        free(work_a);
+        free(fx);
+        free(buf);
+        return 1;
+    }
+    MD_stft(dtmf_sig, dtmf_len, DTMF_N_FFT, DTMF_HOP, dtmf_mag);
+
+    {
+        const char *path  = "guides/plots/dtmf_spectrogram.html";
+        const char *title = "DTMF Sequence \"159#\" - Spectrogram";
+        FILE *fp = fopen(path, "w");
+        if (!fp) {
+            fprintf(stderr, "cannot open %s for writing\n", path);
+            free(dtmf_mag);
+            free(dtmf_sig);
+            free(conv_in);
+            free(work_b);
+            free(work_a);
+            free(fx);
+            free(buf);
+            return 1;
+        }
+
+        write_head(fp, title);
+
+        /* Time axis */
+        const double dtmf_time_step = (double)DTMF_HOP / DTMF_SAMPLE_RATE;
+        fprintf(fp,
+                "    const times = Array.from({length: %u}, (_, f) => f * %.10g);\n",
+                dtmf_frames, dtmf_time_step);
+
+        /* Frequency axis */
+        const double dtmf_freq_step = DTMF_SAMPLE_RATE / (double)DTMF_N_FFT;
+        fprintf(fp,
+                "    const freqs = Array.from({length: %u}, (_, k) => k * %.10g);\n",
+                dtmf_bins, dtmf_freq_step);
+
+        /* Spectrogram matrix: z[k][f] */
+        fprintf(fp, "    const z = [\n");
+        for (unsigned k = 0; k < dtmf_bins; k++) {
+            fprintf(fp, "      [");
+            for (unsigned f = 0; f < dtmf_frames; f++) {
+                double db = 20.0 * log10(fmax(dtmf_mag[f * dtmf_bins + k]
+                                              / (double)DTMF_N_FFT, 1e-6));
+                fprintf(fp, "%.1f", db);
+                if (f + 1 < dtmf_frames) fprintf(fp, ",");
+            }
+            fprintf(fp, "]");
+            if (k + 1 < dtmf_bins) fprintf(fp, ",");
+            fprintf(fp, "\n");
+        }
+        fprintf(fp, "    ];\n");
+
+        /* DTMF reference frequencies for horizontal lines */
+        fprintf(fp,
+            "    const dtmfFreqs = [\n"
+            "      {f: 697,  label: '697 Hz'},  {f: 770,  label: '770 Hz'},\n"
+            "      {f: 852,  label: '852 Hz'},  {f: 941,  label: '941 Hz'},\n"
+            "      {f: 1209, label: '1209 Hz'}, {f: 1336, label: '1336 Hz'},\n"
+            "      {f: 1477, label: '1477 Hz'}, {f: 1633, label: '1633 Hz'}\n"
+            "    ];\n");
+
+        /* Build Plotly shapes array for reference lines */
+        fprintf(fp,
+            "    const shapes = dtmfFreqs.map(d => ({\n"
+            "      type: 'line', xref: 'paper', x0: 0, x1: 1,\n"
+            "      yref: 'y', y0: d.f, y1: d.f,\n"
+            "      line: { color: 'rgba(255,255,255,0.5)', width: 1, dash: 'dot' }\n"
+            "    }));\n");
+
+        /* Build annotations for frequency labels */
+        fprintf(fp,
+            "    const annotations = dtmfFreqs.map(d => ({\n"
+            "      xref: 'paper', x: 1.01, yref: 'y', y: d.f,\n"
+            "      text: d.label, showarrow: false,\n"
+            "      font: { size: 9, color: '#666' }, xanchor: 'left'\n"
+            "    }));\n");
+
+        fprintf(fp,
+            "    Plotly.newPlot('plot', [{\n"
+            "      type: 'heatmap',\n"
+            "      x: times, y: freqs, z: z,\n"
+            "      colorscale: 'Viridis',\n"
+            "      zmin: -80, zmax: 0,\n"
+            "      colorbar: { title: 'dB', thickness: 12 },\n"
+            "      hovertemplate: 't: %%{x:.3f} s<br>f: %%{y:.0f} Hz<br>%%{z:.1f} dB<extra></extra>'\n"
+            "    }], {\n"
+            "      title: { text: '%s', font: { size: 13 } },\n"
+            "      xaxis: { title: 'Time (s)' },\n"
+            "      yaxis: { title: 'Frequency (Hz)', range: [0, 2000] },\n"
+            "      margin: { t: 35, r: 80, b: 50, l: 60 },\n"
+            "      height: 360,\n"
+            "      shapes: shapes,\n"
+            "      annotations: annotations\n"
+            "    }, { responsive: true });\n",
+            title);
+
+        write_foot(fp);
+        fclose(fp);
+        printf("  %s\n", path);
+    }
+
+    free(dtmf_mag);
+    free(dtmf_sig);
+
+    MD_shutdown();   /* release DTMF STFT plan */
     free(conv_in);
     free(work_b);
     free(work_a);
