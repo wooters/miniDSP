@@ -1115,13 +1115,14 @@ int main(void)
 
     /* ----------------------------------------------------------------
      * Phase 7: DTMF spectrogram
-     * Uses 8000 Hz sample rate (standard telephony) with N=256, hop=64
-     * matching the detector parameters.
+     * Uses 8000 Hz sample rate (standard telephony) with N=256, hop=8
+     * for high time-resolution visualization.
      * ----------------------------------------------------------------*/
     printf("DTMF spectrogram:\n");
 
     const char *dtmf_digits = "159#";
-    unsigned dtmf_len = MD_dtmf_signal_length(4, DTMF_SAMPLE_RATE,
+    unsigned num_dtmf = (unsigned)strlen(dtmf_digits);
+    unsigned dtmf_len = MD_dtmf_signal_length(num_dtmf, DTMF_SAMPLE_RATE,
                                               DTMF_TONE_MS, DTMF_PAUSE_MS);
     double *dtmf_sig = malloc(dtmf_len * sizeof(double));
     if (!dtmf_sig) {
@@ -1145,7 +1146,7 @@ int main(void)
         unsigned ramp = (unsigned)(0.010 * DTMF_SAMPLE_RATE);
         if (ramp > tone_samp / 2) ramp = tone_samp / 2;
         unsigned off = 0;
-        for (unsigned d = 0; d < 4; d++) {
+        for (unsigned d = 0; d < num_dtmf; d++) {
             for (unsigned i = 0; i < ramp; i++) {
                 double g = 0.5 * (1.0 - cos(M_PI * i / ramp));
                 dtmf_sig[off + i] *= g;
