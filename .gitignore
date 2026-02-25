@@ -59,6 +59,10 @@ examples/simple_effects
 examples/simple_effects.csv
 examples/simple_effects.html
 
+examples/dtmf_detector
+examples/dtmf_detector.csv
+examples/dtmf_detector.html
+
 # Generated assets for documentation
 guides/audio/
 guides/plots/

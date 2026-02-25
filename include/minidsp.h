@@ -11,6 +11,7 @@
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
  *   - FIR filtering and convolution (time-domain and FFT overlap-add)
  *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, and MFCCs
+ *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *
  * These are the kinds of building blocks you'd use in an audio processing
@@ -1020,6 +1021,124 @@ void MD_square_wave(double *output, unsigned N, double amplitude,
  */
 void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
                       double freq, double sample_rate);
+
+/* -----------------------------------------------------------------------
+ * DTMF tone detection and generation
+ * -----------------------------------------------------------------------
+ *
+ * Dual-Tone Multi-Frequency (DTMF) signalling encodes each keypad
+ * button as a pair of sinusoids -- one from a low-frequency "row" group
+ * and one from a high-frequency "column" group:
+ *
+ *              1209 Hz   1336 Hz   1477 Hz   1633 Hz
+ *   697 Hz        1         2         3         A
+ *   770 Hz        4         5         6         B
+ *   852 Hz        7         8         9         C
+ *   941 Hz        *         0         #         D
+ *
+ * Detection uses frame-based FFT magnitude analysis with a state machine
+ * that enforces ITU-T Q.24 minimum timing constraints (40 ms tone-on,
+ * 40 ms inter-digit pause).
+ */
+
+/** A single detected DTMF tone with timing information. */
+typedef struct {
+    char   digit;     /**< Decoded digit: '0'--'9', 'A'--'D', '*', or '#'. */
+    double start_s;   /**< Tone onset time in seconds. */
+    double end_s;     /**< Tone offset time in seconds. */
+} MD_DTMFTone;
+
+/**
+ * Detect DTMF tones in an audio signal.
+ *
+ * Slides a Hanning-windowed FFT frame across the signal and checks each
+ * frame for a valid row + column frequency pair.  A tone is reported only
+ * after it persists for at least 40 ms (ITU-T Q.24), and a new tone is
+ * not accepted until at least 40 ms of silence separates it from the
+ * previous one.
+ *
+ * The FFT size is chosen automatically so that the frequency resolution
+ * is \f$\leq 30\f$ Hz (the closest DTMF row pair, 697/770 Hz, is 73 Hz
+ * apart).  The hop size is N/4 (75 % overlap).
+ *
+ * @param signal      Audio samples (mono).
+ * @param signal_len  Number of samples.  Must be > 0.
+ * @param sample_rate Sampling rate in Hz.  Must be >= 4000
+ *                    (Nyquist for the highest DTMF frequency, 1633 Hz).
+ * @param tones_out   Output array for detected tones (caller-allocated).
+ * @param max_tones   Size of @p tones_out.  Must be > 0.
+ * @return            Number of tones detected (<= @p max_tones).
+ *
+ * @code
+ * // Generate a short DTMF sequence and detect it
+ * const char *digits = "5551234";
+ * unsigned len = MD_dtmf_signal_length(7, 8000.0, 70, 70);
+ * double *sig = malloc(len * sizeof(double));
+ * MD_dtmf_generate(sig, digits, 8000.0, 70, 70);
+ *
+ * MD_DTMFTone tones[16];
+ * unsigned n = MD_dtmf_detect(sig, len, 8000.0, tones, 16);
+ * for (unsigned i = 0; i < n; i++)
+ *     printf("%c  %.3f--%.3f s\n", tones[i].digit,
+ *            tones[i].start_s, tones[i].end_s);
+ * free(sig);
+ * @endcode
+ */
+unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
+                        double sample_rate,
+                        MD_DTMFTone *tones_out, unsigned max_tones);
+
+/**
+ * Generate a DTMF tone sequence.
+ *
+ * Each digit is rendered as the sum of its row and column sinusoids,
+ * each at amplitude 0.5 (peak sum = 1.0).  Digits are separated by
+ * silent gaps.  Use MD_dtmf_signal_length() to pre-compute the required
+ * output buffer size.
+ *
+ * Timing constraints follow ITU-T Q.24:
+ *   - @p tone_ms >= 40  (minimum recognisable tone)
+ *   - @p pause_ms >= 40 (minimum inter-digit pause)
+ *
+ * @param output      Output buffer (caller-allocated, length from
+ *                    MD_dtmf_signal_length()).
+ * @param digits      Null-terminated string of valid DTMF characters:
+ *                    '0'--'9', 'A'--'D' (case-insensitive), '*', '#'.
+ *                    An invalid character triggers an assertion failure.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ * @param tone_ms     Duration of each tone in milliseconds (>= 40).
+ * @param pause_ms    Duration of silence between tones in ms (>= 40).
+ *
+ * @code
+ * unsigned len = MD_dtmf_signal_length(3, 8000.0, 70, 70);
+ * double *sig = malloc(len * sizeof(double));
+ * MD_dtmf_generate(sig, "911", 8000.0, 70, 70);
+ * // sig now contains 3 tones of 70 ms each with 70 ms gaps
+ * free(sig);
+ * @endcode
+ */
+void MD_dtmf_generate(double *output, const char *digits,
+                      double sample_rate,
+                      unsigned tone_ms, unsigned pause_ms);
+
+/**
+ * Calculate the number of samples needed for MD_dtmf_generate().
+ *
+ * \f[
+ * N = D \cdot \left\lfloor \frac{t_{\text{tone}} \cdot f_s}{1000} \right\rfloor
+ *   + (D - 1) \cdot \left\lfloor \frac{t_{\text{pause}} \cdot f_s}{1000} \right\rfloor
+ * \f]
+ *
+ * where \f$D\f$ is the number of digits.
+ *
+ * @param num_digits  Number of digits in the sequence.
+ * @param sample_rate Sampling rate in Hz.  Must be > 0.
+ * @param tone_ms     Tone duration in milliseconds.
+ * @param pause_ms    Pause duration in milliseconds.
+ * @return            Total number of samples (0 if num_digits == 0).
+ */
+unsigned MD_dtmf_signal_length(unsigned num_digits, double sample_rate,
+                               unsigned tone_ms, unsigned pause_ms);
 
 /* -----------------------------------------------------------------------
  * Resource cleanup
