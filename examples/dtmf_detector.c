@@ -96,6 +96,12 @@ static int detect_file(const char *infile)
     printf("Read %s: %zu samples at %u Hz (%.3f s)\n",
            infile, datalen, samprate, (double)datalen / (double)samprate);
 
+    if (datalen == 0) {
+        fprintf(stderr, "File contains no audio samples\n");
+        free(fdata);
+        return 1;
+    }
+
     if (samprate < 4000) {
         fprintf(stderr, "Sample rate %u Hz is too low for DTMF detection "
                         "(minimum 4000 Hz)\n", samprate);
