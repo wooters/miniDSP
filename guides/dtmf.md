@@ -103,6 +103,17 @@ N = D \cdot \left\lfloor \frac{t_{\text{tone}} \cdot f_s}{1000} \right\rfloor
 
 where \f$D\f$ is the number of digits.
 
+**Reading the formula in C:**
+
+```c
+// D -> num_digits, t_tone -> tone_ms, t_pause -> pause_ms, fs -> sample_rate
+// floor(t_tone * fs / 1000) -> tone_samples
+unsigned tone_samples  = (unsigned)(tone_ms * sample_rate / 1000.0);
+unsigned pause_samples = (unsigned)(pause_ms * sample_rate / 1000.0);
+unsigned N = num_digits * tone_samples
+           + (num_digits - 1) * pause_samples;
+```
+
 **Quick example** -- generate a DTMF sequence and save as WAV:
 
 \snippet dtmf_detector.c generate-wav
@@ -178,11 +189,27 @@ For a given FFT size \f$N\f$ and sampling rate \f$f_s\f$, each bin
 f_k = k \cdot \frac{f_s}{N}
 \f]
 
+**Reading the formula in C:**
+
+```c
+// k -> bin index, fs -> sample_rate, N -> FFT size
+// f_k -> freq (the frequency that bin k represents)
+double freq = (double)k * sample_rate / (double)N;
+```
+
 The nearest bin for a DTMF frequency \f$f\f$ is:
 
 \f[
 k = \mathrm{round}\!\left(\frac{f \cdot N}{f_s}\right)
 \f]
+
+**Reading the formula in C:**
+
+```c
+// f -> dtmf_freq, N -> FFT size, fs -> sample_rate
+// k -> bin (nearest FFT bin for the DTMF frequency)
+unsigned bin = (unsigned)(dtmf_freq * N / sample_rate + 0.5);
+```
 
 The detector checks bins \f$k-1\f$, \f$k\f$, and \f$k+1\f$ and takes
 the maximum magnitude, compensating for the slight frequency mismatch
