@@ -58,7 +58,7 @@
 #define DTMF_TONE_MS      70u
 #define DTMF_PAUSE_MS     70u
 #define DTMF_N_FFT       256u
-#define DTMF_HOP          64u
+#define DTMF_HOP           8u
 
 static void write_head(FILE *fp, const char *title)
 {
@@ -1135,6 +1135,25 @@ int main(void)
     }
     MD_dtmf_generate(dtmf_sig, dtmf_digits, DTMF_SAMPLE_RATE,
                      DTMF_TONE_MS, DTMF_PAUSE_MS);
+
+    /* Apply a 10 ms raised-cosine fade to each tone edge for a cleaner
+     * spectrogram.  This is purely cosmetic — the library generates
+     * standard rectangular-envelope DTMF tones. */
+    {
+        unsigned tone_samp  = (unsigned)(DTMF_TONE_MS  * DTMF_SAMPLE_RATE / 1000.0);
+        unsigned pause_samp = (unsigned)(DTMF_PAUSE_MS * DTMF_SAMPLE_RATE / 1000.0);
+        unsigned ramp = (unsigned)(0.010 * DTMF_SAMPLE_RATE);
+        if (ramp > tone_samp / 2) ramp = tone_samp / 2;
+        unsigned off = 0;
+        for (unsigned d = 0; d < 4; d++) {
+            for (unsigned i = 0; i < ramp; i++) {
+                double g = 0.5 * (1.0 - cos(M_PI * i / ramp));
+                dtmf_sig[off + i] *= g;
+                dtmf_sig[off + tone_samp - 1 - i] *= g;
+            }
+            off += tone_samp + pause_samp;
+        }
+    }
 
     const unsigned dtmf_bins   = DTMF_N_FFT / 2 + 1;
     const unsigned dtmf_frames = MD_stft_num_frames(dtmf_len, DTMF_N_FFT, DTMF_HOP);
