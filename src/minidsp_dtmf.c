@@ -159,10 +159,14 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
     if (num_frames == 0)
         return 0;
 
-    /* ITU-T Q.24: 40 ms minimum tone-on and inter-digit pause. */
-    double frame_step_s = (double)hop / sample_rate;
-    unsigned min_on_frames  = (unsigned)ceil(0.040 / frame_step_s);
-    unsigned min_off_frames = (unsigned)ceil(0.040 / frame_step_s);
+    /* ITU-T Q.24: 40 ms minimum tone-on and inter-digit pause.
+     * Compute the number of frames whose analysis window fits entirely
+     * within a 40 ms interval, with a floor of 2 to debounce noise. */
+    unsigned q24_samples = (unsigned)(0.040 * sample_rate);
+    unsigned min_on_frames  = (q24_samples >= N)
+                            ? (q24_samples - N) / hop + 1 : 1;
+    if (min_on_frames < 2) min_on_frames = 2;
+    unsigned min_off_frames = min_on_frames;
 
     /* Working buffers. */
     double *window = malloc(N * sizeof(double));

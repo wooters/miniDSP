@@ -19,6 +19,7 @@
  *   cd examples && ./dtmf_detector --detect tones.wav
  */
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -28,11 +29,26 @@
 /* --------------------------------------------------------------------- */
 
 //! [generate-wav]
+static int valid_dtmf_char(char ch)
+{
+    return (ch >= '0' && ch <= '9') || ch == '*' || ch == '#'
+        || ch == 'A' || ch == 'a' || ch == 'B' || ch == 'b'
+        || ch == 'C' || ch == 'c' || ch == 'D' || ch == 'd';
+}
+
 static int generate_wav(const char *digits, const char *outfile)
 {
     const double sample_rate = 8000.0;
     const unsigned tone_ms   = 70;
     const unsigned pause_ms  = 70;
+
+    for (const char *p = digits; *p; p++) {
+        if (!valid_dtmf_char(*p)) {
+            fprintf(stderr, "Invalid DTMF character '%c'. "
+                            "Valid: 0-9, A-D, *, #\n", *p);
+            return 1;
+        }
+    }
 
     unsigned num_digits = (unsigned)strlen(digits);
     unsigned signal_len = MD_dtmf_signal_length(num_digits, sample_rate,
@@ -83,6 +99,13 @@ static int detect_file(const char *infile)
     if (samprate < 4000) {
         fprintf(stderr, "Sample rate %u Hz is too low for DTMF detection "
                         "(minimum 4000 Hz)\n", samprate);
+        free(fdata);
+        return 1;
+    }
+
+    if (datalen > UINT_MAX) {
+        fprintf(stderr, "File too large (%zu samples, max %u)\n",
+                datalen, UINT_MAX);
         free(fdata);
         return 1;
     }

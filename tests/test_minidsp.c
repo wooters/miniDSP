@@ -3904,6 +3904,27 @@ static int test_dtmf_detect_timestamps(void)
     return ok;
 }
 
+static int test_dtmf_detect_q24_minimum(void)
+{
+    /* Generate at the exact Q.24 minimums: 40 ms tone, 40 ms pause. */
+    const char   *digits = "19A#";
+    const double  sr     = 8000.0;
+    unsigned signal_len  = MD_dtmf_signal_length(4, sr, 40, 40);
+
+    double *sig = malloc(signal_len * sizeof(double));
+    MD_dtmf_generate(sig, digits, sr, 40, 40);
+
+    MD_DTMFTone tones[8];
+    unsigned n = MD_dtmf_detect(sig, signal_len, sr, tones, 8);
+
+    int ok = (n == 4);
+    for (unsigned i = 0; ok && i < n; i++)
+        ok &= (tones[i].digit == digits[i]);
+
+    free(sig);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Main: run all tests
  * -----------------------------------------------------------------------*/
@@ -4164,6 +4185,7 @@ int main(void)
     RUN_TEST(test_dtmf_detect_noisy);
     RUN_TEST(test_dtmf_detect_16khz);
     RUN_TEST(test_dtmf_detect_timestamps);
+    RUN_TEST(test_dtmf_detect_q24_minimum);
 
     /* Clean up FFTW resources */
     MD_shutdown();
