@@ -270,8 +270,17 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
                         (double)((tone_end_frame + 1) * hop) / sample_rate;
                     num_tones++;
 
-                    state         = IDLE;
-                    current_digit = '\0';
+                    if (digit != '\0') {
+                        /* A different digit is present — start tracking
+                         * it immediately so we don't lose this frame. */
+                        current_digit    = digit;
+                        on_count         = 1;
+                        tone_start_frame = f;
+                        state            = PENDING;
+                    } else {
+                        state         = IDLE;
+                        current_digit = '\0';
+                    }
                 }
             }
             break;
