@@ -160,11 +160,13 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
         return 0;
 
     /* ITU-T Q.24: 40 ms minimum tone-on and inter-digit pause.
-     * Compute the number of frames whose analysis window fits entirely
-     * within a 40 ms interval, with a floor of 2 to debounce noise. */
+     * A tone of F consecutive detected frames implies a minimum duration
+     * of N + (F-1)*hop samples.  Use ceiling division so that the
+     * minimum detectable tone is always >= 40 ms, with a floor of 2
+     * to debounce noise. */
     unsigned q24_samples = (unsigned)(0.040 * sample_rate);
-    unsigned min_on_frames  = (q24_samples >= N)
-                            ? (q24_samples - N) / hop + 1 : 1;
+    unsigned min_on_frames  = (q24_samples > N)
+                            ? (q24_samples - N + hop - 1) / hop + 1 : 2;
     if (min_on_frames < 2) min_on_frames = 2;
     unsigned min_off_frames = min_on_frames;
 
