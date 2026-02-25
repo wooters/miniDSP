@@ -417,7 +417,3 @@ A pre-push hook is included that runs `make test` and `make container-test` befo
 ```sh
 make install-hooks
 ```
-
-## Roadmap
-
-See [TODO.md](TODO.md) for planned features -- FFT spectrum analysis, signal generators, FIR filters, window functions, simple effects, pitch detection, and more.
