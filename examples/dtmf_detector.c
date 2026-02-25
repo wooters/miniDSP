@@ -80,6 +80,13 @@ static int detect_file(const char *infile)
     printf("Read %s: %zu samples at %u Hz (%.3f s)\n",
            infile, datalen, samprate, (double)datalen / (double)samprate);
 
+    if (samprate < 4000) {
+        fprintf(stderr, "Sample rate %u Hz is too low for DTMF detection "
+                        "(minimum 4000 Hz)\n", samprate);
+        free(fdata);
+        return 1;
+    }
+
     /* Convert float -> double for the library. */
     double *signal = malloc(datalen * sizeof(double));
     if (!signal) {
