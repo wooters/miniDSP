@@ -30,6 +30,11 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Square wave generator** -- bipolar square wave at a given frequency; demonstrates odd harmonics and Gibbs phenomenon.
 - **Sawtooth wave generator** -- linear ramp waveform at a given frequency; contains both odd and even harmonics.
 
+### DTMF (minidsp.h)
+
+- **DTMF tone generation** -- synthesise multi-digit dial-tone sequences (dual sine pairs at standard row/column frequencies) with configurable timing.
+- **DTMF tone detection** -- sliding-window FFT detector with ITU-T Q.24 timing constraints; returns decoded digits with onset/offset timestamps.
+
 ### Filters (biquad.h)
 
 Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://webaudio.github.io/Audio-EQ-Cookbook/Audio-EQ-Cookbook.txt):
@@ -269,6 +274,29 @@ MD_shutdown();
 A runnable frame-tracking example is in `examples/pitch_detection.c`.
 See the [Pitch Detection tutorial](https://wooters.github.io/miniDSP/pitch-detection.html)
 for method comparison and visuals.
+
+### Generate and detect DTMF tones
+
+```c
+#include "minidsp.h"
+#include <stdio.h>
+
+const char *digits = "8675309";
+unsigned len = MD_dtmf_signal_length(7, 8000.0, 70, 70);
+double signal[len];
+MD_dtmf_generate(signal, digits, 8000.0, 70, 70);
+
+MD_DTMFTone tones[16];
+unsigned n = MD_dtmf_detect(signal, len, 8000.0, tones, 16);
+
+for (unsigned i = 0; i < n; i++)
+    printf("  %c  %.3f–%.3f s\n", tones[i].digit, tones[i].start_s, tones[i].end_s);
+
+MD_shutdown();
+```
+
+A full example with WAV file I/O is in `examples/dtmf_detector.c`.
+See the [DTMF tutorial](https://wooters.github.io/miniDSP/dtmf.html).
 
 ### Compute mel energies and MFCCs
 
