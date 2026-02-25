@@ -64,14 +64,6 @@ static void dtmf_char_to_freqs(char ch, double *row_freq, double *col_freq)
     *col_freq = dtmf_col_freqs[col];
 }
 
-/** Return the next power of two >= n. */
-static unsigned next_pow2(unsigned n)
-{
-    unsigned p = 1;
-    while (p < n) p <<= 1;
-    return p;
-}
-
 /** Peak magnitude in bins [bin-1, bin, bin+1], clamped to [0, num_bins). */
 static double peak_near_bin(const double *mag, unsigned num_bins, unsigned bin)
 {
@@ -150,8 +142,14 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
     assert(sample_rate >= 4000.0);
     assert(max_tones > 0);
 
-    /* Pick FFT size for <= 30 Hz frequency resolution. */
-    unsigned N = next_pow2((unsigned)ceil(sample_rate / 30.0));
+    /* Pick FFT size: need enough resolution to separate DTMF row
+     * pairs (73 Hz minimum gap → need < 37 Hz resolution) but the
+     * window must stay shorter than the 40 ms Q.24 minimum pause so
+     * that the frame-based state machine can resolve inter-digit gaps.
+     * Target: largest power of two with window <= 35 ms. */
+    unsigned max_n = (unsigned)(0.035 * sample_rate);
+    unsigned N = 128;
+    while (N * 2 <= max_n) N <<= 1;
     unsigned hop = N / 4;
     unsigned num_bins = N / 2 + 1;
 
@@ -235,8 +233,9 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
             if (digit == current_digit && off_count == 0) {
                 /* Same digit, no gap — tone continues. */
                 tone_end_frame = f;
-            } else if (digit == current_digit && off_count >= 2) {
-                /* Same digit reappeared after a real gap (>= 2 frames).
+            } else if (digit == current_digit
+                       && off_count >= min_off_frames) {
+                /* Same digit reappeared after a gap >= Q.24 pause.
                  * This is a new instance of the same digit.
                  * Emit the current tone and start fresh. */
                 tones_out[num_tones].digit   = current_digit;
@@ -251,7 +250,7 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
                 tone_start_frame = f;
                 state            = PENDING;
             } else if (digit == current_digit) {
-                /* off_count == 1: brief interruption, tolerate. */
+                /* Brief interruption (< Q.24 pause), tolerate. */
                 off_count      = 0;
                 tone_end_frame = f;
             } else {
@@ -273,9 +272,10 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
         }
     }
 
-    /* Emit a tone still active (or nearly confirmed) at end-of-signal.
-     * PENDING with >= 2 consistent frames is accepted since the signal
-     * may end abruptly after the last digit. */
+    /* Emit a tone still active at end-of-signal.
+     * PENDING is only emitted if it already meets the Q.24 minimum-on
+     * requirement (on_count >= min_on_frames) to avoid false trailing
+     * detections. */
     if (num_tones < max_tones) {
         if (state == ACTIVE) {
             tones_out[num_tones].digit   = current_digit;
@@ -284,7 +284,7 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
             tones_out[num_tones].end_s =
                 (double)((tone_end_frame + 1) * hop) / sample_rate;
             num_tones++;
-        } else if (state == PENDING && on_count >= 2) {
+        } else if (state == PENDING && on_count >= min_on_frames) {
             unsigned last = tone_start_frame + on_count - 1;
             tones_out[num_tones].digit   = current_digit;
             tones_out[num_tones].start_s =

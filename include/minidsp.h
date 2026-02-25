@@ -1057,9 +1057,10 @@ typedef struct {
  * not accepted until at least 40 ms of silence separates it from the
  * previous one.
  *
- * The FFT size is chosen automatically so that the frequency resolution
- * is \f$\leq 30\f$ Hz (the closest DTMF row pair, 697/770 Hz, is 73 Hz
- * apart).  The hop size is N/4 (75 % overlap).
+ * The FFT size is the largest power of two whose window fits within
+ * 35 ms, keeping it shorter than the 40 ms Q.24 minimum pause so the
+ * state machine can resolve inter-digit gaps.  The hop size is N/4
+ * (75 % overlap).
  *
  * @param signal      Audio samples (mono).
  * @param signal_len  Number of samples.  Must be > 0.

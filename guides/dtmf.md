@@ -113,9 +113,10 @@ where \f$D\f$ is the number of digits.
 
 Detection slides a Hanning-windowed FFT frame across the audio signal:
 
-1. **FFT size** is the smallest power of two giving frequency resolution
-   \f$\leq 30\f$ Hz (e.g. \f$N = 512\f$ at 8 kHz, giving
-   \f$\Delta f = 15.6\f$ Hz).
+1. **FFT size** is the largest power of two whose window fits within
+   35 ms (e.g. \f$N = 256\f$ at 8 kHz, giving \f$\Delta f = 31.25\f$ Hz).
+   Keeping the window shorter than the 40 ms Q.24 minimum pause
+   ensures the state machine can resolve inter-digit gaps.
 2. **Hop** is \f$N/4\f$ (75 % overlap).
 3. **Per frame:** apply Hanning window, compute MD_magnitude_spectrum(),
    normalise to single-sided amplitude, then check the magnitude at each
@@ -187,17 +188,19 @@ The detector checks bins \f$k-1\f$, \f$k\f$, and \f$k+1\f$ and takes
 the maximum magnitude, compensating for the slight frequency mismatch
 when the DTMF frequency does not fall exactly on a bin centre.
 
-At 8 kHz with \f$N = 512\f$:
+At 8 kHz with \f$N = 256\f$:
 
-| DTMF freq | Nearest bin | Bin freq  | Error  |
-|:----------|:-----------:|:---------:|:------:|
-| 697 Hz    |     45      | 703.1 Hz  | +6.1   |
-| 770 Hz    |     49      | 765.6 Hz  | -4.4   |
-| 852 Hz    |     55      | 859.4 Hz  | +7.4   |
-| 941 Hz    |     60      | 937.5 Hz  | -3.5   |
-| 1209 Hz   |     77      | 1203.1 Hz | -5.9   |
-| 1336 Hz   |     86      | 1343.8 Hz | +7.8   |
-| 1477 Hz   |     95      | 1484.4 Hz | +7.4   |
-| 1633 Hz   |    105      | 1640.6 Hz | +7.6   |
+| DTMF freq | Nearest bin | Bin freq  | Error   |
+|:----------|:-----------:|:---------:|:-------:|
+| 697 Hz    |     22      | 687.5 Hz  | -9.5    |
+| 770 Hz    |     25      | 781.3 Hz  | +11.3   |
+| 852 Hz    |     27      | 843.8 Hz  | -8.2    |
+| 941 Hz    |     30      | 937.5 Hz  | -3.5    |
+| 1209 Hz   |     39      | 1218.8 Hz | +9.8    |
+| 1336 Hz   |     43      | 1343.8 Hz | +7.8    |
+| 1477 Hz   |     47      | 1468.8 Hz | -8.2    |
+| 1633 Hz   |     52      | 1625.0 Hz | -8.0    |
 
 All errors are well within the ±1.5 % tolerance specified by ITU-T.
+The detector also checks the two adjacent bins (±1) to handle
+residual frequency mismatch.

@@ -3855,6 +3855,31 @@ static int test_dtmf_detect_noisy(void)
     return ok;
 }
 
+/** Round-trip works at 16 kHz sample rate. */
+static int test_dtmf_detect_16khz(void)
+{
+    const char   *digits = "159*0#";
+    const double  sr     = 16000.0;
+    unsigned num_digits   = (unsigned)strlen(digits);
+    unsigned signal_len   = MD_dtmf_signal_length(num_digits, sr, 80, 80);
+
+    double *sig = malloc(signal_len * sizeof(double));
+    MD_dtmf_generate(sig, digits, sr, 80, 80);
+
+    MD_DTMFTone tones[16];
+    unsigned n = MD_dtmf_detect(sig, signal_len, sr, tones, 16);
+
+    int ok = (n == num_digits);
+    if (ok) {
+        for (unsigned i = 0; i < num_digits; i++) {
+            if (tones[i].digit != digits[i]) { ok = 0; break; }
+        }
+    }
+
+    free(sig);
+    return ok;
+}
+
 /** Tone timestamps are monotonically increasing. */
 static int test_dtmf_detect_timestamps(void)
 {
@@ -4137,6 +4162,7 @@ int main(void)
     RUN_TEST(test_dtmf_generate_frequencies);
     RUN_TEST(test_dtmf_detect_roundtrip);
     RUN_TEST(test_dtmf_detect_noisy);
+    RUN_TEST(test_dtmf_detect_16khz);
     RUN_TEST(test_dtmf_detect_timestamps);
 
     /* Clean up FFTW resources */
