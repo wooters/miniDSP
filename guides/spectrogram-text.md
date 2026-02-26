@@ -60,7 +60,7 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
 | `freq_lo`      | Lowest frequency in Hz (bottom of text in spectrogram). |
 | `freq_hi`      | Highest frequency in Hz (top of text in spectrogram). |
 | `duration_sec` | Total signal duration in seconds. |
-| `sample_rate`  | Sample rate in Hz (`freq_hi` must be <= `sample_rate / 2`). |
+| `sample_rate`  | Sample rate in Hz (`freq_hi` must be < `sample_rate / 2`). |
 
 **Returns** the number of samples written.
 
