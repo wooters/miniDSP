@@ -119,9 +119,8 @@ static const unsigned char font_5x7[95][5] = {
 /** Return the pixel state (0 or 1) at bitmap coordinate (col, row)
  *  for the given string.  Characters are 5 columns wide with 1-column
  *  spacing.  Rows are numbered 0 (top) to 6 (bottom). */
-static int pixel_at(const char *text, unsigned col, unsigned row)
+static int pixel_at(const char *text, unsigned len, unsigned col, unsigned row)
 {
-    unsigned len = (unsigned)strlen(text);
     unsigned char_width = 6;  /* 5 data columns + 1 spacing column */
     unsigned char_idx = col / char_width;
     unsigned col_in_char = col % char_width;
@@ -186,9 +185,9 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
         unsigned base = c * col_samples;
 
         for (unsigned r = 0; r < grid_rows; r++) {
-            int on_now  = pixel_at(text, c, r);
-            int on_prev = (c > 0) ? pixel_at(text, c - 1, r) : 0;
-            int on_next = (c + 1 < grid_cols) ? pixel_at(text, c + 1, r) : 0;
+            int on_now  = pixel_at(text, len, c, r);
+            int on_prev = (c > 0) ? pixel_at(text, len, c - 1, r) : 0;
+            int on_next = (c + 1 < grid_cols) ? pixel_at(text, len, c + 1, r) : 0;
 
             double dp = 2.0 * M_PI * row_freq[r] / sample_rate;
 

@@ -3961,8 +3961,8 @@ static int test_spectext_nonzero_energy(void)
     return energy > 0.0;
 }
 
-/** Frequency check: single column with one "on" pixel has spectral peak
- *  near the expected frequency. Use "!" which has a narrow column pattern. */
+/** Frequency check: "I" has all 7 rows on in its center columns; verify
+ *  the spectral peak is within the expected frequency range. */
 static int test_spectext_frequency_peak(void)
 {
     double sr = 16000.0;
