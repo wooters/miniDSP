@@ -32,6 +32,7 @@ examples/basic_operations
 examples/basic_operations.csv
 examples/basic_operations.html
 examples/dtmf_detector
+examples/spectrogram_text
 examples/gen_audio_samples
 examples/gen_signal_plots
 tests/test_minidsp

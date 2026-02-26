@@ -63,6 +63,12 @@ examples/dtmf_detector
 examples/dtmf_detector.csv
 examples/dtmf_detector.html
 
+examples/spectrogram_text
+examples/spectrogram_text.csv
+examples/spectrogram_text.html
+examples/spectrogram_text.png
+examples/spectrogram_text.wav
+
 # Generated assets for documentation
 guides/audio/
 guides/plots/

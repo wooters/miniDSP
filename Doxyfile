@@ -92,7 +92,8 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/plots/mel_filterbank_shapes.html \
                          guides/plots/mel_energies_frame.html \
                          guides/plots/mfcc_frame.html \
-                         guides/plots/dtmf_spectrogram.html
+                         guides/plots/dtmf_spectrogram.html \
+                         examples/spectrogram_text.html
 
 HTML_HEADER            = doxygen-custom/header.html
 

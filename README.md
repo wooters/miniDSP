@@ -30,6 +30,10 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Square wave generator** -- bipolar square wave at a given frequency; demonstrates odd harmonics and Gibbs phenomenon.
 - **Sawtooth wave generator** -- linear ramp waveform at a given frequency; contains both odd and even harmonics.
 
+### Spectrogram Text Art (minidsp.h)
+
+- **Spectrogram text synthesis** -- render a text string as audio whose spectrogram displays the message; uses a built-in 5x7 bitmap font with sine-wave synthesis, raised-cosine crossfade, and peak normalisation.
+
 ### DTMF (minidsp.h)
 
 - **DTMF tone generation** -- synthesise multi-digit dial-tone sequences (dual sine pairs at standard row/column frequencies) with configurable timing.

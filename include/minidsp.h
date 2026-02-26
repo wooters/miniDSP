@@ -13,6 +13,7 @@
  *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, and MFCCs
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
+ *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
  *
  * These are the kinds of building blocks you'd use in an audio processing
  * pipeline -- for example, estimating which direction a sound came from
@@ -1211,5 +1212,40 @@ int MD_get_delay(const double *siga, const double *sigb, unsigned N,
  */
 void MD_gcc(const double *siga, const double *sigb, unsigned N,
             double *lagvals, int weightfunc);
+
+/* -----------------------------------------------------------------------
+ * Spectrogram text art
+ * -----------------------------------------------------------------------*/
+
+/**
+ * @brief Synthesise audio that displays readable text in a spectrogram.
+ *
+ * Given a short string, the function rasterises it with a built-in 5x7
+ * bitmap font.  Each bitmap column becomes a time slice; each "on" pixel
+ * becomes a sine wave at the corresponding frequency between @p freq_lo
+ * and @p freq_hi.  A 3 ms raised-cosine crossfade suppresses clicks at
+ * column boundaries.  The output is normalised to 0.9 peak amplitude.
+ *
+ * @param output       Output buffer (caller-allocated).
+ * @param max_len      Size of @p output in samples (must be >= returned value).
+ * @param text         Printable ASCII string to render (must be non-empty).
+ * @param freq_lo      Lowest frequency in Hz (bottom of text).
+ * @param freq_hi      Highest frequency in Hz (top of text).
+ * @param duration_sec Total duration in seconds.
+ * @param sample_rate  Sample rate in Hz.
+ * @return             Number of samples written to @p output.
+ *
+ * @code
+ * double buf[64000];
+ * unsigned n = MD_spectrogram_text(buf, 64000, "HELLO",
+ *                                  200.0, 8000.0, 2.0, 16000.0);
+ * // buf[0..n-1] now contains synthesised audio; view its spectrogram
+ * // to see "HELLO" spelled out in the frequency domain.
+ * @endcode
+ */
+unsigned MD_spectrogram_text(double *output, unsigned max_len,
+                             const char *text,
+                             double freq_lo, double freq_hi,
+                             double duration_sec, double sample_rate);
 
 #endif /* MINIDSP_H */

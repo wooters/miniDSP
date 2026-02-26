@@ -16,3 +16,4 @@ and shows the resulting plots.
 - \subpage fir-convolution — Time-domain convolution, moving-average [FIR](https://en.wikipedia.org/wiki/Finite_impulse_response), general FIR, and FFT overlap-add fast convolution.
 - \subpage pitch-detection — [Fundamental frequency](https://en.wikipedia.org/wiki/Fundamental_frequency) (F0) estimation with autocorrelation and FFT peak picking.
 - \subpage dtmf — [DTMF](https://en.wikipedia.org/wiki/Dual-tone_multi-frequency_signaling) tone detection and generation with ITU-T Q.24 timing.
+- \subpage spectrogram-text — Synthesise audio that displays readable text in a spectrogram.
