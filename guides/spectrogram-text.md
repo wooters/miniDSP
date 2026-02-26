@@ -17,8 +17,8 @@ visually.
 
 **Bitmap font** — Each printable ASCII character (32–126) is stored as a
 5-column, 7-row bitmap.  One byte per column, one bit per row.  Characters
-are spaced one column apart, giving a grid width of
-\f$ W = 6 \times \mathrm{len} - 1 \f$ columns and 7 rows.
+are spaced two columns apart, giving a grid width of
+\f$ W = 7 \times \mathrm{len} - 2 \f$ columns and 7 rows.
 
 **Frequency mapping** — Row 0 maps to `freq_hi` (top of the spectrogram),
 row 6 maps to `freq_lo` (bottom).  Intermediate rows are linearly

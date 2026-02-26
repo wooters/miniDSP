@@ -3936,7 +3936,7 @@ static int test_spectext_output_length(void)
     double sr = 16000.0;
     double dur = 1.0;
     unsigned len = (unsigned)strlen(text);
-    unsigned grid_cols = len * 6 - 1;                     /* 11 */
+    unsigned grid_cols = len * 7 - 2;                     /* 12 */
     unsigned col_samples = (unsigned)(dur / (double)grid_cols * sr);
     unsigned expected = col_samples * grid_cols;
 

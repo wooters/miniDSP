@@ -112,7 +112,7 @@ static int write_html(const char *path, const double *spec_db,
 
     char subtitle[256];
     snprintf(subtitle, sizeof(subtitle),
-             "Text: \"%s\" &nbsp;|&nbsp; 200–7500 Hz &nbsp;|&nbsp; "
+             "Text: \"%s\" &nbsp;|&nbsp; 400–7300 Hz &nbsp;|&nbsp; "
              "2 s at 16 kHz", text);
 
     plot_html_begin(fp, "Spectrogram Text Art", subtitle, 0);
@@ -239,25 +239,36 @@ int main(int argc, char *argv[])
 
     /* Synthesis parameters */
     const double sample_rate  = 16000.0;
-    const double freq_lo      = 200.0;
-    const double freq_hi      = 7500.0;
+    const double freq_lo      = 400.0;   /* 200 Hz margin above 0 Hz */
+    const double freq_hi      = 7300.0;  /* 200 Hz margin below Nyquist region */
     const double duration_sec = 2.0;
+    const double pad_sec      = 0.5;     /* silence before and after text */
 
     /* STFT parameters: large FFT, small hop for sharp spectrogram */
     const unsigned fft_n = 1024;
     const unsigned hop   = 16;
 
-    /* Synthesise the audio */
-    unsigned max_samples = (unsigned)(sample_rate * duration_sec) + 1024;
-    double *signal = malloc(max_samples * sizeof(double));
+    /* Synthesise the audio into a temporary buffer, then pad with silence */
+    unsigned max_text = (unsigned)(sample_rate * duration_sec) + 1024;
+    double *text_buf = malloc(max_text * sizeof(double));
+    if (!text_buf) { fprintf(stderr, "allocation failed\n"); return 1; }
+
+    unsigned text_samples = MD_spectrogram_text(text_buf, max_text, text,
+                                                freq_lo, freq_hi,
+                                                duration_sec, sample_rate);
+
+    unsigned pad_samples  = (unsigned)(pad_sec * sample_rate);
+    unsigned num_samples  = pad_samples + text_samples + pad_samples;
+    double *signal = calloc(num_samples, sizeof(double));
     if (!signal) { fprintf(stderr, "allocation failed\n"); return 1; }
 
-    unsigned num_samples = MD_spectrogram_text(signal, max_samples, text,
-                                               freq_lo, freq_hi,
-                                               duration_sec, sample_rate);
+    memcpy(signal + pad_samples, text_buf, text_samples * sizeof(double));
+    free(text_buf);
 
-    printf("Synthesised %u samples (%.3f s) for \"%s\"\n",
-           num_samples, (double)num_samples / sample_rate, text);
+    printf("Synthesised %u samples (%.3f s) for \"%s\" "
+           "(%.0f ms silence padding)\n",
+           num_samples, (double)num_samples / sample_rate, text,
+           pad_sec * 1000.0);
 
     /* Write WAV */
     if (write_wav("spectrogram_text.wav", signal, num_samples,
