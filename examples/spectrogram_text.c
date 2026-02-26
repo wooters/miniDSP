@@ -241,7 +241,7 @@ int main(int argc, char *argv[])
     const double sample_rate  = 16000.0;
     const double freq_lo      = 400.0;   /* 200 Hz margin above 0 Hz */
     const double freq_hi      = 7300.0;  /* 200 Hz margin below Nyquist region */
-    const double duration_sec = 2.0;
+    const double duration_sec = 2.25;
     const double pad_sec      = 0.5;     /* silence before and after text */
 
     /* STFT parameters: large FFT, small hop for sharp spectrogram */
