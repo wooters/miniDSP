@@ -52,7 +52,7 @@ static int write_html(const char *path,
         "  <div id=\"spectrogram\"></div>\n"
         "  <div class=\"info\">\n"
         "    <strong>How to read this plot:</strong><br>\n"
-        "    Each column is one STFT frame (one windowed FFT). The colour shows\n"
+        "    Each column is one STFT frame (one windowed FFT). The color shows\n"
         "    magnitude in dB: <code>20 log10(|X|/N)</code>, floored at &minus;80 dB.\n"
         "    The diagonal stripe is the chirp sweeping from 200 Hz at t=0 to\n"
         "    4000 Hz at t=2 s. Hover over the heatmap to read exact values.\n"

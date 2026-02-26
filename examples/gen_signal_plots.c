@@ -11,6 +11,7 @@
  *   - 5 mel/MFCC plots (input waveform + input spectrogram + filterbank
  *     shapes + mel energies + MFCC bars)
  *   - 1 DTMF spectrogram
+ *   - 1 spectrogram-text spectrogram
  * into guides/plots/ for embedding as iframes in Doxygen guides.
  *
  * It is NOT a user-facing example — it is invoked automatically by
@@ -1271,6 +1272,140 @@ int main(void)
     free(dtmf_sig);
 
     MD_shutdown();   /* release DTMF STFT plan */
+
+    /* ----------------------------------------------------------------
+     * Phase 8: Spectrogram text spectrogram
+     * Uses 16000 Hz sample rate, N=1024, hop=16 to match the example
+     * program's documented recipe.
+     * ----------------------------------------------------------------*/
+#define SPECTEXT_SAMPLE_RATE 16000.0
+#define SPECTEXT_N_FFT       1024u
+#define SPECTEXT_HOP           16u
+    printf("Spectrogram text:\n");
+
+    {
+        const double st_dur = 2.25;
+        const double st_pad = 0.5;   /* silence before and after text */
+        unsigned st_text_max = (unsigned)(SPECTEXT_SAMPLE_RATE * st_dur) + 1024;
+        double *st_text = malloc(st_text_max * sizeof(double));
+        if (!st_text) {
+            fprintf(stderr, "allocation failed for spectrogram text signal\n");
+            free(conv_in);
+            free(work_b);
+            free(work_a);
+            free(fx);
+            free(buf);
+            return 1;
+        }
+        unsigned st_text_len = MD_spectrogram_text(st_text, st_text_max, "HELLO",
+                                                   400.0, 7300.0, st_dur,
+                                                   SPECTEXT_SAMPLE_RATE);
+
+        /* Pad with silence before and after */
+        unsigned st_pad_samp = (unsigned)(st_pad * SPECTEXT_SAMPLE_RATE);
+        unsigned st_len = st_pad_samp + st_text_len + st_pad_samp;
+        double *st_sig = calloc(st_len, sizeof(double));
+        if (!st_sig) {
+            fprintf(stderr, "allocation failed for padded spectrogram text\n");
+            free(st_text);
+            free(conv_in);
+            free(work_b);
+            free(work_a);
+            free(fx);
+            free(buf);
+            return 1;
+        }
+        memcpy(st_sig + st_pad_samp, st_text, st_text_len * sizeof(double));
+        free(st_text);
+
+        const unsigned st_bins   = SPECTEXT_N_FFT / 2 + 1;
+        const unsigned st_frames = MD_stft_num_frames(st_len, SPECTEXT_N_FFT,
+                                                      SPECTEXT_HOP);
+
+        double *st_mag = malloc((size_t)st_frames * st_bins * sizeof(double));
+        if (!st_mag) {
+            fprintf(stderr, "allocation failed for spectrogram text STFT\n");
+            free(st_sig);
+            free(conv_in);
+            free(work_b);
+            free(work_a);
+            free(fx);
+            free(buf);
+            return 1;
+        }
+        MD_stft(st_sig, st_len, SPECTEXT_N_FFT, SPECTEXT_HOP, st_mag);
+
+        const char *st_path  = "guides/plots/spectext_hello_spectrogram.html";
+        const char *st_title = "Spectrogram Text \"HELLO\"";
+        FILE *fp = fopen(st_path, "w");
+        if (!fp) {
+            fprintf(stderr, "cannot open %s for writing\n", st_path);
+            free(st_mag);
+            free(st_sig);
+            free(conv_in);
+            free(work_b);
+            free(work_a);
+            free(fx);
+            free(buf);
+            return 1;
+        }
+
+        write_head(fp, st_title);
+
+        /* Time axis */
+        const double st_time_step = (double)SPECTEXT_HOP / SPECTEXT_SAMPLE_RATE;
+        fprintf(fp,
+                "    const times = Array.from({length: %u}, (_, f) => f * %.10g);\n",
+                st_frames, st_time_step);
+
+        /* Frequency axis */
+        const double st_freq_step = SPECTEXT_SAMPLE_RATE / (double)SPECTEXT_N_FFT;
+        fprintf(fp,
+                "    const freqs = Array.from({length: %u}, (_, k) => k * %.10g);\n",
+                st_bins, st_freq_step);
+
+        /* Spectrogram matrix: z[k][f] — use "%.0f" for integer dB to reduce file size */
+        fprintf(fp, "    const z = [\n");
+        for (unsigned k = 0; k < st_bins; k++) {
+            fprintf(fp, "      [");
+            for (unsigned f = 0; f < st_frames; f++) {
+                double db = 20.0 * log10(fmax(st_mag[f * st_bins + k]
+                                              / (double)SPECTEXT_N_FFT, 1e-6));
+                fprintf(fp, "%.0f", db);
+                if (f + 1 < st_frames) fprintf(fp, ",");
+            }
+            fprintf(fp, "]");
+            if (k + 1 < st_bins) fprintf(fp, ",");
+            fprintf(fp, "\n");
+        }
+        fprintf(fp, "    ];\n");
+
+        fprintf(fp,
+            "    Plotly.newPlot('plot', [{\n"
+            "      type: 'heatmap',\n"
+            "      x: times, y: freqs, z: z,\n"
+            "      colorscale: 'Viridis',\n"
+            "      zmin: -80, zmax: 0,\n"
+            "      colorbar: { title: 'dB', thickness: 12 },\n"
+            "      hovertemplate: 't: %%{x:.3f} s<br>f: %%{y:.0f} Hz<br>%%{z:.0f} dB<extra></extra>'\n"
+            "    }], {\n"
+            "      title: { text: '%s', font: { size: 13 } },\n"
+            "      xaxis: { title: 'Time (s)' },\n"
+            "      yaxis: { title: 'Frequency (Hz)', range: [0, 8000] },\n"
+            "      margin: { t: 35, r: 80, b: 50, l: 60 },\n"
+            "      height: 360\n"
+            "    }, { responsive: true });\n",
+            st_title);
+
+        write_foot(fp);
+        fclose(fp);
+        printf("  %s\n", st_path);
+
+        free(st_mag);
+        free(st_sig);
+    }
+
+    MD_shutdown();   /* release spectrogram text STFT plan */
     free(conv_in);
     free(work_b);
     free(work_a);

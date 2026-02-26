@@ -28,6 +28,16 @@ interpolated:
 f_r = f_\mathrm{hi} - \frac{r}{6} \, (f_\mathrm{hi} - f_\mathrm{lo})
 \f]
 
+**Reading the formula in C:**
+
+```c
+// f_hi -> freq_hi,  f_lo -> freq_lo,  r -> r,  f_r -> row_freq[r]
+// The font has 7 rows, so the denominator is 6 (= 7 − 1).
+double row_freq[7];
+for (unsigned r = 0; r < 7; r++)
+    row_freq[r] = freq_hi - (double)r / 6.0 * (freq_hi - freq_lo);
+```
+
 **Synthesis** — Each bitmap column occupies `col_samples = duration / W * sample_rate`
 audio samples.  For every "on" pixel in that column a sine wave at
 frequency \f$ f_r \f$ is added.  Phase is carried continuously across
@@ -75,15 +85,54 @@ unsigned n = MD_spectrogram_text(buf, 64000, "HELLO",
 /* buf[0..n-1] contains the audio.  Compute its STFT to see "HELLO". */
 ```
 
+## Example program
+
+The example `examples/spectrogram_text.c` generates a WAV file, an interactive
+HTML spectrogram, and a static PNG image.
+
+**Usage:**
+
+```sh
+./spectrogram_text [TEXT] [--colormap viridis|grayscale]
+```
+
+Default text is `"HELLO"`, default colormap is `viridis`.
+
+**Synthesis and STFT parameters** used by the example (so you can replicate the
+spectrogram with your own tools):
+
+| Parameter      | Value             |
+|----------------|-------------------|
+| Sample rate    | 16000 Hz          |
+| Frequency range| 400–7300 Hz       |
+| Duration       | 2.25 s            |
+| Silence padding| 0.5 s before/after (default) |
+| STFT FFT size  | 1024              |
+| STFT hop       | 16 samples (1 ms) |
+| dB range       | −80 to 0 dB       |
+| Colorscale     | Viridis (or grayscale) |
+
+Outputs: `spectrogram_text.wav`, `spectrogram_text.html`, `spectrogram_text.png`.
+
 ## Viewing the result
 
-The example program `examples/spectrogram_text.c` generates three outputs:
+**Listen** — the synthesised "HELLO" (buzzy chord):
 
-1. **WAV file** — play back the audio to hear the buzzy chord.
-2. **HTML spectrogram** — interactive Plotly heatmap; hover for exact time/frequency/dB.
-3. **PNG image** — static spectrogram with Viridis or grayscale colourmap.
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="spectrogram_text_hello.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
 
-Build and run:
+**Spectrogram** — each letter is visible as a cluster of horizontal bands in
+the time-frequency plane:
+
+\htmlonly
+<iframe src="spectext_hello_spectrogram.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+\endhtmlonly
+
+**Build and run:**
 
 ```sh
 make -C examples spectrogram_text

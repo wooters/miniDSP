@@ -27,7 +27,7 @@
 #include "../third_party/stb_image_write.h"
 
 /* -----------------------------------------------------------------------
- * Viridis 256-entry colourmap (R, G, B)
+ * Viridis 256-entry colormap (R, G, B)
  * -----------------------------------------------------------------------*/
 
 static const unsigned char viridis_lut[256][3] = {

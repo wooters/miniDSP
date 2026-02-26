@@ -126,6 +126,49 @@ int main(void)
     MD_comb_reverb(buf, fx, N, 1323, 0.75, 0.7, 0.6);
     write_wav("guides/audio/effect_comb_after.wav", fx, N);
 
+    /* --------------------------------------------------------------------
+     * Spectrogram text: "HELLO" at 16 kHz
+     * ------------------------------------------------------------------*/
+    {
+        const unsigned st_sr = 16000;
+        const double st_dur = 2.25;
+        const double st_pad = 0.5;   /* silence before and after text */
+        unsigned st_max = (unsigned)(st_sr * st_dur) + 1024;
+        double *st_text = malloc(st_max * sizeof(double));
+        if (!st_text) {
+            fprintf(stderr, "allocation failed for spectrogram text\n");
+        } else {
+            unsigned st_text_n = MD_spectrogram_text(st_text, st_max, "HELLO",
+                                                     400.0, 7300.0, st_dur, st_sr);
+            /* Pad with silence before and after */
+            unsigned st_pad_samp = (unsigned)(st_pad * st_sr);
+            unsigned st_n = st_pad_samp + st_text_n + st_pad_samp;
+            double *st_padded = calloc(st_n, sizeof(double));
+            if (!st_padded) {
+                fprintf(stderr, "allocation failed for padded spectrogram text\n");
+            } else {
+                memcpy(st_padded + st_pad_samp, st_text, st_text_n * sizeof(double));
+                /* Write at 16 kHz — inline FIO_write_wav since write_wav() hardcodes 44100 */
+                float *st_fbuf = malloc(st_n * sizeof(float));
+                if (!st_fbuf) {
+                    fprintf(stderr, "allocation failed for spectrogram text float buf\n");
+                } else {
+                    for (unsigned i = 0; i < st_n; i++)
+                        st_fbuf[i] = (float)clamp_unit(st_padded[i]);
+                    int rc = FIO_write_wav("guides/audio/spectrogram_text_hello.wav",
+                                           st_fbuf, st_n, st_sr);
+                    if (rc != 0)
+                        fprintf(stderr, "failed to write spectrogram_text_hello.wav\n");
+                    else
+                        printf("  guides/audio/spectrogram_text_hello.wav\n");
+                    free(st_fbuf);
+                }
+                free(st_padded);
+            }
+            free(st_text);
+        }
+    }
+
     free(fx);
     free(buf);
     return 0;
