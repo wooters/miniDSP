@@ -3942,7 +3942,7 @@ static int test_spectext_output_length(void)
 
     double *buf = malloc(expected * sizeof(double));
     unsigned n = MD_spectrogram_text(buf, expected, text,
-                                     200.0, 8000.0, dur, sr);
+                                     200.0, 7500.0, dur, sr);
     int ok = (n == expected);
     free(buf);
     return ok;
@@ -3954,7 +3954,7 @@ static int test_spectext_nonzero_energy(void)
     unsigned buflen = 32000;
     double *buf = malloc(buflen * sizeof(double));
     unsigned n = MD_spectrogram_text(buf, buflen, "A",
-                                     200.0, 8000.0, 2.0, 16000.0);
+                                     200.0, 7500.0, 2.0, 16000.0);
     double energy = 0.0;
     for (unsigned i = 0; i < n; i++) energy += buf[i] * buf[i];
     free(buf);
@@ -4005,7 +4005,7 @@ static int test_spectext_normalization(void)
     unsigned buflen = 64000;
     double *buf = malloc(buflen * sizeof(double));
     unsigned n = MD_spectrogram_text(buf, buflen, "HELLO",
-                                     200.0, 8000.0, 2.0, 16000.0);
+                                     200.0, 7500.0, 2.0, 16000.0);
 
     double peak = 0.0;
     for (unsigned i = 0; i < n; i++) {
@@ -4022,7 +4022,7 @@ static int test_spectext_space_silence(void)
     unsigned buflen = 32000;
     double *buf = malloc(buflen * sizeof(double));
     unsigned n = MD_spectrogram_text(buf, buflen, " ",
-                                     200.0, 8000.0, 2.0, 16000.0);
+                                     200.0, 7500.0, 2.0, 16000.0);
 
     int all_zero = 1;
     for (unsigned i = 0; i < n; i++) {

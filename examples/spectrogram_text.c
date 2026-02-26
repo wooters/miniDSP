@@ -112,7 +112,7 @@ static int write_html(const char *path, const double *spec_db,
 
     char subtitle[256];
     snprintf(subtitle, sizeof(subtitle),
-             "Text: \"%s\" &nbsp;|&nbsp; 200–8000 Hz &nbsp;|&nbsp; "
+             "Text: \"%s\" &nbsp;|&nbsp; 200–7500 Hz &nbsp;|&nbsp; "
              "2 s at 16 kHz", text);
 
     plot_html_begin(fp, "Spectrogram Text Art", subtitle, 0);
@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
     /* Synthesis parameters */
     const double sample_rate  = 16000.0;
     const double freq_lo      = 200.0;
-    const double freq_hi      = 8000.0;
+    const double freq_hi      = 7500.0;
     const double duration_sec = 2.0;
 
     /* STFT parameters: large FFT, small hop for sharp spectrogram */

@@ -151,7 +151,7 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
     assert(text[0] != '\0');
     assert(freq_lo > 0.0);
     assert(freq_lo < freq_hi);
-    assert(freq_hi <= sample_rate / 2.0);
+    assert(freq_hi < sample_rate / 2.0);
     assert(duration_sec > 0.0);
     assert(sample_rate > 0.0);
 

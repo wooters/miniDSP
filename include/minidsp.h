@@ -1230,7 +1230,7 @@ void MD_gcc(const double *siga, const double *sigb, unsigned N,
  * @param max_len      Size of @p output in samples (must be >= returned value).
  * @param text         Printable ASCII string to render (must be non-empty).
  * @param freq_lo      Lowest frequency in Hz (bottom of text).
- * @param freq_hi      Highest frequency in Hz (top of text).
+ * @param freq_hi      Highest frequency in Hz (top of text, must be < Nyquist).
  * @param duration_sec Total duration in seconds.
  * @param sample_rate  Sample rate in Hz.
  * @return             Number of samples written to @p output.
@@ -1238,7 +1238,7 @@ void MD_gcc(const double *siga, const double *sigb, unsigned N,
  * @code
  * double buf[64000];
  * unsigned n = MD_spectrogram_text(buf, 64000, "HELLO",
- *                                  200.0, 8000.0, 2.0, 16000.0);
+ *                                  200.0, 7500.0, 2.0, 16000.0);
  * // buf[0..n-1] now contains synthesised audio; view its spectrogram
  * // to see "HELLO" spelled out in the frequency domain.
  * @endcode

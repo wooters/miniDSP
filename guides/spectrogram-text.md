@@ -71,7 +71,7 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
 
 double buf[64000];
 unsigned n = MD_spectrogram_text(buf, 64000, "HELLO",
-                                 200.0, 8000.0, 2.0, 16000.0);
+                                 200.0, 7500.0, 2.0, 16000.0);
 /* buf[0..n-1] contains the audio.  Compute its STFT to see "HELLO". */
 ```
 
@@ -91,5 +91,3 @@ cd examples && ./spectrogram_text "HELLO"
 open spectrogram_text.html     # interactive spectrogram
 open spectrogram_text.png      # static image
 ```
-
-<iframe src="spectrogram_text.html" width="100%" height="500" frameborder="0"></iframe>
