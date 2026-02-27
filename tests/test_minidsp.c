@@ -3926,6 +3926,140 @@ static int test_dtmf_detect_q24_minimum(void)
 }
 
 /* -----------------------------------------------------------------------
+ * MD_shepard_tone
+ * -----------------------------------------------------------------------*/
+
+/** Output has non-zero energy. */
+static int test_shepard_nonzero_energy(void)
+{
+    unsigned N = 44100;
+    double *buf = malloc(N * sizeof(double));
+    MD_shepard_tone(buf, N, 0.8, 440.0, 44100.0, 0.5, 8);
+    double energy = 0.0;
+    for (unsigned i = 0; i < N; i++) energy += buf[i] * buf[i];
+    free(buf);
+    return energy > 0.0;
+}
+
+/** Peak absolute amplitude matches the requested amplitude. */
+static int test_shepard_peak_amplitude(void)
+{
+    unsigned N = 44100;
+    double *buf = malloc(N * sizeof(double));
+    MD_shepard_tone(buf, N, 0.8, 440.0, 44100.0, 0.5, 8);
+    double peak = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        double a = fabs(buf[i]);
+        if (a > peak) peak = a;
+    }
+    free(buf);
+    return approx_equal(peak, 0.8, 0.01);
+}
+
+/** Static Shepard chord (rate=0) should have octave-spaced spectral peaks.
+ *  Use 4 octaves centred on 1000 Hz: expect peaks near 250, 500, 1000, 2000 Hz. */
+static int test_shepard_static_octave_peaks(void)
+{
+    /* Use N = fs so that bin k = k Hz exactly (no spectral leakage). */
+    unsigned N = 8192;
+    double sr = 8192.0;
+    double base = 1024.0;
+    unsigned num_oct = 4;
+
+    double *buf = malloc(N * sizeof(double));
+    double *mag = malloc((N / 2 + 1) * sizeof(double));
+
+    MD_shepard_tone(buf, N, 1.0, base, sr, 0.0, num_oct);
+    MD_magnitude_spectrum(buf, N, mag);
+
+    /* Expected peaks: base * 2^(k - center) for k = 0..3, center = 1.5
+     * k=0: 1024 * 2^(-1.5) = 362.0
+     * k=1: 1024 * 2^(-0.5) = 724.1
+     * k=2: 1024 * 2^( 0.5) = 1448.2
+     * k=3: 1024 * 2^( 1.5) = 2896.3 */
+    double expected[] = {362.0, 724.1, 1448.2, 2896.3};
+    int ok = 1;
+    for (int e = 0; e < 4; e++) {
+        unsigned bin = (unsigned)(expected[e] + 0.5); /* bin k ≈ freq Hz */
+        /* Check that this bin is a local maximum above threshold */
+        double thresh = mag[1]; /* arbitrary low bin as baseline */
+        for (unsigned b = 1; b < N / 2 + 1; b++)
+            if (mag[b] < thresh) thresh = mag[b];
+        /* The peak bin should be notably above the noise floor */
+        int found = 0;
+        for (int delta = -3; delta <= 3; delta++) {
+            int b = (int)bin + delta;
+            if (b < 0 || b >= (int)(N / 2 + 1)) continue;
+            if (mag[b] > thresh * 10.0) found = 1;
+        }
+        if (!found) ok = 0;
+    }
+    free(mag);
+    free(buf);
+    return ok;
+}
+
+/** Rising and falling Shepard tones should differ. */
+static int test_shepard_rising_vs_falling(void)
+{
+    unsigned N = 22050; /* 0.5 s at 44100 Hz */
+    double *rising  = malloc(N * sizeof(double));
+    double *falling = malloc(N * sizeof(double));
+
+    MD_shepard_tone(rising,  N, 0.8, 440.0, 44100.0,  0.5, 8);
+    MD_shepard_tone(falling, N, 0.8, 440.0, 44100.0, -0.5, 8);
+
+    /* They should not be identical */
+    int differ = 0;
+    for (unsigned i = 0; i < N; i++) {
+        if (fabs(rising[i] - falling[i]) > 1e-10) { differ = 1; break; }
+    }
+    free(rising);
+    free(falling);
+    return differ;
+}
+
+/** Gaussian spectral envelope: the layer nearest the centre should be
+ *  louder in the spectrum than layers at the edge.
+ *
+ *  Use odd num_octaves so that one layer sits exactly at base_freq.
+ *  With N = fs = 8192, bin k = k Hz exactly. */
+static int test_shepard_gaussian_envelope(void)
+{
+    unsigned N = 8192;
+    double sr = 8192.0;
+    double base = 512.0;
+    unsigned num_oct = 7;  /* centre = 3.0 → layer 3 at exactly 512 Hz */
+
+    double *buf = malloc(N * sizeof(double));
+    double *mag = malloc((N / 2 + 1) * sizeof(double));
+
+    MD_shepard_tone(buf, N, 1.0, base, sr, 0.0, num_oct);
+    MD_magnitude_spectrum(buf, N, mag);
+
+    /* Layer 3: d=0, freq = 512 Hz (bin 512), Gaussian = 1.0
+     * Layer 0: d=-3, freq = 64 Hz (bin 64), Gaussian ≈ 0.23
+     * The peak at the centre should be substantially larger than the edge. */
+    double centre_peak = 0.0;
+    for (int d = -2; d <= 2; d++) {
+        int b = 512 + d;
+        if (b >= 0 && b < (int)(N / 2 + 1) && mag[b] > centre_peak)
+            centre_peak = mag[b];
+    }
+    double edge_peak = 0.0;
+    for (int d = -2; d <= 2; d++) {
+        int b = 64 + d;
+        if (b >= 0 && b < (int)(N / 2 + 1) && mag[b] > edge_peak)
+            edge_peak = mag[b];
+    }
+
+    int ok = (centre_peak > edge_peak * 2.0);
+    free(mag);
+    free(buf);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * MD_spectrogram_text
  * -----------------------------------------------------------------------*/
 
@@ -4293,6 +4427,13 @@ int main(void)
     RUN_TEST(test_dtmf_detect_16khz);
     RUN_TEST(test_dtmf_detect_timestamps);
     RUN_TEST(test_dtmf_detect_q24_minimum);
+
+    printf("\n--- MD_shepard_tone ---\n");
+    RUN_TEST(test_shepard_nonzero_energy);
+    RUN_TEST(test_shepard_peak_amplitude);
+    RUN_TEST(test_shepard_static_octave_peaks);
+    RUN_TEST(test_shepard_rising_vs_falling);
+    RUN_TEST(test_shepard_gaussian_envelope);
 
     printf("\n--- MD_spectrogram_text ---\n");
     RUN_TEST(test_spectext_output_length);

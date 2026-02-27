@@ -1,7 +1,7 @@
 /**
  * @file minidsp_generators.c
  * @brief Signal generators: sine, white noise, impulse, chirps, square,
- *        and sawtooth waves.
+ *        sawtooth waves, and Shepard tone.
  * @author Chuck Wooters <wooters@hey.com>
  * @copyright 2013 International Computer Science Institute
  */
@@ -153,5 +153,83 @@ void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
         double phase = fmod(phase_step * (double)i, 2.0 * M_PI);
         if (phase < 0.0) phase += 2.0 * M_PI;
         output[i] = amplitude * (phase / M_PI - 1.0);
+    }
+}
+
+void MD_shepard_tone(double *output, unsigned N, double amplitude,
+                     double base_freq, double sample_rate,
+                     double rate_octaves_per_sec, unsigned num_octaves)
+{
+    assert(output != nullptr);
+    assert(N > 0);
+    assert(sample_rate > 0.0);
+    assert(base_freq > 0.0);
+    assert(num_octaves > 0);
+
+    double rate    = rate_octaves_per_sec;
+    double center  = (double)(num_octaves - 1) / 2.0;
+    double sigma   = (double)num_octaves / 4.0;
+    double nyquist = sample_rate / 2.0;
+    double margin  = 5.0 * sigma;
+
+    /* Determine the range of layer indices needed.
+     *
+     * Layer k has octave offset from the Gaussian centre at time t:
+     *   d_k(t) = k − center + rate · t
+     *
+     * A layer is relevant if |d_k(t)| ≤ 5σ for at least one t in
+     * [0, duration].  For rate > 0 (rising), d_k increases with time,
+     * so early layers start below centre and later ones rise above it.
+     * Extra layers below the initial configuration are needed to replace
+     * those that drift above the Gaussian on the high side.  For rate < 0
+     * (falling), the mirror logic applies. */
+    double duration = (N > 1) ? (double)(N - 1) / sample_rate : 0.0;
+    double drift    = rate * duration;
+
+    int k_min = (int)floor(center - margin - fmax(0.0, drift));
+    int k_max = (int)ceil(center + margin - fmin(0.0, drift));
+    unsigned total_layers = (unsigned)(k_max - k_min + 1);
+
+    /* Per-layer phase accumulators (zero-initialised). */
+    double *phases = calloc(total_layers, sizeof(double));
+    assert(phases != nullptr);
+    memset(output, 0, N * sizeof(double));
+
+    for (unsigned i = 0; i < N; i++) {
+        double t = (double)i / sample_rate;
+        for (int k = k_min; k <= k_max; k++) {
+            /* d = octave distance from Gaussian centre (continuous) */
+            double d = (double)k - center + rate * t;
+
+            /* Skip layers outside the significant Gaussian tail */
+            if (fabs(d) > margin) continue;
+
+            double freq = base_freq * pow(2.0, d);
+            unsigned idx = (unsigned)(k - k_min);
+            phases[idx] += 2.0 * M_PI * freq / sample_rate;
+
+            /* Skip frequencies outside the audible / Nyquist range */
+            if (freq >= nyquist || freq < 20.0) continue;
+
+            double gauss = exp(-0.5 * d * d / (sigma * sigma));
+            /* Keep phase bounded to preserve floating-point precision */
+            if (phases[idx] > 4.0 * M_PI)
+                phases[idx] = fmod(phases[idx], 2.0 * M_PI);
+            output[i] += gauss * sin(phases[idx]);
+        }
+    }
+
+    free(phases);
+
+    /* Normalise so the peak absolute value equals the requested amplitude. */
+    double peak = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        double a = fabs(output[i]);
+        if (a > peak) peak = a;
+    }
+    if (peak > 0.0) {
+        double scale = amplitude / peak;
+        for (unsigned i = 0; i < N; i++)
+            output[i] *= scale;
     }
 }

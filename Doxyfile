@@ -94,7 +94,12 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/plots/mfcc_frame.html \
                          guides/plots/dtmf_spectrogram.html \
                          guides/audio/spectrogram_text_hello.wav \
-                         guides/plots/spectext_hello_spectrogram.html
+                         guides/plots/spectext_hello_spectrogram.html \
+                         guides/audio/shepard_rising.wav \
+                         guides/audio/shepard_falling.wav \
+                         guides/audio/shepard_static.wav \
+                         guides/plots/shepard_rising_spectrogram.html \
+                         guides/plots/shepard_falling_spectrogram.html
 
 HTML_HEADER            = doxygen-custom/header.html
 

@@ -69,6 +69,11 @@ examples/spectrogram_text.html
 examples/spectrogram_text.png
 examples/spectrogram_text.wav
 
+examples/shepard_tone
+examples/shepard_tone.csv
+examples/shepard_tone.html
+examples/shepard_tone.wav
+
 # Generated assets for documentation
 guides/audio/
 guides/plots/
