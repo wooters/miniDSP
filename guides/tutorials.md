@@ -17,3 +17,4 @@ and shows the resulting plots.
 - \subpage pitch-detection — [Fundamental frequency](https://en.wikipedia.org/wiki/Fundamental_frequency) (F0) estimation with autocorrelation and FFT peak picking.
 - \subpage dtmf — [DTMF](https://en.wikipedia.org/wiki/Dual-tone_multi-frequency_signaling) tone detection and generation with ITU-T Q.24 timing.
 - \subpage spectrogram-text — Synthesise audio that displays readable text in a spectrogram.
+- \subpage shepard-tone — Generate the auditory illusion of endlessly rising or falling pitch.

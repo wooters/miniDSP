@@ -29,6 +29,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Chirp generators** -- linear and logarithmic frequency sweeps; great for testing filter magnitude response across a frequency range.
 - **Square wave generator** -- bipolar square wave at a given frequency; demonstrates odd harmonics and Gibbs phenomenon.
 - **Sawtooth wave generator** -- linear ramp waveform at a given frequency; contains both odd and even harmonics.
+- **Shepard tone generator** -- the [auditory illusion](https://en.wikipedia.org/wiki/Shepard_tone) of endlessly rising or falling pitch, using octave-spaced sine waves with a Gaussian spectral envelope.
 
 ### Spectrogram Text Art (minidsp.h)
 
@@ -301,6 +302,23 @@ MD_shutdown();
 
 A full example with WAV file I/O is in `examples/dtmf_detector.c`.
 See the [DTMF tutorial](https://wooters.github.io/miniDSP/dtmf.html).
+
+### Generate a Shepard tone (endlessly rising pitch)
+
+```c
+#include "minidsp.h"
+#include <stdlib.h>
+
+/* 5 seconds of rising Shepard tone at 44.1 kHz */
+unsigned N = 5 * 44100;
+double *sig = malloc(N * sizeof(double));
+MD_shepard_tone(sig, N, 0.8, 440.0, 44100.0, 0.5, 8);
+/* sig[] sounds like it rises forever */
+free(sig);
+```
+
+A runnable example with spectrogram visualisation is in `examples/shepard_tone.c`.
+See the [Shepard Tone tutorial](https://wooters.github.io/miniDSP/shepard-tone.html).
 
 ### Compute mel energies and MFCCs
 

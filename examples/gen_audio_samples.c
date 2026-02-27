@@ -169,6 +169,31 @@ int main(void)
         }
     }
 
+    /* --------------------------------------------------------------------
+     * Shepard tones: rising, falling, and static (5 seconds at 44100 Hz)
+     * ------------------------------------------------------------------*/
+    {
+        const unsigned shep_n = (unsigned)(SAMPLE_RATE * 5.0);
+        double *shep = malloc(shep_n * sizeof(double));
+        if (!shep) {
+            fprintf(stderr, "allocation failed for shepard tone\n");
+        } else {
+            /* Rising */
+            MD_shepard_tone(shep, shep_n, 0.8, 440.0, SAMPLE_RATE, 0.5, 8);
+            write_wav("guides/audio/shepard_rising.wav", shep, shep_n);
+
+            /* Falling */
+            MD_shepard_tone(shep, shep_n, 0.8, 440.0, SAMPLE_RATE, -0.5, 8);
+            write_wav("guides/audio/shepard_falling.wav", shep, shep_n);
+
+            /* Static chord */
+            MD_shepard_tone(shep, shep_n, 0.8, 440.0, SAMPLE_RATE, 0.0, 8);
+            write_wav("guides/audio/shepard_static.wav", shep, shep_n);
+
+            free(shep);
+        }
+    }
+
     free(fx);
     free(buf);
     return 0;

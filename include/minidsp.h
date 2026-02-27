@@ -8,7 +8,7 @@
  *   - Simple effects (delay/echo, tremolo, and comb-filter reverb)
  *   - Signal scaling and gain adjustment
  *   - Window generation (Hanning, Hamming, Blackman, rectangular)
- *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth)
+ *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth, Shepard tone)
  *   - FIR filtering and convolution (time-domain and FFT overlap-add)
  *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, and MFCCs
  *   - DTMF tone detection (ITU-T Q.24) and generation
@@ -1022,6 +1022,72 @@ void MD_square_wave(double *output, unsigned N, double amplitude,
  */
 void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
                       double freq, double sample_rate);
+
+/**
+ * @brief Generate a Shepard tone — the auditory illusion of endlessly
+ *        rising or falling pitch.
+ *
+ * A [Shepard tone](https://en.wikipedia.org/wiki/Shepard_tone) superimposes
+ * several sine waves spaced one octave apart.  Each tone glides continuously
+ * upward (or downward) in pitch while a Gaussian spectral envelope — fixed
+ * in log-frequency space — fades tones in at one end and out at the other.
+ * The result is a sound that seems to rise (or fall) forever without ever
+ * actually leaving its frequency range.
+ *
+ * **Signal model.**  At time \f$t = n / f_s\f$ the output sample is:
+ *
+ * \f[
+ *   x[n] \;=\; A_\mathrm{norm}\!\sum_k
+ *     \underbrace{
+ *       \exp\!\Bigl(-\frac{d_k(t)^2}{2\sigma^2}\Bigr)
+ *     }_{\text{Gaussian envelope}}
+ *     \;\sin\!\bigl(\varphi_k(n)\bigr)
+ * \f]
+ *
+ * where the octave distance from the Gaussian centre is
+ *
+ * \f[
+ *   d_k(t) = k - c + R\,t, \qquad
+ *   c = \frac{L-1}{2}, \qquad
+ *   \sigma = \frac{L}{4}
+ * \f]
+ *
+ * and the instantaneous frequency of layer \f$k\f$ is
+ * \f$f_k(t) = f_\text{base}\cdot 2^{d_k(t)}\f$.
+ * The phase \f$\varphi_k\f$ is accumulated sample-by-sample from
+ * \f$f_k\f$ so that each tone glides smoothly.
+ * \f$R\f$ is @p rate_octaves_per_sec and \f$L\f$ is @p num_octaves.
+ * \f$A_\mathrm{norm}\f$ scales the peak to @p amplitude.
+ *
+ * The sum ranges over all integer indices \f$k\f$ for which
+ * \f$|d_k(t)|\f$ is within \f$5\sigma\f$ at some point during the
+ * signal, ensuring enough layers are present to sustain the illusion
+ * for the full duration.
+ *
+ * @param output               Output buffer of length @p N (caller-allocated).
+ * @param N                    Number of samples to generate.  Must be > 0.
+ * @param amplitude            Peak amplitude of the output signal.
+ * @param base_freq            Centre frequency of the Gaussian envelope in Hz.
+ *                             Typical values: 200–600 Hz.
+ * @param sample_rate          Sampling rate in Hz.  Must be > 0.
+ * @param rate_octaves_per_sec Glissando rate in octaves per second.
+ *                             Positive = rising, negative = falling, 0 = static chord.
+ * @param num_octaves          Number of audible octave layers (width of the
+ *                             Gaussian bell).  Typical values: 6–10.
+ *                             Must be > 0.
+ *
+ * @code
+ * // 5 seconds of endlessly rising Shepard tone at 44.1 kHz
+ * unsigned N = 5 * 44100;
+ * double *sig = malloc(N * sizeof(double));
+ * MD_shepard_tone(sig, N, 0.8, 440.0, 44100.0, 0.5, 8);
+ * // sig[] now sounds like it rises forever
+ * free(sig);
+ * @endcode
+ */
+void MD_shepard_tone(double *output, unsigned N, double amplitude,
+                     double base_freq, double sample_rate,
+                     double rate_octaves_per_sec, unsigned num_octaves);
 
 /* -----------------------------------------------------------------------
  * DTMF tone detection and generation

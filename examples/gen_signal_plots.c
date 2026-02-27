@@ -1405,7 +1405,112 @@ int main(void)
         free(st_sig);
     }
 
-    MD_shutdown();   /* release spectrogram text STFT plan */
+    /* ================================================================
+     * Shepard tone spectrograms (rising + falling)
+     * ================================================================*/
+    {
+        const double shep_sr = 44100.0;
+        const double shep_dur = 5.0;
+        const unsigned shep_n = (unsigned)(shep_sr * shep_dur);
+        const unsigned shep_fft = 2048;
+        const unsigned shep_hop = 512;
+
+        double *shep_sig = malloc(shep_n * sizeof(double));
+        if (!shep_sig) {
+            fprintf(stderr, "allocation failed for shepard signal\n");
+            free(conv_in); free(work_b); free(work_a); free(fx); free(buf);
+            return 1;
+        }
+
+        struct { const char *path; const char *title; double rate; } shep_cfg[] = {
+            { "guides/plots/shepard_rising_spectrogram.html",
+              "Shepard Tone (Rising 0.5 oct/s)",  0.5 },
+            { "guides/plots/shepard_falling_spectrogram.html",
+              "Shepard Tone (Falling 0.5 oct/s)", -0.5 },
+        };
+
+        for (int sc = 0; sc < 2; sc++) {
+            MD_shepard_tone(shep_sig, shep_n, 0.8, 440.0, shep_sr,
+                            shep_cfg[sc].rate, 8);
+
+            unsigned shep_frames = MD_stft_num_frames(shep_n, shep_fft, shep_hop);
+            unsigned shep_bins   = shep_fft / 2 + 1;
+            double *shep_mag = malloc((size_t)shep_frames * shep_bins * sizeof(double));
+            if (!shep_mag) {
+                fprintf(stderr, "allocation failed for shepard STFT\n");
+                continue;
+            }
+            MD_stft(shep_sig, shep_n, shep_fft, shep_hop, shep_mag);
+
+            FILE *fp = fopen(shep_cfg[sc].path, "w");
+            if (!fp) {
+                fprintf(stderr, "cannot open %s\n", shep_cfg[sc].path);
+                free(shep_mag);
+                continue;
+            }
+
+            write_head(fp, shep_cfg[sc].title);
+
+            /* Time axis */
+            fprintf(fp, "    const times = [");
+            for (unsigned f = 0; f < shep_frames; f++) {
+                fprintf(fp, "%.4f", (double)(f * shep_hop) / shep_sr);
+                if (f + 1 < shep_frames) fprintf(fp, ",");
+            }
+            fprintf(fp, "];\n");
+
+            /* Frequency axis */
+            fprintf(fp, "    const freqs = [");
+            for (unsigned k = 0; k < shep_bins; k++) {
+                fprintf(fp, "%.2f", (double)k * shep_sr / (double)shep_fft);
+                if (k + 1 < shep_bins) fprintf(fp, ",");
+            }
+            fprintf(fp, "];\n");
+
+            /* Z matrix (dB) */
+            fprintf(fp, "    const z = [\n");
+            for (unsigned k = 0; k < shep_bins; k++) {
+                fprintf(fp, "      [");
+                for (unsigned f = 0; f < shep_frames; f++) {
+                    double db = 20.0 * log10(fmax(shep_mag[f * shep_bins + k]
+                                                   / (double)shep_fft, 1e-6));
+                    fprintf(fp, "%.1f", db);
+                    if (f + 1 < shep_frames) fprintf(fp, ",");
+                }
+                fprintf(fp, "]");
+                if (k + 1 < shep_bins) fprintf(fp, ",");
+                fprintf(fp, "\n");
+            }
+            fprintf(fp, "    ];\n");
+
+            fprintf(fp,
+                "    Plotly.newPlot('plot', [{\n"
+                "      type: 'heatmap',\n"
+                "      x: times, y: freqs, z: z,\n"
+                "      colorscale: 'Viridis',\n"
+                "      zmin: -80, zmax: 0,\n"
+                "      colorbar: { title: 'dB', thickness: 12 },\n"
+                "      hovertemplate: 't: %%{x:.3f} s<br>f: %%{y:.0f} Hz<br>%%{z:.0f} dB<extra></extra>'\n"
+                "    }], {\n"
+                "      title: { text: '%s', font: { size: 13 } },\n"
+                "      xaxis: { title: 'Time (s)' },\n"
+                "      yaxis: { title: 'Frequency (Hz)', type: 'log', range: [%s, %s] },\n"
+                "      margin: { t: 35, r: 80, b: 50, l: 60 },\n"
+                "      height: 360\n"
+                "    }, { responsive: true });\n",
+                shep_cfg[sc].title,
+                "Math.log10(30)", "Math.log10(10000)");
+
+            write_foot(fp);
+            fclose(fp);
+            printf("  %s\n", shep_cfg[sc].path);
+
+            free(shep_mag);
+        }
+        free(shep_sig);
+    }
+
+    MD_shutdown();
     free(conv_in);
     free(work_b);
     free(work_a);
