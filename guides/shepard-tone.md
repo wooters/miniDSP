@@ -122,7 +122,7 @@ for (unsigned i = 0; i < N; i++) {
 
 ## Parameters and their effect
 
-### Glissando rate (`rate_octaves_per_sec`)
+### Glissando rate (rate_octaves_per_sec)
 
 Controls how fast the tones rise or fall.
 
@@ -182,7 +182,7 @@ The falling variant mirrors the rising pattern — diagonal lines sweep
 
 ---
 
-### Number of octaves (`num_octaves`)
+### Number of octaves (num_octaves)
 
 Controls how many simultaneous octave layers are present and the width
 of the Gaussian envelope (\f$\sigma = L/4\f$).
@@ -196,7 +196,7 @@ of the Gaussian envelope (\f$\sigma = L/4\f$).
 More octaves means more layers span the audible range at any instant,
 making the transitions smoother at the expense of a busier spectrum.
 
-### Base frequency (`base_freq`)
+### Base frequency (base_freq)
 
 The centre of the Gaussian bell curve.  Tones above this frequency are
 treated the same as those below it (the Gaussian is symmetric in
