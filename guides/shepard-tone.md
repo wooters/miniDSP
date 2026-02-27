@@ -40,18 +40,17 @@ This diagram shows the principle for a **rising** Shepard tone:
 
 ```
 Amplitude
-  |                   ╭──╮
-  |                 ╱      ╲        ← Gaussian spectral envelope
-  |               ╱    ●●    ╲        (fixed in log-frequency)
-  |             ╱   ●      ●   ╲
-  |           ╱  ●            ●  ╲
-  |         ╱ ●                ● ╲
-  |       ╱●                    ●╲
-  |     ╱                         ╲
-  +---●────────────────────────────●──→ log₂(frequency)
-      ↑                            ↑
-   low edge                    high edge
-   (fading in)               (fading out)
+  |                ╭───╮
+  |              ╱       ╲          ← Gaussian spectral envelope
+  |            ╱     ●     ╲          (fixed in log-frequency)
+  |          ╱    ●     ●    ╲
+  |        ╱   ●           ●   ╲
+  |      ╱  ●                 ●  ╲
+  |    ╱ ●                       ● ╲
+  +--●─────────────────────────────●──→ log₂(frequency)
+     ↑                               ↑
+  low edge                       high edge
+  (fading in)                  (fading out)
 
   ● = individual octave-spaced tones, all gliding →
 ```
