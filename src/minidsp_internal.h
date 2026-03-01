@@ -14,4 +14,8 @@
  *  Called only from MD_shutdown(). */
 void md_gcc_teardown(void);
 
+/** Tear down the BFSK sine carrier cache.
+ *  Called only from MD_shutdown(). */
+void md_steg_teardown(void);
+
 #endif /* MINIDSP_INTERNAL_H */

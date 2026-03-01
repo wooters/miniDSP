@@ -99,7 +99,18 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/audio/shepard_falling.wav \
                          guides/audio/shepard_static.wav \
                          guides/plots/shepard_rising_spectrogram.html \
-                         guides/plots/shepard_falling_spectrogram.html
+                         guides/plots/shepard_falling_spectrogram.html \
+                         guides/audio/steg_host.wav \
+                         guides/audio/steg_lsb.wav \
+                         guides/audio/steg_freq.wav \
+                         guides/plots/steg_lsb_diff.html \
+                         guides/plots/steg_freq_spectrogram.html \
+                         examples/space_invader.png \
+                         examples/minidsp_qr.png \
+                         guides/audio/steg_lsb_invader.wav \
+                         guides/audio/steg_lsb_qr.wav \
+                         guides/images/steg_recovered_invader.png \
+                         guides/images/steg_recovered_qr.png
 
 HTML_HEADER            = doxygen-custom/header.html
 

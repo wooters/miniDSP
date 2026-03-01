@@ -238,6 +238,7 @@ static void _stft_setup(unsigned N)
 void MD_shutdown(void)
 {
     md_gcc_teardown();
+    md_steg_teardown();
     _mel_teardown();
     _stft_teardown();
     _spec_teardown();

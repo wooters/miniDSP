@@ -14,6 +14,7 @@
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
+ *   - Audio steganography (hide, detect, and recover secret messages or binary data via LSB or frequency-band encoding)
  *
  * These are the kinds of building blocks you'd use in an audio processing
  * pipeline -- for example, estimating which direction a sound came from
@@ -1313,5 +1314,177 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
                              const char *text,
                              double freq_lo, double freq_hi,
                              double duration_sec, double sample_rate);
+
+/* -----------------------------------------------------------------------
+ * Audio steganography
+ * -----------------------------------------------------------------------*/
+
+/** Steganography method: least-significant-bit encoding. */
+#define MD_STEG_LSB       0
+/** Steganography method: near-ultrasonic frequency-band modulation (BFSK). */
+#define MD_STEG_FREQ_BAND 1
+
+/** Payload type flag: text (null-terminated string). */
+#define MD_STEG_TYPE_TEXT   0
+/** Payload type flag: binary (raw byte buffer). */
+#define MD_STEG_TYPE_BINARY 1
+
+/**
+ * @brief Compute the maximum message length (in bytes) that can be hidden.
+ *
+ * @param signal_len  Length of the host signal in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Maximum message bytes that fit (excluding null terminator).
+ */
+unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method);
+
+/**
+ * @brief Encode a secret message into a host audio signal.
+ *
+ * The host signal is copied to @p output, then the message is embedded
+ * using the selected method.  A 32-bit length header is prepended so
+ * that MD_steg_decode() can recover the message without knowing its
+ * length in advance.
+ *
+ * - **MD_STEG_LSB** — flips the least-significant bit of a 16-bit PCM
+ *   representation of each sample.  Distortion is at most ±1/32768
+ *   (≈ −90 dB).  Works at any sample rate.
+ *
+ * - **MD_STEG_FREQ_BAND** — adds a low-amplitude BFSK tone in the
+ *   near-ultrasonic band (18.5 / 19.5 kHz).  Requires
+ *   @p sample_rate >= 40000 Hz so the carriers remain below Nyquist.
+ *
+ * @param host        Input host signal (not modified).
+ * @param output      Output stego signal (caller-allocated, same length).
+ * @param signal_len  Length of host and output in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param message     Null-terminated message string to hide.
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Number of message bytes encoded (0 on failure).
+ *
+ * @code
+ * double host[44100], stego[44100];
+ * MD_sine_wave(host, 44100, 0.8, 440.0, 44100.0);
+ * unsigned n = MD_steg_encode(host, stego, 44100, 44100.0,
+ *                             "secret", MD_STEG_LSB);
+ * @endcode
+ */
+unsigned MD_steg_encode(const double *host, double *output,
+                        unsigned signal_len, double sample_rate,
+                        const char *message, int method);
+
+/**
+ * @brief Decode a secret message from a stego audio signal.
+ *
+ * Reads the 32-bit length header, then extracts message bytes using
+ * the same method that was used for encoding.
+ *
+ * @param stego       The stego signal containing the hidden message.
+ * @param signal_len  Length of the stego signal in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param message_out Output buffer for the decoded message (caller-allocated).
+ * @param max_msg_len Size of @p message_out buffer (including null terminator).
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Number of message bytes decoded (0 if none found).
+ *
+ * @code
+ * char recovered[256];
+ * unsigned n = MD_steg_decode(stego, 44100, 44100.0,
+ *                             recovered, 256, MD_STEG_LSB);
+ * printf("Hidden message: %s\n", recovered);
+ * @endcode
+ */
+unsigned MD_steg_decode(const double *stego, unsigned signal_len,
+                        double sample_rate,
+                        char *message_out, unsigned max_msg_len,
+                        int method);
+
+/**
+ * @brief Encode arbitrary binary data into a host audio signal.
+ *
+ * Works like MD_steg_encode() but accepts a raw byte buffer instead of a
+ * null-terminated string, so it can embed data containing @c 0x00 bytes
+ * (e.g. images, compressed archives, cryptographic keys).
+ *
+ * @param host        Input host signal (not modified).
+ * @param output      Output stego signal (caller-allocated, same length).
+ * @param signal_len  Length of host and output in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param data        Pointer to the binary data to hide.
+ * @param data_len    Length of @p data in bytes.
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Number of data bytes encoded (0 on failure).
+ *
+ * @code
+ * double host[44100], stego[44100];
+ * MD_sine_wave(host, 44100, 0.8, 440.0, 44100.0);
+ * unsigned char png_data[332];
+ * // ... read PNG file into png_data ...
+ * unsigned n = MD_steg_encode_bytes(host, stego, 44100, 44100.0,
+ *                                   png_data, 332, MD_STEG_LSB);
+ * @endcode
+ */
+unsigned MD_steg_encode_bytes(const double *host, double *output,
+                              unsigned signal_len, double sample_rate,
+                              const unsigned char *data, unsigned data_len,
+                              int method);
+
+/**
+ * @brief Decode binary data from a stego audio signal.
+ *
+ * Works like MD_steg_decode() but writes raw bytes without null termination,
+ * suitable for recovering binary payloads.
+ *
+ * @param stego       The stego signal containing the hidden data.
+ * @param signal_len  Length of the stego signal in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param data_out    Output buffer for the decoded bytes (caller-allocated).
+ * @param max_len     Maximum number of bytes to write to @p data_out.
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Number of data bytes decoded (0 if none found).
+ *
+ * @code
+ * unsigned char recovered[1024];
+ * unsigned n = MD_steg_decode_bytes(stego, 44100, 44100.0,
+ *                                   recovered, 1024, MD_STEG_LSB);
+ * // recovered[0..n-1] contains the original binary data
+ * @endcode
+ */
+unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
+                              double sample_rate,
+                              unsigned char *data_out, unsigned max_len,
+                              int method);
+
+/**
+ * @brief Detect which steganography method (if any) was used to encode a signal.
+ *
+ * Probes the signal for a valid steganographic header using both LSB and
+ * frequency-band (BFSK) methods.  If a valid header is found, returns the
+ * method identifier and optionally the payload type (text or binary).
+ *
+ * BFSK detection is only attempted when @p sample_rate >= 40000 Hz.
+ * If both methods appear valid, BFSK is preferred (lower false-positive rate).
+ *
+ * @param signal           The signal to inspect.
+ * @param signal_len       Length of the signal in samples.
+ * @param sample_rate      Sample rate in Hz.
+ * @param payload_type_out If non-null, receives MD_STEG_TYPE_TEXT or
+ *                         MD_STEG_TYPE_BINARY when a method is detected.
+ * @return                 MD_STEG_LSB, MD_STEG_FREQ_BAND, or -1 if no
+ *                         steganographic content is detected.
+ *
+ * @code
+ * int payload_type;
+ * int method = MD_steg_detect(signal, signal_len, 44100.0, &payload_type);
+ * if (method >= 0) {
+ *     printf("Detected %s payload (%s)\n",
+ *            payload_type == MD_STEG_TYPE_BINARY ? "binary" : "text",
+ *            method == MD_STEG_LSB ? "LSB" : "BFSK");
+ * }
+ * @endcode
+ */
+int MD_steg_detect(const double *signal, unsigned signal_len,
+                   double sample_rate, int *payload_type_out);
 
 #endif /* MINIDSP_H */

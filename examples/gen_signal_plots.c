@@ -1510,6 +1510,171 @@ int main(void)
         free(shep_sig);
     }
 
+    /* ===================================================================
+     * Steganography plots
+     * =================================================================== */
+    printf("\nSteganography plots:\n");
+    {
+        const double steg_sr = 44100.0;
+        const unsigned steg_n = (unsigned)(steg_sr * 3.0);
+        double *steg_host  = malloc(steg_n * sizeof(double));
+        double *steg_lsb   = malloc(steg_n * sizeof(double));
+        double *steg_freq  = malloc(steg_n * sizeof(double));
+        if (!steg_host || !steg_lsb || !steg_freq) {
+            fprintf(stderr, "allocation failed for steganography plots\n");
+        } else {
+            const char *secret = "Hidden message inside audio!";
+            MD_sine_wave(steg_host, steg_n, 0.8, 440.0, steg_sr);
+            MD_steg_encode(steg_host, steg_lsb, steg_n, steg_sr,
+                           secret, MD_STEG_LSB);
+            MD_steg_encode(steg_host, steg_freq, steg_n, steg_sr,
+                           secret, MD_STEG_FREQ_BAND);
+
+            /* --- LSB difference plot --- */
+            {
+                FILE *fp = fopen("guides/plots/steg_lsb_diff.html", "w");
+                if (!fp) { fprintf(stderr, "cannot open steg_lsb_diff.html\n"); }
+                else {
+                    write_head(fp, "LSB Steganography — Difference Signal");
+
+                    /* Compute difference (host - stego) for first 2000 samples */
+                    unsigned show_n = 2000;
+                    fprintf(fp, "    const t = [");
+                    for (unsigned i = 0; i < show_n; i++) {
+                        fprintf(fp, "%.6f", (double)i / steg_sr);
+                        if (i + 1 < show_n) fprintf(fp, ",");
+                    }
+                    fprintf(fp, "];\n");
+
+                    fprintf(fp, "    const diff = [");
+                    for (unsigned i = 0; i < show_n; i++) {
+                        fprintf(fp, "%.8e", steg_host[i] - steg_lsb[i]);
+                        if (i + 1 < show_n) fprintf(fp, ",");
+                    }
+                    fprintf(fp, "];\n");
+
+                    fprintf(fp,
+                        "    Plotly.newPlot('plot', [{\n"
+                        "      x: t, y: diff,\n"
+                        "      type: 'scatter', mode: 'lines',\n"
+                        "      line: { width: 1, color: '#e74c3c' },\n"
+                        "      name: 'host - stego'\n"
+                        "    }], {\n"
+                        "      title: { text: 'LSB Difference (host \\u2212 stego)', font: { size: 13 } },\n"
+                        "      xaxis: { title: 'Time (s)' },\n"
+                        "      yaxis: { title: 'Amplitude', tickformat: '.1e' },\n"
+                        "      margin: { t: 35, r: 30, b: 50, l: 70 },\n"
+                        "      height: 360\n"
+                        "    }, { responsive: true });\n");
+
+                    write_foot(fp);
+                    fclose(fp);
+                    printf("  guides/plots/steg_lsb_diff.html\n");
+                }
+            }
+
+            /* --- Frequency-band spectrogram --- */
+            {
+                /* Use a small portion (0.5 s) to show the BFSK carriers */
+                const unsigned spec_dur_samp = (unsigned)(0.5 * steg_sr);
+                const unsigned spec_fft = 2048u;
+                const unsigned spec_hop = 64u;
+                const unsigned spec_bins = spec_fft / 2 + 1;
+                unsigned spec_frames = (spec_dur_samp >= spec_fft)
+                    ? (spec_dur_samp - spec_fft) / spec_hop + 1 : 0;
+
+                double *win = malloc(spec_fft * sizeof(double));
+                double *frm = malloc(spec_fft * sizeof(double));
+                double *mag = malloc(spec_bins * sizeof(double));
+                double *all_mag = nullptr;
+                if (spec_frames > 0)
+                    all_mag = malloc(spec_frames * spec_bins * sizeof(double));
+
+                if (win && frm && mag && all_mag) {
+                    MD_Gen_Hann_Win(win, spec_fft);
+
+                    for (unsigned f = 0; f < spec_frames; f++) {
+                        unsigned start = f * spec_hop;
+                        for (unsigned i = 0; i < spec_fft; i++)
+                            frm[i] = steg_freq[start + i] * win[i];
+                        MD_magnitude_spectrum(frm, spec_fft, mag);
+                        for (unsigned k = 0; k < spec_bins; k++)
+                            all_mag[f * spec_bins + k] = mag[k];
+                    }
+
+                    FILE *fp = fopen("guides/plots/steg_freq_spectrogram.html", "w");
+                    if (!fp) {
+                        fprintf(stderr, "cannot open steg_freq_spectrogram.html\n");
+                    } else {
+                        write_head(fp, "Frequency-Band Steganography — Spectrogram");
+
+                        /* Times array */
+                        fprintf(fp, "    const times = [");
+                        for (unsigned f = 0; f < spec_frames; f++) {
+                            fprintf(fp, "%.4f", (double)(f * spec_hop) / steg_sr);
+                            if (f + 1 < spec_frames) fprintf(fp, ",");
+                        }
+                        fprintf(fp, "];\n");
+
+                        /* Frequencies array */
+                        fprintf(fp, "    const freqs = [");
+                        for (unsigned k = 0; k < spec_bins; k++) {
+                            fprintf(fp, "%.1f", (double)k * steg_sr / (double)spec_fft);
+                            if (k + 1 < spec_bins) fprintf(fp, ",");
+                        }
+                        fprintf(fp, "];\n");
+
+                        /* Z matrix (dB) */
+                        fprintf(fp, "    const z = [\n");
+                        for (unsigned k = 0; k < spec_bins; k++) {
+                            fprintf(fp, "      [");
+                            for (unsigned f = 0; f < spec_frames; f++) {
+                                double db = 20.0 * log10(fmax(
+                                    all_mag[f * spec_bins + k]
+                                    / (double)spec_fft, 1e-6));
+                                fprintf(fp, "%.1f", db);
+                                if (f + 1 < spec_frames) fprintf(fp, ",");
+                            }
+                            fprintf(fp, "]");
+                            if (k + 1 < spec_bins) fprintf(fp, ",");
+                            fprintf(fp, "\n");
+                        }
+                        fprintf(fp, "    ];\n");
+
+                        fprintf(fp,
+                            "    Plotly.newPlot('plot', [{\n"
+                            "      type: 'heatmap',\n"
+                            "      x: times, y: freqs, z: z,\n"
+                            "      colorscale: 'Viridis',\n"
+                            "      zmin: -80, zmax: 0,\n"
+                            "      colorbar: { title: 'dB', thickness: 12 },\n"
+                            "      hovertemplate: "
+                            "'t: %%{x:.3f} s<br>f: %%{y:.0f} Hz<br>%%{z:.0f} dB<extra></extra>'\n"
+                            "    }], {\n"
+                            "      title: { text: 'Frequency-Band Stego (BFSK at 18.5/19.5 kHz)',"
+                            " font: { size: 13 } },\n"
+                            "      xaxis: { title: 'Time (s)' },\n"
+                            "      yaxis: { title: 'Frequency (Hz)' },\n"
+                            "      margin: { t: 35, r: 80, b: 50, l: 60 },\n"
+                            "      height: 360\n"
+                            "    }, { responsive: true });\n");
+
+                        write_foot(fp);
+                        fclose(fp);
+                        printf("  guides/plots/steg_freq_spectrogram.html\n");
+                    }
+                }
+                free(all_mag);
+                free(mag);
+                free(frm);
+                free(win);
+            }
+        }
+        free(steg_freq);
+        free(steg_lsb);
+        free(steg_host);
+    }
+
     MD_shutdown();
     free(conv_in);
     free(work_b);
