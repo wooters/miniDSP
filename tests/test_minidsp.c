@@ -4423,6 +4423,90 @@ static int test_steg_bytes_string_compat(void)
     return ok;
 }
 
+static int test_steg_detect_lsb(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 1.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    MD_steg_encode(host, stego, N, sr, "detect me", MD_STEG_LSB);
+
+    int payload_type = -1;
+    int method = MD_steg_detect(stego, N, sr, &payload_type);
+    int ok = (method == MD_STEG_LSB) && (payload_type == MD_STEG_TYPE_TEXT);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
+static int test_steg_detect_freq(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 3.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    MD_steg_encode(host, stego, N, sr, "bfsk msg", MD_STEG_FREQ_BAND);
+
+    int payload_type = -1;
+    int method = MD_steg_detect(stego, N, sr, &payload_type);
+    int ok = (method == MD_STEG_FREQ_BAND) && (payload_type == MD_STEG_TYPE_TEXT);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
+static int test_steg_detect_clean(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 1.0);
+    double *signal = malloc(N * sizeof(double));
+    MD_sine_wave(signal, N, 0.8, 440.0, sr);
+
+    int method = MD_steg_detect(signal, N, sr, nullptr);
+    int ok = (method == -1);
+
+    free(signal);
+    return ok;
+}
+
+static int test_steg_detect_roundtrip(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 1.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    /* Encode binary data. */
+    const unsigned char data[] = {0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x42};
+    unsigned data_len = sizeof(data);
+    MD_steg_encode_bytes(host, stego, N, sr, data, data_len, MD_STEG_LSB);
+
+    /* Detect method and payload type. */
+    int payload_type = -1;
+    int method = MD_steg_detect(stego, N, sr, &payload_type);
+    if (method != MD_STEG_LSB || payload_type != MD_STEG_TYPE_BINARY) {
+        free(stego); free(host); return 0;
+    }
+
+    /* Decode with detected method and verify. */
+    unsigned char recovered[256];
+    unsigned decoded = MD_steg_decode_bytes(stego, N, sr,
+                                            recovered, sizeof(recovered),
+                                            method);
+    int ok = (decoded == data_len) && (memcmp(recovered, data, data_len) == 0);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Main: run all tests
  * -----------------------------------------------------------------------*/
@@ -4710,6 +4794,10 @@ int main(void)
     RUN_TEST(test_steg_bytes_lsb_roundtrip);
     RUN_TEST(test_steg_bytes_freq_roundtrip);
     RUN_TEST(test_steg_bytes_string_compat);
+    RUN_TEST(test_steg_detect_lsb);
+    RUN_TEST(test_steg_detect_freq);
+    RUN_TEST(test_steg_detect_clean);
+    RUN_TEST(test_steg_detect_roundtrip);
 
     /* Clean up FFTW resources */
     MD_shutdown();

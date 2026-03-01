@@ -81,6 +81,7 @@ examples/audio_steg.html
 # Generated assets for documentation
 guides/audio/
 guides/plots/
+guides/images/steg_recovered_*.png
 examples/gen_audio_samples
 examples/gen_signal_plots
 

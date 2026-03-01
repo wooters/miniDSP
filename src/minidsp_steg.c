@@ -14,9 +14,11 @@
  *     and compression.  Requires sample_rate >= 40000 Hz so the carrier
  *     frequencies remain below Nyquist.
  *
- * Both methods prepend a 32-bit little-endian length header (message byte
- * count) before the payload, enabling blind decoding without knowing the
- * original message length.
+ * Both methods prepend a 32-bit little-endian header before the payload.
+ * Bits 0–30 hold the message byte count; bit 31 is a payload type flag
+ * (0 = text, 1 = binary).  This enables blind decoding without knowing the
+ * original message length, and allows MD_steg_detect() to identify the
+ * payload type.
  */
 
 #include "minidsp.h"
@@ -27,6 +29,12 @@
 
 /** Bits needed for the message-length header (32-bit unsigned). */
 #define HEADER_BITS 32
+
+/** Bit 31 of the header: payload type flag (0 = text, 1 = binary). */
+#define PAYLOAD_TYPE_BIT (1u << 31)
+
+/** Mask to extract the message length from the raw header (bits 0–30). */
+#define LENGTH_MASK 0x7FFFFFFFu
 
 /* -----------------------------------------------------------------------
  * LSB steganography
@@ -77,7 +85,8 @@ static unsigned lsb_capacity(unsigned signal_len)
 
 static unsigned lsb_encode(const double *host, double *output,
                            unsigned signal_len,
-                           const unsigned char *data, unsigned data_len)
+                           const unsigned char *data, unsigned data_len,
+                           unsigned flags)
 {
     unsigned capacity = lsb_capacity(signal_len);
     if (data_len == 0 || capacity == 0)
@@ -88,9 +97,11 @@ static unsigned lsb_encode(const double *host, double *output,
     /* Copy host to output. */
     memcpy(output, host, signal_len * sizeof(double));
 
-    /* Encode the 32-bit length header (little-endian). */
+    /* Encode the 32-bit length header (little-endian).
+     * Bit 31 carries the payload type flag. */
+    unsigned header = data_len | flags;
     for (unsigned i = 0; i < HEADER_BITS; i++) {
-        unsigned bit = (data_len >> i) & 1;
+        unsigned bit = (header >> i) & 1;
         int pcm = double_to_pcm16(output[i]);
         /* Clear the LSB and set it to our message bit. */
         pcm = (pcm & ~1) | (int)bit;
@@ -112,19 +123,25 @@ static unsigned lsb_encode(const double *host, double *output,
     return data_len;
 }
 
+/** Read the raw 32-bit LSB header from the first HEADER_BITS samples. */
+static unsigned lsb_read_header(const double *signal)
+{
+    unsigned raw = 0;
+    for (unsigned i = 0; i < HEADER_BITS; i++) {
+        int pcm = double_to_pcm16(signal[i]);
+        unsigned bit = (unsigned)(pcm & 1);
+        raw |= (bit << i);
+    }
+    return raw;
+}
+
 static unsigned lsb_decode(const double *stego, unsigned signal_len,
                            unsigned char *data_out, unsigned max_len)
 {
     if (signal_len <= HEADER_BITS || max_len == 0)
         return 0;
 
-    /* Read the 32-bit length header. */
-    unsigned msg_len = 0;
-    for (unsigned i = 0; i < HEADER_BITS; i++) {
-        int pcm = double_to_pcm16(stego[i]);
-        unsigned bit = (unsigned)(pcm & 1);
-        msg_len |= (bit << i);
-    }
+    unsigned msg_len = lsb_read_header(stego) & LENGTH_MASK;
 
     /* Sanity check. */
     unsigned capacity = lsb_capacity(signal_len);
@@ -229,22 +246,20 @@ void md_steg_teardown(void)
     _bfsk_cs     = 0;
 }
 
-/** Encode one bit by adding a BFSK tone burst at the given chip index. */
+/** Encode one bit by adding a precomputed BFSK tone burst at the given chip. */
 static void encode_one_bit(double *output, unsigned signal_len,
-                           double sample_rate, unsigned chip_idx,
-                           unsigned cs, unsigned bit_val)
+                           unsigned chip_idx, unsigned cs,
+                           const double *carrier)
 {
-    double freq = bit_val ? FREQ_HI : FREQ_LO;
     unsigned start = chip_idx * cs;
-    for (unsigned s = 0; s < cs && (start + s) < signal_len; s++) {
-        double t = (double)s / sample_rate;
-        output[start + s] += TONE_AMP * sin(2.0 * M_PI * freq * t);
-    }
+    for (unsigned s = 0; s < cs && (start + s) < signal_len; s++)
+        output[start + s] += TONE_AMP * carrier[s];
 }
 
 static unsigned freq_encode(const double *host, double *output,
                             unsigned signal_len, double sample_rate,
-                            const unsigned char *data, unsigned data_len)
+                            const unsigned char *data, unsigned data_len,
+                            unsigned flags)
 {
     unsigned cs = chip_samples(sample_rate);
     unsigned capacity = freq_capacity_cs(signal_len, cs);
@@ -256,10 +271,15 @@ static unsigned freq_encode(const double *host, double *output,
     /* Copy host to output. */
     memcpy(output, host, signal_len * sizeof(double));
 
-    /* Encode 32-bit length header. */
+    /* Ensure cached sine carrier tables are current. */
+    _bfsk_setup(sample_rate);
+
+    /* Encode 32-bit length header (bit 31 carries payload type flag). */
+    unsigned header = data_len | flags;
     for (unsigned i = 0; i < HEADER_BITS; i++) {
-        unsigned bit = (data_len >> i) & 1;
-        encode_one_bit(output, signal_len, sample_rate, i, cs, bit);
+        unsigned bit = (header >> i) & 1;
+        encode_one_bit(output, signal_len, i, cs,
+                       bit ? _bfsk_sin_hi : _bfsk_sin_lo);
     }
 
     /* Encode data bytes. */
@@ -268,16 +288,19 @@ static unsigned freq_encode(const double *host, double *output,
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = (ch >> bit_idx) & 1;
-            encode_one_bit(output, signal_len, sample_rate, chip, cs, bit);
+            encode_one_bit(output, signal_len, chip, cs,
+                           bit ? _bfsk_sin_hi : _bfsk_sin_lo);
         }
     }
     return data_len;
 }
 
-/** Decode one bit by correlating a chip against precomputed BFSK carriers. */
+/** Decode one bit by correlating a chip against precomputed BFSK carriers.
+ *  Optionally returns the winning correlation magnitude via @p corr_out. */
 static unsigned decode_one_bit(const double *stego, unsigned signal_len,
                                unsigned chip_idx, unsigned cs,
-                               const double *sin_lo, const double *sin_hi)
+                               const double *sin_lo, const double *sin_hi,
+                               double *corr_out)
 {
     unsigned start = chip_idx * cs;
     double corr_lo = 0.0, corr_hi = 0.0;
@@ -285,7 +308,12 @@ static unsigned decode_one_bit(const double *stego, unsigned signal_len,
         corr_lo += stego[start + s] * sin_lo[s];
         corr_hi += stego[start + s] * sin_hi[s];
     }
-    return (fabs(corr_hi) > fabs(corr_lo)) ? 1u : 0u;
+    if (fabs(corr_hi) > fabs(corr_lo)) {
+        if (corr_out) *corr_out = fabs(corr_hi);
+        return 1u;
+    }
+    if (corr_out) *corr_out = fabs(corr_lo);
+    return 0u;
 }
 
 static unsigned freq_decode(const double *stego, unsigned signal_len,
@@ -303,13 +331,15 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
     /* Ensure cached sine carrier tables are current. */
     _bfsk_setup(sample_rate);
 
-    /* Read the 32-bit length header. */
-    unsigned msg_len = 0;
+    /* Read the 32-bit length header (bit 31 is payload type flag). */
+    unsigned raw_header = 0;
     for (unsigned i = 0; i < HEADER_BITS; i++) {
         unsigned bit = decode_one_bit(stego, signal_len, i, cs,
-                                      _bfsk_sin_lo, _bfsk_sin_hi);
-        msg_len |= (bit << i);
+                                      _bfsk_sin_lo, _bfsk_sin_hi,
+                                      nullptr);
+        raw_header |= (bit << i);
     }
+    unsigned msg_len = raw_header & LENGTH_MASK;
 
     /* Sanity check. */
     unsigned capacity = freq_capacity_cs(signal_len, cs);
@@ -325,7 +355,8 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = decode_one_bit(stego, signal_len, chip, cs,
-                                          _bfsk_sin_lo, _bfsk_sin_hi);
+                                          _bfsk_sin_lo, _bfsk_sin_hi,
+                                          nullptr);
             ch |= (unsigned char)(bit << bit_idx);
         }
         data_out[b] = ch;
@@ -350,10 +381,11 @@ unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method)
         return freq_capacity(signal_len, sample_rate);
 }
 
-unsigned MD_steg_encode_bytes(const double *host, double *output,
+/** Shared encode logic for both text and binary public API functions. */
+static unsigned encode_common(const double *host, double *output,
                               unsigned signal_len, double sample_rate,
                               const unsigned char *data, unsigned data_len,
-                              int method)
+                              int method, unsigned flags)
 {
     assert(host != nullptr);
     assert(output != nullptr);
@@ -367,10 +399,19 @@ unsigned MD_steg_encode_bytes(const double *host, double *output,
                "frequency-band steganography requires sample_rate >= 40 kHz");
 
     if (method == MD_STEG_LSB)
-        return lsb_encode(host, output, signal_len, data, data_len);
+        return lsb_encode(host, output, signal_len, data, data_len, flags);
     else
         return freq_encode(host, output, signal_len, sample_rate,
-                           data, data_len);
+                           data, data_len, flags);
+}
+
+unsigned MD_steg_encode_bytes(const double *host, double *output,
+                              unsigned signal_len, double sample_rate,
+                              const unsigned char *data, unsigned data_len,
+                              int method)
+{
+    return encode_common(host, output, signal_len, sample_rate,
+                         data, data_len, method, PAYLOAD_TYPE_BIT);
 }
 
 unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
@@ -397,9 +438,9 @@ unsigned MD_steg_encode(const double *host, double *output,
                         const char *message, int method)
 {
     assert(message != nullptr);
-    return MD_steg_encode_bytes(host, output, signal_len, sample_rate,
-                                (const unsigned char *)message,
-                                (unsigned)strlen(message), method);
+    return encode_common(host, output, signal_len, sample_rate,
+                         (const unsigned char *)message,
+                         (unsigned)strlen(message), method, 0);
 }
 
 unsigned MD_steg_decode(const double *stego, unsigned signal_len,
@@ -414,4 +455,65 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
                                             max_msg_len - 1, method);
     message_out[decoded] = '\0';
     return decoded;
+}
+
+int MD_steg_detect(const double *signal, unsigned signal_len,
+                   double sample_rate, int *payload_type_out)
+{
+    assert(signal != nullptr);
+    assert(signal_len > 0);
+    assert(sample_rate > 0.0);
+
+    int found_method = -1;
+    unsigned found_header = 0;
+
+    /* --- BFSK probe (only when sample_rate >= 40 kHz) --- */
+    if (sample_rate >= 40000.0) {
+        unsigned cs = chip_samples(sample_rate);
+        if (cs > 0) {
+            unsigned total_chips = signal_len / cs;
+            if (total_chips > HEADER_BITS) {
+                _bfsk_setup(sample_rate);
+
+                unsigned raw_header = 0;
+                double corr_sum = 0.0;
+                for (unsigned i = 0; i < HEADER_BITS; i++) {
+                    double corr;
+                    unsigned bit = decode_one_bit(
+                        signal, signal_len, i, cs,
+                        _bfsk_sin_lo, _bfsk_sin_hi, &corr);
+                    raw_header |= (bit << i);
+                    corr_sum += corr;
+                }
+                unsigned msg_len = raw_header & LENGTH_MASK;
+                unsigned capacity = freq_capacity_cs(signal_len, cs);
+                double avg_corr = corr_sum / HEADER_BITS;
+                double threshold = 0.25 * TONE_AMP * (double)cs / 2.0;
+
+                if (msg_len > 0 && msg_len <= capacity &&
+                    avg_corr >= threshold) {
+                    found_method = MD_STEG_FREQ_BAND;
+                    found_header = raw_header;
+                }
+            }
+        }
+    }
+
+    /* --- LSB probe --- */
+    if (found_method < 0 && signal_len > HEADER_BITS) {
+        unsigned raw_header = lsb_read_header(signal);
+        unsigned msg_len = raw_header & LENGTH_MASK;
+        unsigned capacity = lsb_capacity(signal_len);
+
+        if (msg_len > 0 && msg_len <= capacity) {
+            found_method = MD_STEG_LSB;
+            found_header = raw_header;
+        }
+    }
+
+    if (found_method >= 0 && payload_type_out != nullptr)
+        *payload_type_out = (found_header >> 31) ? MD_STEG_TYPE_BINARY
+                                                 : MD_STEG_TYPE_TEXT;
+
+    return found_method;
 }

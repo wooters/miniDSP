@@ -14,7 +14,7 @@
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
- *   - Audio steganography (hide secret messages or binary data via LSB or frequency-band encoding)
+ *   - Audio steganography (hide, detect, and recover secret messages or binary data via LSB or frequency-band encoding)
  *
  * These are the kinds of building blocks you'd use in an audio processing
  * pipeline -- for example, estimating which direction a sound came from
@@ -1324,6 +1324,11 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
 /** Steganography method: near-ultrasonic frequency-band modulation (BFSK). */
 #define MD_STEG_FREQ_BAND 1
 
+/** Payload type flag: text (null-terminated string). */
+#define MD_STEG_TYPE_TEXT   0
+/** Payload type flag: binary (raw byte buffer). */
+#define MD_STEG_TYPE_BINARY 1
+
 /**
  * @brief Compute the maximum message length (in bytes) that can be hidden.
  *
@@ -1450,5 +1455,36 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
                               double sample_rate,
                               unsigned char *data_out, unsigned max_len,
                               int method);
+
+/**
+ * @brief Detect which steganography method (if any) was used to encode a signal.
+ *
+ * Probes the signal for a valid steganographic header using both LSB and
+ * frequency-band (BFSK) methods.  If a valid header is found, returns the
+ * method identifier and optionally the payload type (text or binary).
+ *
+ * BFSK detection is only attempted when @p sample_rate >= 40000 Hz.
+ * If both methods appear valid, BFSK is preferred (lower false-positive rate).
+ *
+ * @param signal           The signal to inspect.
+ * @param signal_len       Length of the signal in samples.
+ * @param sample_rate      Sample rate in Hz.
+ * @param payload_type_out If non-null, receives MD_STEG_TYPE_TEXT or
+ *                         MD_STEG_TYPE_BINARY when a method is detected.
+ * @return                 MD_STEG_LSB, MD_STEG_FREQ_BAND, or -1 if no
+ *                         steganographic content is detected.
+ *
+ * @code
+ * int payload_type;
+ * int method = MD_steg_detect(signal, signal_len, 44100.0, &payload_type);
+ * if (method >= 0) {
+ *     printf("Detected %s payload (%s)\n",
+ *            payload_type == MD_STEG_TYPE_BINARY ? "binary" : "text",
+ *            method == MD_STEG_LSB ? "LSB" : "BFSK");
+ * }
+ * @endcode
+ */
+int MD_steg_detect(const double *signal, unsigned signal_len,
+                   double sample_rate, int *payload_type_out);
 
 #endif /* MINIDSP_H */

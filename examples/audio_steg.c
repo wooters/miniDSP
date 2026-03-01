@@ -2,7 +2,7 @@
  * @file audio_steg.c
  * @brief Example: audio steganography — hide and recover secret messages or binary data.
  *
- * Five modes of operation:
+ * Six modes of operation:
  *
  *   1) No arguments — self-test: generate a host signal, encode a message
  *      using both LSB and frequency-band methods, decode, and verify.
@@ -10,20 +10,27 @@
  *   2) --encode METHOD MESSAGE [-i HOST.wav] [-o STEGO.wav]
  *      Encode a text message into a host WAV file.
  *
- *   3) --decode METHOD FILE
+ *   3) --decode [METHOD] FILE
  *      Decode a hidden text message from a stego WAV file.
+ *      METHOD is optional — omit it to auto-detect.
  *
  *   4) --encode-image METHOD IMAGE [-i HOST.wav] [-o STEGO.wav]
  *      Encode a binary file (e.g. PNG image) into a host WAV file.
  *
- *   5) --decode-image METHOD FILE -o IMAGE_OUT
+ *   5) --decode-image [METHOD] FILE -o IMAGE_OUT
  *      Decode a binary file from a stego WAV file.
+ *      METHOD is optional — omit it to auto-detect.
+ *
+ *   6) FILE (bare filename, no flags)
+ *      Auto-detect method and payload type.  Text payloads are printed;
+ *      binary payloads report size and suggest --decode-image.
  *
  * Build and run (from the repository root):
  *   make -C examples audio_steg
  *   cd examples && ./audio_steg
  *   cd examples && ./audio_steg --encode lsb "secret message" -o stego.wav
- *   cd examples && ./audio_steg --decode lsb stego.wav
+ *   cd examples && ./audio_steg --decode stego.wav
+ *   cd examples && ./audio_steg stego.wav
  *   cd examples && ./audio_steg --encode-image lsb space_invader.png -o stego.wav
  *   cd examples && ./audio_steg --decode-image lsb stego.wav -o recovered.png
  */
@@ -355,6 +362,73 @@ static int decode_image_wav(int method, const char *infile,
 
 /* --------------------------------------------------------------------- */
 
+//! [auto-detect]
+static int auto_decode_wav(const char *infile)
+{
+    double  *stego    = nullptr;
+    unsigned signal_len;
+    unsigned samprate;
+
+    if (read_wav_to_double(infile, &stego, &signal_len, &samprate) != 0)
+        return 1;
+
+    printf("Read %s: %u samples at %u Hz (%.3f s)\n",
+           infile, signal_len, samprate,
+           (double)signal_len / (double)samprate);
+
+    int payload_type = -1;
+    int method = MD_steg_detect(stego, signal_len, (double)samprate,
+                                &payload_type);
+
+    if (method < 0) {
+        printf("No hidden payload detected.\n");
+        free(stego);
+        return 1;
+    }
+
+    printf("Detected: %s method, %s payload\n",
+           method_name(method),
+           payload_type == MD_STEG_TYPE_BINARY ? "binary" : "text");
+
+    if (payload_type == MD_STEG_TYPE_BINARY) {
+        /* Probe the payload size without a full decode. */
+        unsigned capacity = MD_steg_capacity(signal_len, (double)samprate,
+                                             method);
+        if (capacity > 16u * 1024 * 1024)
+            capacity = 16u * 1024 * 1024;
+        unsigned char *buf = malloc(capacity > 0 ? capacity : 1);
+        if (!buf) { free(stego); return 1; }
+
+        unsigned decoded = MD_steg_decode_bytes(stego, signal_len,
+                                                (double)samprate,
+                                                buf, capacity, method);
+        free(buf);
+        free(stego);
+
+        printf("Binary payload: %u bytes\n", decoded);
+        printf("Use --decode-image %s %s -o OUTPUT to extract.\n",
+               method == MD_STEG_LSB ? "lsb" : "freq", infile);
+        return 0;
+    }
+
+    /* Text payload — decode and print. */
+    char message[4096];
+    unsigned decoded = MD_steg_decode(stego, signal_len, (double)samprate,
+                                      message, sizeof(message), method);
+    free(stego);
+
+    if (decoded == 0) {
+        printf("Decode returned 0 bytes.\n");
+        return 1;
+    }
+
+    printf("\nDecoded %u bytes:\n  \"%s\"\n", decoded, message);
+    return 0;
+}
+//! [auto-detect]
+
+/* --------------------------------------------------------------------- */
+
 //! [self-test]
 static int self_test(void)
 {
@@ -448,19 +522,21 @@ static void usage(const char *prog)
     fprintf(stderr,
         "Usage:\n"
         "  %s                                              (self-test)\n"
+        "  %s FILE                                         (auto-detect)\n"
         "  %s --encode METHOD MSG [-i HOST] [-o OUT]\n"
-        "  %s --decode METHOD FILE\n"
+        "  %s --decode [METHOD] FILE\n"
         "  %s --encode-image METHOD IMAGE [-i HOST] [-o OUT]\n"
-        "  %s --decode-image METHOD FILE -o IMAGE_OUT\n"
+        "  %s --decode-image [METHOD] FILE -o IMAGE_OUT\n"
         "\n"
-        "METHOD: \"lsb\" or \"freq\"\n"
+        "METHOD: \"lsb\" or \"freq\" (optional for decode — auto-detects if omitted)\n"
         "\n"
         "Examples:\n"
         "  %s --encode lsb \"secret message\" -o stego.wav\n"
-        "  %s --decode lsb stego.wav\n"
+        "  %s --decode stego.wav\n"
+        "  %s stego.wav\n"
         "  %s --encode-image lsb space_invader.png -o stego.wav\n"
-        "  %s --decode-image lsb stego.wav -o recovered.png\n",
-        prog, prog, prog, prog, prog, prog, prog, prog, prog);
+        "  %s --decode-image stego.wav -o recovered.png\n",
+        prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 int main(int argc, char *argv[])
@@ -486,14 +562,15 @@ int main(int argc, char *argv[])
         return encode_wav(method, message, infile, outfile);
     }
 
-    if (argc >= 4 && strcmp(argv[1], "--decode") == 0) {
+    if (argc >= 3 && strcmp(argv[1], "--decode") == 0) {
         int method = parse_method(argv[2]);
-        if (method < 0) {
-            fprintf(stderr, "Unknown method '%s' (use 'lsb' or 'freq')\n",
-                    argv[2]);
-            return 1;
+        if (method >= 0) {
+            /* --decode METHOD FILE */
+            if (argc < 4) { usage(argv[0]); return 1; }
+            return decode_wav(method, argv[3]);
         }
-        return decode_wav(method, argv[3]);
+        /* --decode FILE (auto-detect) */
+        return auto_decode_wav(argv[2]);
     }
 
     if (argc >= 4 && strcmp(argv[1], "--encode-image") == 0) {
@@ -514,17 +591,38 @@ int main(int argc, char *argv[])
         return encode_image_wav(method, image_path, infile, outfile);
     }
 
-    if (argc >= 4 && strcmp(argv[1], "--decode-image") == 0) {
+    if (argc >= 3 && strcmp(argv[1], "--decode-image") == 0) {
         int method = parse_method(argv[2]);
-        if (method < 0) {
-            fprintf(stderr, "Unknown method '%s' (use 'lsb' or 'freq')\n",
-                    argv[2]);
-            return 1;
-        }
-        const char *infile  = argv[3];
-        const char *outfile = nullptr;
+        const char *infile;
+        int opt_start;
 
-        for (int i = 4; i < argc - 1; i++) {
+        if (method >= 0) {
+            /* --decode-image METHOD FILE -o OUT */
+            if (argc < 4) { usage(argv[0]); return 1; }
+            infile = argv[3];
+            opt_start = 4;
+        } else {
+            /* --decode-image FILE -o OUT (auto-detect) */
+            infile = argv[2];
+            opt_start = 3;
+
+            /* Read WAV to detect method. */
+            double  *stego    = nullptr;
+            unsigned signal_len, samprate;
+            if (read_wav_to_double(infile, &stego, &signal_len, &samprate) != 0)
+                return 1;
+            method = MD_steg_detect(stego, signal_len, (double)samprate,
+                                    nullptr);
+            free(stego);
+            if (method < 0) {
+                fprintf(stderr, "No hidden payload detected in %s\n", infile);
+                return 1;
+            }
+            printf("Auto-detected method: %s\n", method_name(method));
+        }
+
+        const char *outfile = nullptr;
+        for (int i = opt_start; i < argc - 1; i++) {
             if (strcmp(argv[i], "-o") == 0) outfile = argv[++i];
         }
         if (!outfile) {
@@ -533,6 +631,10 @@ int main(int argc, char *argv[])
         }
         return decode_image_wav(method, infile, outfile);
     }
+
+    /* Bare filename: ./audio_steg FILE */
+    if (argc == 2 && argv[1][0] != '-')
+        return auto_decode_wav(argv[1]);
 
     usage(argv[0]);
     return 1;

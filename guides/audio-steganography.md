@@ -25,15 +25,17 @@ cd examples && ./audio_steg
 
 ## Message framing
 
-Both methods prepend a **32-bit little-endian length header** (the message
-byte count) before the payload.  This allows the decoder to recover the
-message without knowing its length in advance:
+Both methods prepend a **32-bit little-endian header** before the payload.
+Bits 0–30 hold the message byte count; bit 31 is a **payload type flag**
+(0 = text, 1 = binary).  This allows the decoder to recover the message
+without knowing its length in advance, and enables `MD_steg_detect()` to
+identify the payload type:
 
 ```
-[ 32 bits: msg_len (LE) ] [ 8 * msg_len bits: message bytes ]
+[ bit 31: type flag | bits 0-30: msg_len (LE) ] [ 8 * msg_len bits: payload ]
 ```
 
-Each bit of the header and message is encoded independently using the
+Each bit of the header and payload is encoded independently using the
 chosen method.  Bits within each byte are transmitted LSB-first.
 
 ---
@@ -105,6 +107,19 @@ For a 3-second signal at 44.1 kHz (\f$N = 132300\f$):
 \f[
 C_{\text{LSB}} = \frac{132300 - 32}{8} = 16533 \text{ bytes} \approx 16 \text{ KB}
 \f]
+
+**LSB capacity at 44.1 kHz by audio duration:**
+
+| Audio duration | Samples | Max payload | Equivalent |
+|:---------------|--------:|------------:|:-----------|
+| 1 s            | 44 100  | 5 508 B     | ~5 KB (small config file) |
+| 5 s            | 220 500 | 27 558 B    | ~27 KB (web thumbnail) |
+| 30 s           | 1 323 000 | 165 371 B | ~161 KB (high-res photo) |
+| 1 min          | 2 646 000 | 330 746 B | ~323 KB (short PDF) |
+| 5 min          | 13 230 000 | 1 653 746 B | ~1.6 MB (multi-page document) |
+| 10 min         | 26 460 000 | 3 307 496 B | ~3.2 MB (zip archive) |
+| 30 min         | 79 380 000 | 9 922 496 B | ~9.5 MB (high-res image set) |
+| 1 hour         | 158 760 000 | 19 844 996 B | ~18.9 MB (small software package) |
 
 ### Listening comparison
 
@@ -299,6 +314,56 @@ use the byte-oriented API:
 - `MD_steg_encode_bytes()` — accepts a raw byte buffer and length
 - `MD_steg_decode_bytes()` — returns raw bytes without null termination
 
+### Visual demo
+
+**Space invader** — a tiny 110x80 RGB PNG (332 bytes) hidden inside a short
+440 Hz sine using LSB.  The recovered image is bit-identical to the original:
+
+\htmlonly
+<div style="display:flex; align-items:center; gap:2em; flex-wrap:wrap; margin:0.8em 0;">
+  <div style="text-align:center;">
+    <div style="font-size:0.85em; color:#666; margin-bottom:0.3em;">Original</div>
+    <img src="space_invader.png" alt="Space invader sprite" style="width:110px; image-rendering:pixelated;">
+  </div>
+  <div style="font-size:1.6em; color:#999;">&rarr;</div>
+  <div style="text-align:center;">
+    <div style="font-size:0.85em; color:#666; margin-bottom:0.3em;">Recovered from audio</div>
+    <img src="steg_recovered_invader.png" alt="Recovered space invader" style="width:110px; image-rendering:pixelated;">
+  </div>
+</div>
+<div style="margin:0.5em 0;">
+  <div style="font-size:0.85em; color:#666; margin-bottom:0.3em;">Stego audio (image hidden inside):</div>
+  <audio controls style="margin:0;">
+    <source src="steg_lsb_invader.wav" type="audio/wav">
+    <em>Your browser does not support the audio element.</em>
+  </audio>
+</div>
+\endhtmlonly
+
+**QR code** — a 165x165 grayscale PNG (486 bytes) encoding this repository's
+URL, doubly encoded: data &rarr; QR &rarr; audio:
+
+\htmlonly
+<div style="display:flex; align-items:center; gap:2em; flex-wrap:wrap; margin:0.8em 0;">
+  <div style="text-align:center;">
+    <div style="font-size:0.85em; color:#666; margin-bottom:0.3em;">Original</div>
+    <img src="minidsp_qr.png" alt="QR code" style="width:132px; image-rendering:pixelated;">
+  </div>
+  <div style="font-size:1.6em; color:#999;">&rarr;</div>
+  <div style="text-align:center;">
+    <div style="font-size:0.85em; color:#666; margin-bottom:0.3em;">Recovered from audio</div>
+    <img src="steg_recovered_qr.png" alt="Recovered QR code" style="width:132px; image-rendering:pixelated;">
+  </div>
+</div>
+<div style="margin:0.5em 0;">
+  <div style="font-size:0.85em; color:#666; margin-bottom:0.3em;">Stego audio (QR hidden inside):</div>
+  <audio controls style="margin:0;">
+    <source src="steg_lsb_qr.wav" type="audio/wav">
+    <em>Your browser does not support the audio element.</em>
+  </audio>
+</div>
+\endhtmlonly
+
 ### Minimum samples
 
 For LSB encoding, each data byte requires 8 samples, plus a 32-bit header:
@@ -465,6 +530,42 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
 
 Returns the number of data bytes decoded (0 if none found).
 
+### Detect
+
+```c
+int MD_steg_detect(const double *signal, unsigned signal_len,
+                   double sample_rate, int *payload_type_out);
+```
+
+Inspects a signal and determines which steganography method (if any) was used.
+Returns `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, or `-1` if no hidden payload is
+found.  The optional `payload_type_out` receives `MD_STEG_TYPE_TEXT` (0) or
+`MD_STEG_TYPE_BINARY` (1).
+
+| Parameter          | Description |
+|:-------------------|:------------|
+| `signal`           | The signal to inspect. |
+| `signal_len`       | Length of the signal in samples. |
+| `sample_rate`      | Sample rate in Hz. |
+| `payload_type_out` | If non-null, receives the payload type flag. |
+
+**How it works:** The function probes the first 32 samples (LSB) or 32 BFSK
+chips (frequency-band) to extract the header.  A header is considered valid
+when the decoded length is positive and fits the signal capacity.  For BFSK,
+the average correlation must also exceed a minimum threshold to avoid false
+positives.  If both methods claim a valid header, BFSK wins (harder to
+trigger by accident).
+
+**Quick example:**
+
+```c
+int payload_type;
+int method = MD_steg_detect(signal, signal_len, 44100.0, &payload_type);
+if (method == MD_STEG_LSB)
+    printf("LSB-encoded %s payload detected\n",
+           payload_type == MD_STEG_TYPE_BINARY ? "binary" : "text");
+```
+
 ---
 
 ## Quick example
@@ -528,6 +629,10 @@ encoding and decoding steganographic messages and binary data in WAV files.
 
 \snippet audio_steg.c decode-image
 
+**Auto-detect and decode** (no method needed):
+
+\snippet audio_steg.c auto-detect
+
 **Usage:**
 
 ```sh
@@ -540,15 +645,21 @@ encoding and decoding steganographic messages and binary data in WAV files.
 # Encode using frequency-band into an existing WAV host
 ./audio_steg --encode freq "hidden" -i music.wav -o stego.wav
 
-# Decode a text message
+# Auto-detect and decode (just pass the file)
+./audio_steg stego.wav
+
+# Decode with explicit method
 ./audio_steg --decode lsb stego.wav
 ./audio_steg --decode freq stego.wav
+
+# Decode without specifying method (auto-detect)
+./audio_steg --decode stego.wav
 
 # Encode a binary file (image) using LSB
 ./audio_steg --encode-image lsb space_invader.png -o steg_invader.wav
 
-# Decode a binary file from stego audio
-./audio_steg --decode-image lsb steg_invader.wav -o recovered.png
+# Decode a binary file (auto-detect method)
+./audio_steg --decode-image steg_invader.wav -o recovered.png
 ```
 
 ---

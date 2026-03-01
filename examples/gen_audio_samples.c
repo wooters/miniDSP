@@ -225,6 +225,103 @@ int main(void)
         }
     }
 
+    /* --------------------------------------------------------------------
+     * Binary steganography: hide PNG images in audio, recover them
+     * ------------------------------------------------------------------*/
+    {
+        const char *images[] = {
+            "examples/space_invader.png", "examples/minidsp_qr.png"
+        };
+        const char *wav_out[] = {
+            "guides/audio/steg_lsb_invader.wav",
+            "guides/audio/steg_lsb_qr.wav"
+        };
+        const char *png_out[] = {
+            "guides/images/steg_recovered_invader.png",
+            "guides/images/steg_recovered_qr.png"
+        };
+
+        for (int img_i = 0; img_i < 2; img_i++) {
+            /* Read the source PNG */
+            FILE *fp = fopen(images[img_i], "rb");
+            if (!fp) {
+                fprintf(stderr, "cannot open %s\n", images[img_i]);
+                continue;
+            }
+            fseek(fp, 0, SEEK_END);
+            unsigned data_len = (unsigned)ftell(fp);
+            fseek(fp, 0, SEEK_SET);
+            unsigned char *img_data = malloc(data_len);
+            if (!img_data) {
+                fprintf(stderr, "allocation failed for %s\n", images[img_i]);
+                fclose(fp);
+                continue;
+            }
+            fread(img_data, 1, data_len, fp);
+            fclose(fp);
+
+            /* Generate host signal sized for the payload */
+            unsigned sig_n = data_len * 8 + 32 + 1024;  /* payload + header + margin */
+            double *host  = malloc(sig_n * sizeof(double));
+            double *stego = malloc(sig_n * sizeof(double));
+            if (!host || !stego) {
+                fprintf(stderr, "allocation failed for steg buffers\n");
+                free(stego);
+                free(host);
+                free(img_data);
+                continue;
+            }
+
+            MD_sine_wave(host, sig_n, 0.8, 440.0, SAMPLE_RATE);
+
+            /* Encode image into audio */
+            unsigned encoded = MD_steg_encode_bytes(host, stego, sig_n,
+                                                    (double)SAMPLE_RATE,
+                                                    img_data, data_len,
+                                                    MD_STEG_LSB);
+            if (encoded == 0) {
+                fprintf(stderr, "encode failed for %s\n", images[img_i]);
+                free(stego);
+                free(host);
+                free(img_data);
+                continue;
+            }
+
+            /* Write stego WAV */
+            write_wav(wav_out[img_i], stego, sig_n);
+
+            /* Decode to recover the image bytes */
+            unsigned char *recovered = malloc(data_len);
+            if (!recovered) {
+                fprintf(stderr, "allocation failed for recovery buffer\n");
+            } else {
+                unsigned decoded = MD_steg_decode_bytes(stego, sig_n,
+                                                        (double)SAMPLE_RATE,
+                                                        recovered, data_len,
+                                                        MD_STEG_LSB);
+                if (decoded != data_len) {
+                    fprintf(stderr, "decode length mismatch for %s: %u vs %u\n",
+                            images[img_i], decoded, data_len);
+                } else {
+                    /* Write recovered PNG */
+                    FILE *out = fopen(png_out[img_i], "wb");
+                    if (!out) {
+                        fprintf(stderr, "cannot write %s\n", png_out[img_i]);
+                    } else {
+                        fwrite(recovered, 1, data_len, out);
+                        fclose(out);
+                        printf("  %s\n", png_out[img_i]);
+                    }
+                }
+                free(recovered);
+            }
+
+            free(stego);
+            free(host);
+            free(img_data);
+        }
+    }
+
     free(fx);
     free(buf);
     return 0;
