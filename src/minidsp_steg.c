@@ -11,7 +11,7 @@
  *   - **Frequency-band modulation** — encodes bits as the presence or
  *     absence of a near-ultrasonic tone (default 18.5 kHz / 19.5 kHz BFSK)
  *     in short time chips.  Lower capacity but survives mild resampling
- *     and compression.  Requires sample_rate >= 44100 Hz so the carrier
+ *     and compression.  Requires sample_rate >= 40000 Hz so the carrier
  *     frequencies remain below Nyquist.
  *
  * Both methods prepend a 32-bit little-endian length header (message byte
@@ -85,8 +85,6 @@ static unsigned lsb_encode(const double *host, double *output,
     if (msg_len > capacity)
         msg_len = capacity;
 
-    unsigned total_bits = HEADER_BITS + msg_len * 8;
-
     /* Copy host to output. */
     memcpy(output, host, signal_len * sizeof(double));
 
@@ -111,7 +109,6 @@ static unsigned lsb_encode(const double *host, double *output,
         }
     }
 
-    (void)total_bits;
     return msg_len;
 }
 
@@ -188,6 +185,19 @@ static unsigned freq_capacity(unsigned signal_len, double sample_rate)
     return (total_chips - HEADER_BITS) / 8;
 }
 
+/** Encode one bit by adding a BFSK tone burst at the given chip index. */
+static void encode_one_bit(double *output, unsigned signal_len,
+                           double sample_rate, unsigned chip_idx,
+                           unsigned cs, unsigned bit_val)
+{
+    double freq = bit_val ? FREQ_HI : FREQ_LO;
+    unsigned start = chip_idx * cs;
+    for (unsigned s = 0; s < cs && (start + s) < signal_len; s++) {
+        double t = (double)s / sample_rate;
+        output[start + s] += TONE_AMP * sin(2.0 * M_PI * freq * t);
+    }
+}
+
 static unsigned freq_encode(const double *host, double *output,
                             unsigned signal_len, double sample_rate,
                             const char *message)
@@ -204,20 +214,10 @@ static unsigned freq_encode(const double *host, double *output,
     /* Copy host to output. */
     memcpy(output, host, signal_len * sizeof(double));
 
-    /* Helper: add a tone burst for one bit at the given chip index. */
-    #define ENCODE_BIT(chip_idx, bit_val) do {                      \
-        double freq = (bit_val) ? FREQ_HI : FREQ_LO;               \
-        unsigned start = (chip_idx) * cs;                           \
-        for (unsigned s = 0; s < cs && (start + s) < signal_len; s++) { \
-            double t = (double)s / sample_rate;                     \
-            output[start + s] += TONE_AMP * sin(2.0 * M_PI * freq * t); \
-        }                                                           \
-    } while (0)
-
     /* Encode 32-bit length header. */
     for (unsigned i = 0; i < HEADER_BITS; i++) {
         unsigned bit = (msg_len >> i) & 1;
-        ENCODE_BIT(i, bit);
+        encode_one_bit(output, signal_len, sample_rate, i, cs, bit);
     }
 
     /* Encode message bytes. */
@@ -226,25 +226,22 @@ static unsigned freq_encode(const double *host, double *output,
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = (ch >> bit_idx) & 1;
-            ENCODE_BIT(chip, bit);
+            encode_one_bit(output, signal_len, sample_rate, chip, cs, bit);
         }
     }
-
-    #undef ENCODE_BIT
     return msg_len;
 }
 
-/** Decode one bit by correlating a chip against both BFSK carriers. */
+/** Decode one bit by correlating a chip against precomputed BFSK carriers. */
 static unsigned decode_one_bit(const double *stego, unsigned signal_len,
-                               double sample_rate, unsigned chip_idx,
-                               unsigned cs)
+                               unsigned chip_idx, unsigned cs,
+                               const double *sin_lo, const double *sin_hi)
 {
     unsigned start = chip_idx * cs;
     double corr_lo = 0.0, corr_hi = 0.0;
     for (unsigned s = 0; s < cs && (start + s) < signal_len; s++) {
-        double t = (double)s / sample_rate;
-        corr_lo += stego[start + s] * sin(2.0 * M_PI * FREQ_LO * t);
-        corr_hi += stego[start + s] * sin(2.0 * M_PI * FREQ_HI * t);
+        corr_lo += stego[start + s] * sin_lo[s];
+        corr_hi += stego[start + s] * sin_hi[s];
     }
     return (fabs(corr_hi) > fabs(corr_lo)) ? 1u : 0u;
 }
@@ -261,17 +258,32 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
     if (total_chips <= HEADER_BITS)
         return 0;
 
+    /* Precompute sine lookup tables for both carriers (constant across all
+     * chips).  This eliminates ~2*cs redundant sin() calls per bit decoded. */
+    double *sin_lo = malloc(cs * sizeof(double));
+    double *sin_hi = malloc(cs * sizeof(double));
+    assert(sin_lo != nullptr && sin_hi != nullptr);
+    for (unsigned s = 0; s < cs; s++) {
+        double t = (double)s / sample_rate;
+        sin_lo[s] = sin(2.0 * M_PI * FREQ_LO * t);
+        sin_hi[s] = sin(2.0 * M_PI * FREQ_HI * t);
+    }
+
     /* Read the 32-bit length header. */
     unsigned msg_len = 0;
     for (unsigned i = 0; i < HEADER_BITS; i++) {
-        unsigned bit = decode_one_bit(stego, signal_len, sample_rate, i, cs);
+        unsigned bit = decode_one_bit(stego, signal_len, i, cs,
+                                      sin_lo, sin_hi);
         msg_len |= (bit << i);
     }
 
     /* Sanity check. */
     unsigned capacity = freq_capacity(signal_len, sample_rate);
-    if (msg_len == 0 || msg_len > capacity)
+    if (msg_len == 0 || msg_len > capacity) {
+        free(sin_lo);
+        free(sin_hi);
         return 0;
+    }
 
     unsigned decode_len = msg_len;
     if (decode_len >= max_msg_len)
@@ -281,13 +293,16 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
         unsigned char ch = 0;
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
-            unsigned bit = decode_one_bit(stego, signal_len, sample_rate,
-                                          chip, cs);
+            unsigned bit = decode_one_bit(stego, signal_len, chip, cs,
+                                          sin_lo, sin_hi);
             ch |= (unsigned char)(bit << bit_idx);
         }
         message_out[b] = (char)ch;
     }
     message_out[decode_len] = '\0';
+
+    free(sin_lo);
+    free(sin_hi);
     return decode_len;
 }
 
