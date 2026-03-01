@@ -40,6 +40,49 @@
 
 /* --------------------------------------------------------------------- */
 
+/** Read a WAV file and convert to double.  Caller must free *out. */
+static int read_wav_to_double(const char *path, double **out,
+                              unsigned *out_len, unsigned *out_sr)
+{
+    float  *fdata   = nullptr;
+    size_t  datalen = 0;
+    unsigned sr     = 0;
+
+    if (FIO_read_audio(path, &fdata, &datalen, &sr, 1) != 0) {
+        fprintf(stderr, "Error reading %s\n", path);
+        return 1;
+    }
+    if (datalen == 0 || datalen > UINT_MAX) {
+        fprintf(stderr, "Invalid audio data in %s\n", path);
+        free(fdata);
+        return 1;
+    }
+
+    *out_len = (unsigned)datalen;
+    *out_sr  = sr;
+    *out = malloc(datalen * sizeof(double));
+    if (!*out) { free(fdata); return 1; }
+    for (size_t i = 0; i < datalen; i++)
+        (*out)[i] = (double)fdata[i];
+    free(fdata);
+    return 0;
+}
+
+/** Convert double signal to float and write as WAV. */
+static int write_double_as_wav(const char *path, const double *signal,
+                               unsigned len, unsigned samprate)
+{
+    float *fdata = malloc(len * sizeof(float));
+    if (!fdata) return 1;
+    for (unsigned i = 0; i < len; i++)
+        fdata[i] = (float)signal[i];
+    int ret = FIO_write_wav(path, fdata, len, samprate);
+    free(fdata);
+    return ret;
+}
+
+/* --------------------------------------------------------------------- */
+
 static int parse_method(const char *str)
 {
     if (strcmp(str, "lsb") == 0)  return MD_STEG_LSB;
@@ -63,27 +106,8 @@ static int encode_wav(int method, const char *message,
     unsigned samprate;
 
     if (infile) {
-        /* Read host from WAV. */
-        float  *fdata   = nullptr;
-        size_t  datalen = 0;
-        unsigned sr     = 0;
-
-        if (FIO_read_audio(infile, &fdata, &datalen, &sr, 1) != 0) {
-            fprintf(stderr, "Error reading %s\n", infile);
+        if (read_wav_to_double(infile, &host, &signal_len, &samprate) != 0)
             return 1;
-        }
-        if (datalen == 0 || datalen > UINT_MAX) {
-            fprintf(stderr, "Invalid audio data in %s\n", infile);
-            free(fdata);
-            return 1;
-        }
-        signal_len = (unsigned)datalen;
-        samprate   = sr;
-        host = malloc(signal_len * sizeof(double));
-        if (!host) { free(fdata); return 1; }
-        for (unsigned i = 0; i < signal_len; i++)
-            host[i] = (double)fdata[i];
-        free(fdata);
     } else {
         /* Generate a default host signal: 3 s sine at 44.1 kHz. */
         samprate   = 44100;
@@ -125,13 +149,7 @@ static int encode_wav(int method, const char *message,
     unsigned encoded = MD_steg_encode(host, stego, signal_len,
                                       (double)samprate, message, method);
 
-    /* Write to WAV. */
-    float *fout = malloc(signal_len * sizeof(float));
-    if (!fout) { free(stego); free(host); return 1; }
-    for (unsigned i = 0; i < signal_len; i++)
-        fout[i] = (float)stego[i];
-
-    int ret = FIO_write_wav(outfile, fout, signal_len, samprate);
+    int ret = write_double_as_wav(outfile, stego, signal_len, samprate);
     if (ret == 0)
         printf("Encoded %u bytes -> %s  (%u samples, %.3f s)\n",
                encoded, outfile, signal_len,
@@ -139,7 +157,6 @@ static int encode_wav(int method, const char *message,
     else
         fprintf(stderr, "Error writing %s\n", outfile);
 
-    free(fout);
     free(stego);
     free(host);
     return ret;
@@ -151,33 +168,19 @@ static int encode_wav(int method, const char *message,
 //! [decode-wav]
 static int decode_wav(int method, const char *infile)
 {
-    float  *fdata   = nullptr;
-    size_t  datalen = 0;
-    unsigned samprate = 0;
+    double  *stego    = nullptr;
+    unsigned signal_len;
+    unsigned samprate;
 
-    if (FIO_read_audio(infile, &fdata, &datalen, &samprate, 1) != 0) {
-        fprintf(stderr, "Error reading %s\n", infile);
+    if (read_wav_to_double(infile, &stego, &signal_len, &samprate) != 0)
         return 1;
-    }
-    if (datalen == 0 || datalen > UINT_MAX) {
-        fprintf(stderr, "Invalid audio in %s\n", infile);
-        free(fdata);
-        return 1;
-    }
 
-    printf("Read %s: %zu samples at %u Hz (%.3f s)\n",
-           infile, datalen, samprate,
-           (double)datalen / (double)samprate);
-
-    double *stego = malloc(datalen * sizeof(double));
-    if (!stego) { free(fdata); return 1; }
-    for (size_t i = 0; i < datalen; i++)
-        stego[i] = (double)fdata[i];
-    free(fdata);
+    printf("Read %s: %u samples at %u Hz (%.3f s)\n",
+           infile, signal_len, samprate,
+           (double)signal_len / (double)samprate);
 
     char message[4096];
-    unsigned decoded = MD_steg_decode(stego, (unsigned)datalen,
-                                      (double)samprate,
+    unsigned decoded = MD_steg_decode(stego, signal_len, (double)samprate,
                                       message, sizeof(message), method);
     free(stego);
 
@@ -230,29 +233,10 @@ static int encode_image_wav(int method, const char *image_path,
     unsigned samprate;
 
     if (infile) {
-        /* Read host from WAV. */
-        float  *fdata   = nullptr;
-        size_t  datalen = 0;
-        unsigned sr     = 0;
-
-        if (FIO_read_audio(infile, &fdata, &datalen, &sr, 1) != 0) {
-            fprintf(stderr, "Error reading %s\n", infile);
+        if (read_wav_to_double(infile, &host, &signal_len, &samprate) != 0) {
             free(data);
             return 1;
         }
-        if (datalen == 0 || datalen > UINT_MAX) {
-            fprintf(stderr, "Invalid audio data in %s\n", infile);
-            free(fdata);
-            free(data);
-            return 1;
-        }
-        signal_len = (unsigned)datalen;
-        samprate   = sr;
-        host = malloc(signal_len * sizeof(double));
-        if (!host) { free(fdata); free(data); return 1; }
-        for (unsigned i = 0; i < signal_len; i++)
-            host[i] = (double)fdata[i];
-        free(fdata);
     } else {
         /* Generate a host signal sized for the payload. */
         samprate = 44100;
@@ -301,12 +285,7 @@ static int encode_image_wav(int method, const char *image_path,
                                             (double)samprate,
                                             data, data_len, method);
 
-    float *fout = malloc(signal_len * sizeof(float));
-    if (!fout) { free(stego); free(host); free(data); return 1; }
-    for (unsigned i = 0; i < signal_len; i++)
-        fout[i] = (float)stego[i];
-
-    int ret = FIO_write_wav(outfile, fout, signal_len, samprate);
+    int ret = write_double_as_wav(outfile, stego, signal_len, samprate);
     if (ret == 0)
         printf("Encoded %u bytes -> %s  (%u samples, %.3f s)\n",
                encoded, outfile, signal_len,
@@ -314,7 +293,6 @@ static int encode_image_wav(int method, const char *image_path,
     else
         fprintf(stderr, "Error writing %s\n", outfile);
 
-    free(fout);
     free(stego);
     free(host);
     free(data);
@@ -328,37 +306,26 @@ static int encode_image_wav(int method, const char *image_path,
 static int decode_image_wav(int method, const char *infile,
                             const char *outfile)
 {
-    float  *fdata   = nullptr;
-    size_t  datalen = 0;
-    unsigned samprate = 0;
+    double  *stego    = nullptr;
+    unsigned signal_len;
+    unsigned samprate;
 
-    if (FIO_read_audio(infile, &fdata, &datalen, &samprate, 1) != 0) {
-        fprintf(stderr, "Error reading %s\n", infile);
+    if (read_wav_to_double(infile, &stego, &signal_len, &samprate) != 0)
         return 1;
-    }
-    if (datalen == 0 || datalen > UINT_MAX) {
-        fprintf(stderr, "Invalid audio in %s\n", infile);
-        free(fdata);
-        return 1;
-    }
 
-    printf("Read %s: %zu samples at %u Hz (%.3f s)\n",
-           infile, datalen, samprate,
-           (double)datalen / (double)samprate);
+    printf("Read %s: %u samples at %u Hz (%.3f s)\n",
+           infile, signal_len, samprate,
+           (double)signal_len / (double)samprate);
 
-    double *stego = malloc(datalen * sizeof(double));
-    if (!stego) { free(fdata); return 1; }
-    for (size_t i = 0; i < datalen; i++)
-        stego[i] = (double)fdata[i];
-    free(fdata);
-
-    /* Allocate a buffer large enough for the maximum capacity. */
-    unsigned capacity = MD_steg_capacity((unsigned)datalen,
-                                         (double)samprate, method);
+    /* Allocate a buffer large enough for the maximum capacity (capped at
+     * 16 MB to avoid unbounded allocation from corrupted headers). */
+    unsigned capacity = MD_steg_capacity(signal_len, (double)samprate, method);
+    if (capacity > 16u * 1024 * 1024)
+        capacity = 16u * 1024 * 1024;
     unsigned char *buf = malloc(capacity > 0 ? capacity : 1);
     if (!buf) { free(stego); return 1; }
 
-    unsigned decoded = MD_steg_decode_bytes(stego, (unsigned)datalen,
+    unsigned decoded = MD_steg_decode_bytes(stego, signal_len,
                                             (double)samprate,
                                             buf, capacity, method);
     free(stego);
