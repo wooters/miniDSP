@@ -174,14 +174,59 @@ static unsigned chip_samples(double sample_rate)
     return (unsigned)(CHIP_MS * sample_rate / 1000.0);
 }
 
-static unsigned freq_capacity(unsigned signal_len, double sample_rate)
+static unsigned freq_capacity_cs(unsigned signal_len, unsigned cs)
 {
-    unsigned cs = chip_samples(sample_rate);
     if (cs == 0) return 0;
     unsigned total_chips = signal_len / cs;
     if (total_chips <= HEADER_BITS)
         return 0;
     return (total_chips - HEADER_BITS) / 8;
+}
+
+static unsigned freq_capacity(unsigned signal_len, double sample_rate)
+{
+    return freq_capacity_cs(signal_len, chip_samples(sample_rate));
+}
+
+/* -----------------------------------------------------------------------
+ * Cached BFSK carrier sine tables
+ *
+ * The sine lookup tables depend only on sample_rate (which determines
+ * chip_samples).  We cache them across calls and only recompute when
+ * the sample rate changes.  MD_shutdown() frees them via
+ * md_steg_teardown() (declared in minidsp_internal.h).
+ * ----------------------------------------------------------------------- */
+
+static double  *_bfsk_sin_lo  = nullptr;
+static double  *_bfsk_sin_hi  = nullptr;
+static unsigned  _bfsk_cs     = 0;
+
+static void _bfsk_setup(double sample_rate)
+{
+    unsigned cs = chip_samples(sample_rate);
+    if (cs == _bfsk_cs && _bfsk_sin_lo != nullptr)
+        return;
+
+    free(_bfsk_sin_lo);
+    free(_bfsk_sin_hi);
+    _bfsk_sin_lo = malloc(cs * sizeof(double));
+    _bfsk_sin_hi = malloc(cs * sizeof(double));
+    assert(_bfsk_sin_lo != nullptr && _bfsk_sin_hi != nullptr);
+    for (unsigned s = 0; s < cs; s++) {
+        double t = (double)s / sample_rate;
+        _bfsk_sin_lo[s] = sin(2.0 * M_PI * FREQ_LO * t);
+        _bfsk_sin_hi[s] = sin(2.0 * M_PI * FREQ_HI * t);
+    }
+    _bfsk_cs = cs;
+}
+
+void md_steg_teardown(void)
+{
+    free(_bfsk_sin_lo);
+    free(_bfsk_sin_hi);
+    _bfsk_sin_lo = nullptr;
+    _bfsk_sin_hi = nullptr;
+    _bfsk_cs     = 0;
 }
 
 /** Encode one bit by adding a BFSK tone burst at the given chip index. */
@@ -201,13 +246,12 @@ static unsigned freq_encode(const double *host, double *output,
                             unsigned signal_len, double sample_rate,
                             const unsigned char *data, unsigned data_len)
 {
-    unsigned capacity = freq_capacity(signal_len, sample_rate);
+    unsigned cs = chip_samples(sample_rate);
+    unsigned capacity = freq_capacity_cs(signal_len, cs);
     if (data_len == 0 || capacity == 0)
         return 0;
     if (data_len > capacity)
         data_len = capacity;
-
-    unsigned cs = chip_samples(sample_rate);
 
     /* Copy host to output. */
     memcpy(output, host, signal_len * sizeof(double));
@@ -256,32 +300,21 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
     if (total_chips <= HEADER_BITS)
         return 0;
 
-    /* Precompute sine lookup tables for both carriers (constant across all
-     * chips).  This eliminates ~2*cs redundant sin() calls per bit decoded. */
-    double *sin_lo = malloc(cs * sizeof(double));
-    double *sin_hi = malloc(cs * sizeof(double));
-    assert(sin_lo != nullptr && sin_hi != nullptr);
-    for (unsigned s = 0; s < cs; s++) {
-        double t = (double)s / sample_rate;
-        sin_lo[s] = sin(2.0 * M_PI * FREQ_LO * t);
-        sin_hi[s] = sin(2.0 * M_PI * FREQ_HI * t);
-    }
+    /* Ensure cached sine carrier tables are current. */
+    _bfsk_setup(sample_rate);
 
     /* Read the 32-bit length header. */
     unsigned msg_len = 0;
     for (unsigned i = 0; i < HEADER_BITS; i++) {
         unsigned bit = decode_one_bit(stego, signal_len, i, cs,
-                                      sin_lo, sin_hi);
+                                      _bfsk_sin_lo, _bfsk_sin_hi);
         msg_len |= (bit << i);
     }
 
     /* Sanity check. */
-    unsigned capacity = freq_capacity(signal_len, sample_rate);
-    if (msg_len == 0 || msg_len > capacity) {
-        free(sin_lo);
-        free(sin_hi);
+    unsigned capacity = freq_capacity_cs(signal_len, cs);
+    if (msg_len == 0 || msg_len > capacity)
         return 0;
-    }
 
     unsigned decode_len = msg_len;
     if (decode_len > max_len)
@@ -292,14 +325,12 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = decode_one_bit(stego, signal_len, chip, cs,
-                                          sin_lo, sin_hi);
+                                          _bfsk_sin_lo, _bfsk_sin_hi);
             ch |= (unsigned char)(bit << bit_idx);
         }
         data_out[b] = ch;
     }
 
-    free(sin_lo);
-    free(sin_hi);
     return decode_len;
 }
 
