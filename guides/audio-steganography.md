@@ -1,0 +1,428 @@
+# Audio Steganography {#audio-steganography}
+
+[Steganography](https://en.wikipedia.org/wiki/Steganography) is the practice
+of hiding a secret message inside an innocuous-looking cover medium.
+**Audio steganography** hides data inside an audio signal so that a casual
+listener hears only the original sound, while a decoder can extract the
+hidden payload.
+
+miniDSP provides two complementary methods in `src/minidsp_steg.c`,
+demonstrated in `examples/audio_steg.c`:
+
+| Method | Identifier | Capacity | Robustness | Audibility |
+|:-------|:-----------|:---------|:-----------|:-----------|
+| **LSB** (Least Significant Bit) | `MD_STEG_LSB` | High (~1 bit/sample) | Fragile | Inaudible (~-90 dB) |
+| **Frequency-band** (BFSK) | `MD_STEG_FREQ_BAND` | Lower (~2.6 kbit/s) | Moderate | Near-inaudible (ultrasonic) |
+
+Build and run the self-test from the repository root:
+
+```sh
+make -C examples audio_steg
+cd examples && ./audio_steg
+```
+
+---
+
+## Message framing
+
+Both methods prepend a **32-bit little-endian length header** (the message
+byte count) before the payload.  This allows the decoder to recover the
+message without knowing its length in advance:
+
+```
+[ 32 bits: msg_len (LE) ] [ 8 * msg_len bits: message bytes ]
+```
+
+Each bit of the header and message is encoded independently using the
+chosen method.  Bits within each byte are transmitted LSB-first.
+
+---
+
+## Method 1: Least Significant Bit (LSB)
+
+### The idea
+
+Audio samples are typically stored as 16-bit integers (-32768 to +32767).
+The least significant bit of each sample contributes only ±1 to a range of
+65536 — a change of about -90 dB relative to full scale.  By replacing the
+LSB of each sample with a message bit, we embed data that is completely
+inaudible.
+
+### Signal model
+
+The host signal \f$x[n] \in [-1, 1]\f$ is quantised to 16-bit PCM:
+
+\f[
+p[n] = \mathrm{round}(x[n] \times 32767)
+\f]
+
+The LSB is then overwritten with message bit \f$b_k\f$:
+
+\f[
+p'[n] = (p[n] \mathbin{\&} \sim 1) \mathbin{|} b_k
+\f]
+
+and the stego sample is converted back to double:
+
+\f[
+y[n] = p'[n] \;/\; 32767
+\f]
+
+The maximum distortion per sample is:
+
+\f[
+|y[n] - x[n]| \leq \frac{1}{32767} \approx 3.05 \times 10^{-5}
+\f]
+
+**Reading the formula in C:**
+
+```c
+// x[n] -> host[i],  p[n] -> pcm,  b_k -> bit,  y[n] -> output[i]
+int pcm = (int)(host[i] * 32767.0);  // quantise to 16-bit
+pcm = (pcm & ~1) | bit;              // overwrite LSB
+output[i] = (double)pcm / 32767.0;   // convert back
+```
+
+### Capacity
+
+One bit per sample, minus the 32-bit header:
+
+\f[
+C_{\text{LSB}} = \frac{N - 32}{8} \text{ bytes}
+\f]
+
+where \f$N\f$ is the signal length in samples.
+
+**Reading the formula in C:**
+
+```c
+// N -> signal_len,  C_LSB -> capacity
+unsigned capacity = (signal_len - 32) / 8;
+```
+
+For a 3-second signal at 44.1 kHz (\f$N = 132300\f$):
+
+\f[
+C_{\text{LSB}} = \frac{132300 - 32}{8} = 16533 \text{ bytes} \approx 16 \text{ KB}
+\f]
+
+### Listening comparison
+
+**Original host signal** (440 Hz sine, 3 seconds):
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="steg_host.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
+**After LSB encoding** (message hidden inside):
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="steg_lsb.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
+The two are perceptually identical.  The difference signal (host minus stego)
+is pure quantisation noise at -90 dB:
+
+\htmlonly
+<iframe src="steg_lsb_diff.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+\endhtmlonly
+
+### Trade-offs
+
+| Advantage | Disadvantage |
+|:----------|:-------------|
+| Very high capacity | Destroyed by any lossy compression (MP3, AAC, Opus) |
+| Zero audible distortion | Destroyed by resampling or sample-rate conversion |
+| Simple, fast implementation | Destroyed by amplitude scaling or normalisation |
+| Works at any sample rate | Requires lossless transport (WAV, FLAC) |
+
+---
+
+## Method 2: Frequency-Band Modulation (BFSK)
+
+### The idea
+
+Human hearing sensitivity falls off sharply above ~16 kHz, and most adults
+cannot hear tones above 18 kHz.  By adding low-amplitude tones in the
+18–20 kHz "near-ultrasonic" band, we can encode data that is effectively
+inaudible.
+
+The encoding uses
+[Binary Frequency-Shift Keying (BFSK)](https://en.wikipedia.org/wiki/Frequency-shift_keying):
+each bit is represented by a short burst ("chip") of a sinusoidal tone at
+one of two carrier frequencies.
+
+### Carrier frequencies
+
+| Bit value | Carrier frequency |
+|:---------:|:-----------------:|
+| 0         | 18500 Hz          |
+| 1         | 19500 Hz          |
+
+Both carriers are above the typical hearing threshold, and the 1 kHz
+separation provides reliable discrimination during decoding.
+
+### Chip duration
+
+Each bit occupies a **3 ms chip** — a burst of \f$C\f$ samples:
+
+\f[
+C = \left\lfloor \frac{3.0 \times f_s}{1000} \right\rfloor
+\f]
+
+**Reading the formula in C:**
+
+```c
+// C -> chip_samples,  fs -> sample_rate
+unsigned chip_samples = (unsigned)(3.0 * sample_rate / 1000.0);
+```
+
+At 44.1 kHz, \f$C = 132\f$ samples per chip.
+
+### Encoding
+
+For each bit \f$b_k\f$, a sine burst at the selected carrier frequency
+is added to the host signal at amplitude \f$A = 0.02\f$ (-34 dB):
+
+\f[
+y[n] = x[n] + A \sin\!\bigl(2\pi\, f_{b_k}\, (n - n_0) / f_s\bigr),
+\qquad n \in [n_0,\; n_0 + C)
+\f]
+
+where \f$n_0 = k \cdot C\f$ is the start sample of chip \f$k\f$ and
+\f$f_{b_k}\f$ is 18500 Hz (bit 0) or 19500 Hz (bit 1).
+
+**Reading the formula in C:**
+
+```c
+// A -> TONE_AMP (0.02),  f_bk -> freq,  n0 -> start,  fs -> sample_rate
+// x[n] -> output[start+s] (already contains host), y[n] -> output[start+s]
+for (unsigned s = 0; s < chip_samples; s++) {
+    double t = (double)s / sample_rate;
+    output[start + s] += 0.02 * sin(2.0 * M_PI * freq * t);
+}
+```
+
+### Decoding
+
+Each chip is correlated against both carrier frequencies.  The carrier
+with the larger absolute correlation determines the bit value:
+
+\f[
+r_f = \sum_{s=0}^{C-1} y[n_0 + s] \,\sin\!\bigl(2\pi\, f \, s / f_s\bigr)
+\f]
+
+\f[
+b_k = \begin{cases} 1 & |r_{19500}| > |r_{18500}| \\ 0 & \text{otherwise} \end{cases}
+\f]
+
+**Reading the formula in C:**
+
+```c
+// r_f -> corr_lo / corr_hi,  y[n0+s] -> stego[start+s]
+double corr_lo = 0.0, corr_hi = 0.0;
+for (unsigned s = 0; s < chip_samples; s++) {
+    double t = (double)s / sample_rate;
+    corr_lo += stego[start + s] * sin(2.0 * M_PI * 18500.0 * t);
+    corr_hi += stego[start + s] * sin(2.0 * M_PI * 19500.0 * t);
+}
+unsigned bit = (fabs(corr_hi) > fabs(corr_lo)) ? 1 : 0;
+```
+
+### Capacity
+
+\f[
+C_{\text{freq}} = \frac{\lfloor N / C \rfloor - 32}{8} \text{ bytes}
+\f]
+
+**Reading the formula in C:**
+
+```c
+// N -> signal_len,  C -> chip_samples
+unsigned total_chips = signal_len / chip_samples;
+unsigned capacity = (total_chips - 32) / 8;
+```
+
+At 44.1 kHz with a 3-second signal (\f$N = 132300\f$, \f$C = 132\f$):
+
+\f[
+C_{\text{freq}} = \frac{\lfloor 132300 / 132 \rfloor - 32}{8}
+                = \frac{1002 - 32}{8} = 121 \text{ bytes}
+\f]
+
+### Listening comparison
+
+**After frequency-band encoding** (same host, message hidden via BFSK):
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="steg_freq.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
+The added carriers at 18.5/19.5 kHz are above most listeners' hearing range.
+
+**Spectrogram** showing the hidden BFSK signal above the 440 Hz host tone:
+
+\htmlonly
+<iframe src="steg_freq_spectrogram.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+\endhtmlonly
+
+The faint horizontal bands near the top of the spectrogram are the BFSK
+carriers.  The main 440 Hz tone dominates the audible range.
+
+### Trade-offs
+
+| Advantage | Disadvantage |
+|:----------|:-------------|
+| Survives mild additive noise | Lower capacity than LSB |
+| Frequency-domain robustness | Requires sample_rate >= 40 kHz |
+| Inaudible to most listeners | May be audible to young listeners with excellent high-frequency hearing |
+| Amenable to spectral analysis | Vulnerable to low-pass filtering above 18 kHz |
+
+---
+
+## API
+
+### Capacity
+
+```c
+unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method);
+```
+
+Returns the maximum number of message bytes that can be hidden.
+
+### Encode
+
+```c
+unsigned MD_steg_encode(const double *host, double *output,
+                        unsigned signal_len, double sample_rate,
+                        const char *message, int method);
+```
+
+| Parameter     | Description |
+|:--------------|:------------|
+| `host`        | Input host signal (not modified). |
+| `output`      | Output stego signal (caller-allocated, same length). |
+| `signal_len`  | Number of samples. |
+| `sample_rate` | Sample rate in Hz. |
+| `message`     | Null-terminated secret message. |
+| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+
+Returns the number of message bytes encoded (0 on failure).
+
+### Decode
+
+```c
+unsigned MD_steg_decode(const double *stego, unsigned signal_len,
+                        double sample_rate,
+                        char *message_out, unsigned max_msg_len,
+                        int method);
+```
+
+| Parameter     | Description |
+|:--------------|:------------|
+| `stego`       | The stego signal containing the hidden message. |
+| `signal_len`  | Number of samples. |
+| `sample_rate` | Sample rate in Hz. |
+| `message_out` | Output buffer (caller-allocated, null-terminated on return). |
+| `max_msg_len` | Size of buffer including null terminator. |
+| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+
+Returns the number of message bytes decoded (0 if none found).
+
+---
+
+## Quick example
+
+**Encode and decode with LSB:**
+
+```c
+#include "minidsp.h"
+
+double host[44100], stego[44100];
+MD_sine_wave(host, 44100, 0.8, 440.0, 44100.0);
+
+// Encode
+unsigned n = MD_steg_encode(host, stego, 44100, 44100.0,
+                            "secret message", MD_STEG_LSB);
+
+// Decode
+char recovered[256];
+MD_steg_decode(stego, 44100, 44100.0, recovered, 256, MD_STEG_LSB);
+printf("Hidden: %s\n", recovered);  // "secret message"
+```
+
+**Encode and decode with frequency band:**
+
+```c
+double host[132300], stego[132300];   // 3 s at 44.1 kHz
+MD_sine_wave(host, 132300, 0.8, 440.0, 44100.0);
+
+unsigned n = MD_steg_encode(host, stego, 132300, 44100.0,
+                            "hidden!", MD_STEG_FREQ_BAND);
+
+char recovered[256];
+MD_steg_decode(stego, 132300, 44100.0, recovered, 256, MD_STEG_FREQ_BAND);
+printf("Hidden: %s\n", recovered);  // "hidden!"
+```
+
+---
+
+## Example program
+
+The example `examples/audio_steg.c` provides a command-line tool for
+encoding and decoding steganographic messages in WAV files.
+
+**Self-test** (no arguments):
+
+\snippet audio_steg.c self-test
+
+**Encode a message into a WAV file:**
+
+\snippet audio_steg.c encode-wav
+
+**Decode a message from a WAV file:**
+
+\snippet audio_steg.c decode-wav
+
+**Usage:**
+
+```sh
+# Self-test (encode + decode with both methods, verify round-trip)
+./audio_steg
+
+# Encode using LSB into a default 440 Hz host
+./audio_steg --encode lsb "my secret" -o stego.wav
+
+# Encode using frequency-band into an existing WAV host
+./audio_steg --encode freq "hidden" -i music.wav -o stego.wav
+
+# Decode
+./audio_steg --decode lsb stego.wav
+./audio_steg --decode freq stego.wav
+```
+
+---
+
+## Choosing a method
+
+| Criterion | LSB | Frequency-band |
+|:----------|:----|:---------------|
+| **Message size** | Up to ~16 KB per second of audio | Up to ~121 bytes per 3 s |
+| **Audio quality** | Imperceptible (-90 dB) | Near-imperceptible (ultrasonic, -34 dB) |
+| **Survives lossy compression** | No | No (but more tolerant of noise) |
+| **Survives additive noise** | No (bit errors) | Yes (mild noise) |
+| **Sample rate requirement** | Any | >= 40 kHz (44.1 or 48 kHz) |
+| **Best for** | Lossless pipelines (WAV/FLAC) | Environments with light interference |
+
+For maximum capacity and fidelity in lossless pipelines, use **LSB**.
+For slightly more robust hiding in near-ultrasonic bands, use
+**frequency-band**.

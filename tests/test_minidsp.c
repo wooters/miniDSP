@@ -4167,6 +4167,164 @@ static int test_spectext_space_silence(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_steg (audio steganography)
+ * -----------------------------------------------------------------------*/
+
+/** LSB encode-then-decode round-trip recovers the original message. */
+static int test_steg_lsb_roundtrip(void)
+{
+    const unsigned N = 8000;
+    double *host   = malloc(N * sizeof(double));
+    double *stego  = malloc(N * sizeof(double));
+
+    /* Use a sine wave as the host signal. */
+    MD_sine_wave(host, N, 0.8, 440.0, 44100.0);
+
+    const char *secret = "Hello, miniDSP!";
+    unsigned enc = MD_steg_encode(host, stego, N, 44100.0,
+                                  secret, MD_STEG_LSB);
+    if (enc == 0) { free(host); free(stego); return 0; }
+
+    char recovered[256];
+    unsigned dec = MD_steg_decode(stego, N, 44100.0,
+                                  recovered, 256, MD_STEG_LSB);
+
+    int ok = (dec == enc) && (strcmp(recovered, secret) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** LSB capacity matches expected formula: (signal_len - 32) / 8. */
+static int test_steg_lsb_capacity(void)
+{
+    unsigned cap = MD_steg_capacity(8032, 44100.0, MD_STEG_LSB);
+    /* (8032 - 32) / 8 = 1000 */
+    return cap == 1000;
+}
+
+/** LSB encoding introduces negligible distortion (< -80 dB relative). */
+static int test_steg_lsb_distortion(void)
+{
+    const unsigned N = 4000;
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.8, 440.0, 44100.0);
+    MD_steg_encode(host, stego, N, 44100.0, "test", MD_STEG_LSB);
+
+    /* Compute maximum absolute difference. */
+    double max_diff = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        double d = fabs(host[i] - stego[i]);
+        if (d > max_diff) max_diff = d;
+    }
+
+    free(stego);
+    free(host);
+
+    /* The double→PCM16→double roundtrip introduces one quantisation step,
+     * and flipping the LSB adds at most one more.  Worst case ≈ 2/32767
+     * ≈ 6.1e-5.  Use a comfortable margin. */
+    return max_diff < 7.0e-5;
+}
+
+/** LSB handles longer messages that use more of the signal. */
+static int test_steg_lsb_long_message(void)
+{
+    const unsigned N = 44100;  /* 1 second at 44.1 kHz */
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.5, 261.63, 44100.0);
+
+    /* Build a long message. */
+    char msg[512];
+    memset(msg, 0, sizeof(msg));
+    for (int i = 0; i < 500; i++)
+        msg[i] = 'A' + (i % 26);
+
+    unsigned enc = MD_steg_encode(host, stego, N, 44100.0,
+                                  msg, MD_STEG_LSB);
+
+    char recovered[512];
+    unsigned dec = MD_steg_decode(stego, N, 44100.0,
+                                  recovered, 512, MD_STEG_LSB);
+
+    int ok = (dec == enc) && (dec > 0) && (strncmp(recovered, msg, dec) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Frequency-band encode-then-decode round-trip recovers the message. */
+static int test_steg_freq_roundtrip(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 2.0);  /* 2 seconds */
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.5, 440.0, sr);
+
+    const char *secret = "Hidden!";
+    unsigned enc = MD_steg_encode(host, stego, N, sr,
+                                  secret, MD_STEG_FREQ_BAND);
+    if (enc == 0) { free(host); free(stego); return 0; }
+
+    char recovered[256];
+    unsigned dec = MD_steg_decode(stego, N, sr,
+                                  recovered, 256, MD_STEG_FREQ_BAND);
+
+    int ok = (dec == enc) && (strcmp(recovered, secret) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Frequency-band capacity is positive for a long enough signal at 44.1 kHz. */
+static int test_steg_freq_capacity(void)
+{
+    unsigned cap = MD_steg_capacity(88200, 44100.0, MD_STEG_FREQ_BAND);
+    /* chip_samples = 3.0 * 44100 / 1000 = 132.3 → 132
+     * total_chips = 88200 / 132 = 668
+     * (668 - 32) / 8 = 79 */
+    return cap > 0 && cap <= 100;
+}
+
+/** Frequency-band decoding works with light additive noise. */
+static int test_steg_freq_with_noise(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 2.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.5, 440.0, sr);
+
+    const char *secret = "Noisy";
+    unsigned enc = MD_steg_encode(host, stego, N, sr,
+                                  secret, MD_STEG_FREQ_BAND);
+    if (enc == 0) { free(host); free(stego); return 0; }
+
+    /* Add low-level white noise (sigma=0.005). */
+    double *noise = malloc(N * sizeof(double));
+    MD_white_noise(noise, N, 0.005, 123);
+    for (unsigned i = 0; i < N; i++)
+        stego[i] += noise[i];
+    free(noise);
+
+    char recovered[256];
+    unsigned dec = MD_steg_decode(stego, N, sr,
+                                  recovered, 256, MD_STEG_FREQ_BAND);
+
+    int ok = (dec == enc) && (strcmp(recovered, secret) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Main: run all tests
  * -----------------------------------------------------------------------*/
 
@@ -4441,6 +4599,15 @@ int main(void)
     RUN_TEST(test_spectext_frequency_peak);
     RUN_TEST(test_spectext_normalization);
     RUN_TEST(test_spectext_space_silence);
+
+    printf("\n--- MD_steg (audio steganography) ---\n");
+    RUN_TEST(test_steg_lsb_roundtrip);
+    RUN_TEST(test_steg_lsb_capacity);
+    RUN_TEST(test_steg_lsb_distortion);
+    RUN_TEST(test_steg_lsb_long_message);
+    RUN_TEST(test_steg_freq_roundtrip);
+    RUN_TEST(test_steg_freq_capacity);
+    RUN_TEST(test_steg_freq_with_noise);
 
     /* Clean up FFTW resources */
     MD_shutdown();

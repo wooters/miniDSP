@@ -194,6 +194,37 @@ int main(void)
         }
     }
 
+    /* --------------------------------------------------------------------
+     * Audio steganography: host, LSB stego, and freq-band stego
+     * ------------------------------------------------------------------*/
+    {
+        const unsigned steg_n = (unsigned)(SAMPLE_RATE * 3.0);
+        double *steg_host  = malloc(steg_n * sizeof(double));
+        double *steg_out   = malloc(steg_n * sizeof(double));
+        if (!steg_host || !steg_out) {
+            fprintf(stderr, "allocation failed for steganography samples\n");
+        } else {
+            const char *secret = "Hidden message inside audio!";
+
+            /* Host: 440 Hz sine, 3 seconds at 44100 Hz */
+            MD_sine_wave(steg_host, steg_n, 0.8, 440.0, SAMPLE_RATE);
+            write_wav("guides/audio/steg_host.wav", steg_host, steg_n);
+
+            /* LSB stego */
+            MD_steg_encode(steg_host, steg_out, steg_n, SAMPLE_RATE,
+                           secret, MD_STEG_LSB);
+            write_wav("guides/audio/steg_lsb.wav", steg_out, steg_n);
+
+            /* Frequency-band stego */
+            MD_steg_encode(steg_host, steg_out, steg_n, SAMPLE_RATE,
+                           secret, MD_STEG_FREQ_BAND);
+            write_wav("guides/audio/steg_freq.wav", steg_out, steg_n);
+
+            free(steg_out);
+            free(steg_host);
+        }
+    }
+
     free(fx);
     free(buf);
     return 0;
