@@ -76,30 +76,30 @@ static unsigned lsb_capacity(unsigned signal_len)
 }
 
 static unsigned lsb_encode(const double *host, double *output,
-                           unsigned signal_len, const char *message)
+                           unsigned signal_len,
+                           const unsigned char *data, unsigned data_len)
 {
-    unsigned msg_len = (unsigned)strlen(message);
     unsigned capacity = lsb_capacity(signal_len);
-    if (msg_len == 0 || capacity == 0)
+    if (data_len == 0 || capacity == 0)
         return 0;
-    if (msg_len > capacity)
-        msg_len = capacity;
+    if (data_len > capacity)
+        data_len = capacity;
 
     /* Copy host to output. */
     memcpy(output, host, signal_len * sizeof(double));
 
     /* Encode the 32-bit length header (little-endian). */
     for (unsigned i = 0; i < HEADER_BITS; i++) {
-        unsigned bit = (msg_len >> i) & 1;
+        unsigned bit = (data_len >> i) & 1;
         int pcm = double_to_pcm16(output[i]);
         /* Clear the LSB and set it to our message bit. */
         pcm = (pcm & ~1) | (int)bit;
         output[i] = pcm16_to_double(pcm);
     }
 
-    /* Encode the message bytes. */
-    for (unsigned b = 0; b < msg_len; b++) {
-        unsigned char ch = (unsigned char)message[b];
+    /* Encode the data bytes. */
+    for (unsigned b = 0; b < data_len; b++) {
+        unsigned char ch = data[b];
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned sample_idx = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = (ch >> bit_idx) & 1;
@@ -109,13 +109,13 @@ static unsigned lsb_encode(const double *host, double *output,
         }
     }
 
-    return msg_len;
+    return data_len;
 }
 
 static unsigned lsb_decode(const double *stego, unsigned signal_len,
-                           char *message_out, unsigned max_msg_len)
+                           unsigned char *data_out, unsigned max_len)
 {
-    if (signal_len <= HEADER_BITS || max_msg_len == 0)
+    if (signal_len <= HEADER_BITS || max_len == 0)
         return 0;
 
     /* Read the 32-bit length header. */
@@ -132,8 +132,8 @@ static unsigned lsb_decode(const double *stego, unsigned signal_len,
         return 0;
 
     unsigned decode_len = msg_len;
-    if (decode_len >= max_msg_len)
-        decode_len = max_msg_len - 1;
+    if (decode_len > max_len)
+        decode_len = max_len;
 
     for (unsigned b = 0; b < decode_len; b++) {
         unsigned char ch = 0;
@@ -143,9 +143,8 @@ static unsigned lsb_decode(const double *stego, unsigned signal_len,
             unsigned bit = (unsigned)(pcm & 1);
             ch |= (unsigned char)(bit << bit_idx);
         }
-        message_out[b] = (char)ch;
+        data_out[b] = ch;
     }
-    message_out[decode_len] = '\0';
     return decode_len;
 }
 
@@ -200,14 +199,13 @@ static void encode_one_bit(double *output, unsigned signal_len,
 
 static unsigned freq_encode(const double *host, double *output,
                             unsigned signal_len, double sample_rate,
-                            const char *message)
+                            const unsigned char *data, unsigned data_len)
 {
-    unsigned msg_len = (unsigned)strlen(message);
     unsigned capacity = freq_capacity(signal_len, sample_rate);
-    if (msg_len == 0 || capacity == 0)
+    if (data_len == 0 || capacity == 0)
         return 0;
-    if (msg_len > capacity)
-        msg_len = capacity;
+    if (data_len > capacity)
+        data_len = capacity;
 
     unsigned cs = chip_samples(sample_rate);
 
@@ -216,20 +214,20 @@ static unsigned freq_encode(const double *host, double *output,
 
     /* Encode 32-bit length header. */
     for (unsigned i = 0; i < HEADER_BITS; i++) {
-        unsigned bit = (msg_len >> i) & 1;
+        unsigned bit = (data_len >> i) & 1;
         encode_one_bit(output, signal_len, sample_rate, i, cs, bit);
     }
 
-    /* Encode message bytes. */
-    for (unsigned b = 0; b < msg_len; b++) {
-        unsigned char ch = (unsigned char)message[b];
+    /* Encode data bytes. */
+    for (unsigned b = 0; b < data_len; b++) {
+        unsigned char ch = data[b];
         for (unsigned bit_idx = 0; bit_idx < 8; bit_idx++) {
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = (ch >> bit_idx) & 1;
             encode_one_bit(output, signal_len, sample_rate, chip, cs, bit);
         }
     }
-    return msg_len;
+    return data_len;
 }
 
 /** Decode one bit by correlating a chip against precomputed BFSK carriers. */
@@ -248,10 +246,10 @@ static unsigned decode_one_bit(const double *stego, unsigned signal_len,
 
 static unsigned freq_decode(const double *stego, unsigned signal_len,
                             double sample_rate,
-                            char *message_out, unsigned max_msg_len)
+                            unsigned char *data_out, unsigned max_len)
 {
     unsigned cs = chip_samples(sample_rate);
-    if (cs == 0 || max_msg_len == 0)
+    if (cs == 0 || max_len == 0)
         return 0;
 
     unsigned total_chips = signal_len / cs;
@@ -286,8 +284,8 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
     }
 
     unsigned decode_len = msg_len;
-    if (decode_len >= max_msg_len)
-        decode_len = max_msg_len - 1;
+    if (decode_len > max_len)
+        decode_len = max_len;
 
     for (unsigned b = 0; b < decode_len; b++) {
         unsigned char ch = 0;
@@ -297,9 +295,8 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
                                           sin_lo, sin_hi);
             ch |= (unsigned char)(bit << bit_idx);
         }
-        message_out[b] = (char)ch;
+        data_out[b] = ch;
     }
-    message_out[decode_len] = '\0';
 
     free(sin_lo);
     free(sin_hi);
@@ -322,15 +319,16 @@ unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method)
         return freq_capacity(signal_len, sample_rate);
 }
 
-unsigned MD_steg_encode(const double *host, double *output,
-                        unsigned signal_len, double sample_rate,
-                        const char *message, int method)
+unsigned MD_steg_encode_bytes(const double *host, double *output,
+                              unsigned signal_len, double sample_rate,
+                              const unsigned char *data, unsigned data_len,
+                              int method)
 {
     assert(host != nullptr);
     assert(output != nullptr);
     assert(signal_len > 0);
     assert(sample_rate > 0.0);
-    assert(message != nullptr);
+    assert(data != nullptr);
     assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
 
     if (method == MD_STEG_FREQ_BAND)
@@ -338,9 +336,39 @@ unsigned MD_steg_encode(const double *host, double *output,
                "frequency-band steganography requires sample_rate >= 40 kHz");
 
     if (method == MD_STEG_LSB)
-        return lsb_encode(host, output, signal_len, message);
+        return lsb_encode(host, output, signal_len, data, data_len);
     else
-        return freq_encode(host, output, signal_len, sample_rate, message);
+        return freq_encode(host, output, signal_len, sample_rate,
+                           data, data_len);
+}
+
+unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
+                              double sample_rate,
+                              unsigned char *data_out, unsigned max_len,
+                              int method)
+{
+    assert(stego != nullptr);
+    assert(signal_len > 0);
+    assert(sample_rate > 0.0);
+    assert(data_out != nullptr);
+    assert(max_len > 0);
+    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
+
+    if (method == MD_STEG_LSB)
+        return lsb_decode(stego, signal_len, data_out, max_len);
+    else
+        return freq_decode(stego, signal_len, sample_rate,
+                           data_out, max_len);
+}
+
+unsigned MD_steg_encode(const double *host, double *output,
+                        unsigned signal_len, double sample_rate,
+                        const char *message, int method)
+{
+    assert(message != nullptr);
+    return MD_steg_encode_bytes(host, output, signal_len, sample_rate,
+                                (const unsigned char *)message,
+                                (unsigned)strlen(message), method);
 }
 
 unsigned MD_steg_decode(const double *stego, unsigned signal_len,
@@ -348,16 +376,11 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
                         char *message_out, unsigned max_msg_len,
                         int method)
 {
-    assert(stego != nullptr);
-    assert(signal_len > 0);
-    assert(sample_rate > 0.0);
     assert(message_out != nullptr);
     assert(max_msg_len > 0);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
-
-    if (method == MD_STEG_LSB)
-        return lsb_decode(stego, signal_len, message_out, max_msg_len);
-    else
-        return freq_decode(stego, signal_len, sample_rate,
-                           message_out, max_msg_len);
+    unsigned decoded = MD_steg_decode_bytes(stego, signal_len, sample_rate,
+                                            (unsigned char *)message_out,
+                                            max_msg_len - 1, method);
+    message_out[decoded] = '\0';
+    return decoded;
 }

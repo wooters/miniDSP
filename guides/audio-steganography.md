@@ -289,6 +289,92 @@ carriers.  The main 440 Hz tone dominates the audible range.
 
 ---
 
+## Embedding binary data
+
+The string-based API (`MD_steg_encode` / `MD_steg_decode`) uses null-terminated
+C strings, which cannot represent binary data containing `0x00` bytes.  To hide
+arbitrary binary payloads — images, compressed archives, cryptographic keys —
+use the byte-oriented API:
+
+- `MD_steg_encode_bytes()` — accepts a raw byte buffer and length
+- `MD_steg_decode_bytes()` — returns raw bytes without null termination
+
+### Minimum samples
+
+For LSB encoding, each data byte requires 8 samples, plus a 32-bit header:
+
+\f[
+N_{\min} = 8L + 32
+\f]
+
+where \f$L\f$ is the data length in bytes.
+
+**Reading the formula in C:**
+
+```c
+// L -> data_len,  N_min -> min_samples
+unsigned min_samples = data_len * 8 + 32;
+```
+
+For a 332-byte PNG image: \f$N_{\min} = 8 \times 332 + 32 = 2688\f$ samples —
+well under a second at any common sample rate.
+
+### Example: hiding an image in audio
+
+**Space invader** — a tiny 110x80 RGB PNG (332 bytes) makes a good test payload.
+It is small enough to embed in a fraction of a second of audio using LSB:
+
+```sh
+# Encode the image (auto-generates a host signal)
+./audio_steg --encode-image lsb space_invader.png -o steg_invader.wav
+
+# Decode to recover the image
+./audio_steg --decode-image lsb steg_invader.wav -o recovered_invader.png
+
+# Verify
+cmp space_invader.png recovered_invader.png && echo "Identical"
+```
+
+**QR code** — a 165x165 1-bit grayscale PNG (486 bytes) containing a URL to
+this repository.  This is a "double encoding": data encoded as a QR code,
+then the QR code hidden inside audio:
+
+```sh
+./audio_steg --encode-image lsb minidsp_qr.png -o steg_qr.wav
+./audio_steg --decode-image lsb steg_qr.wav -o recovered_qr.png
+cmp minidsp_qr.png recovered_qr.png && echo "Identical"
+```
+
+**Quick example** — encode and decode a PNG in C:
+
+```c
+#include "minidsp.h"
+#include <stdio.h>
+
+// Read the image file
+FILE *fp = fopen("space_invader.png", "rb");
+fseek(fp, 0, SEEK_END);
+unsigned len = (unsigned)ftell(fp);
+fseek(fp, 0, SEEK_SET);
+unsigned char *img = malloc(len);
+fread(img, 1, len, fp);
+fclose(fp);
+
+// Encode into audio
+unsigned N = len * 8 + 32 + 1024;  // payload + header + margin
+double *host  = malloc(N * sizeof(double));
+double *stego = malloc(N * sizeof(double));
+MD_sine_wave(host, N, 0.8, 440.0, 44100.0);
+MD_steg_encode_bytes(host, stego, N, 44100.0, img, len, MD_STEG_LSB);
+
+// Decode
+unsigned char *recovered = malloc(len);
+MD_steg_decode_bytes(stego, N, 44100.0, recovered, len, MD_STEG_LSB);
+// recovered[0..len-1] == img[0..len-1]
+```
+
+---
+
 ## API
 
 ### Capacity
@@ -338,6 +424,47 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
 
 Returns the number of message bytes decoded (0 if none found).
 
+### Encode bytes
+
+```c
+unsigned MD_steg_encode_bytes(const double *host, double *output,
+                              unsigned signal_len, double sample_rate,
+                              const unsigned char *data, unsigned data_len,
+                              int method);
+```
+
+| Parameter     | Description |
+|:--------------|:------------|
+| `host`        | Input host signal (not modified). |
+| `output`      | Output stego signal (caller-allocated, same length). |
+| `signal_len`  | Number of samples. |
+| `sample_rate` | Sample rate in Hz. |
+| `data`        | Pointer to the binary data to hide. |
+| `data_len`    | Length of data in bytes. |
+| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+
+Returns the number of data bytes encoded (0 on failure).
+
+### Decode bytes
+
+```c
+unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
+                              double sample_rate,
+                              unsigned char *data_out, unsigned max_len,
+                              int method);
+```
+
+| Parameter     | Description |
+|:--------------|:------------|
+| `stego`       | The stego signal containing the hidden data. |
+| `signal_len`  | Number of samples. |
+| `sample_rate` | Sample rate in Hz. |
+| `data_out`    | Output buffer for the decoded bytes (caller-allocated). |
+| `max_len`     | Maximum number of bytes to write to buffer. |
+| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+
+Returns the number of data bytes decoded (0 if none found).
+
 ---
 
 ## Quick example
@@ -379,7 +506,7 @@ printf("Hidden: %s\n", recovered);  // "hidden!"
 ## Example program
 
 The example `examples/audio_steg.c` provides a command-line tool for
-encoding and decoding steganographic messages in WAV files.
+encoding and decoding steganographic messages and binary data in WAV files.
 
 **Self-test** (no arguments):
 
@@ -393,21 +520,35 @@ encoding and decoding steganographic messages in WAV files.
 
 \snippet audio_steg.c decode-wav
 
+**Encode a binary file (e.g. image) into a WAV file:**
+
+\snippet audio_steg.c encode-image
+
+**Decode a binary file from a WAV file:**
+
+\snippet audio_steg.c decode-image
+
 **Usage:**
 
 ```sh
 # Self-test (encode + decode with both methods, verify round-trip)
 ./audio_steg
 
-# Encode using LSB into a default 440 Hz host
+# Encode a text message using LSB into a default 440 Hz host
 ./audio_steg --encode lsb "my secret" -o stego.wav
 
 # Encode using frequency-band into an existing WAV host
 ./audio_steg --encode freq "hidden" -i music.wav -o stego.wav
 
-# Decode
+# Decode a text message
 ./audio_steg --decode lsb stego.wav
 ./audio_steg --decode freq stego.wav
+
+# Encode a binary file (image) using LSB
+./audio_steg --encode-image lsb space_invader.png -o steg_invader.wav
+
+# Decode a binary file from stego audio
+./audio_steg --decode-image lsb steg_invader.wav -o recovered.png
 ```
 
 ---

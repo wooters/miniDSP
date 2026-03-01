@@ -4324,6 +4324,105 @@ static int test_steg_freq_with_noise(void)
     return ok;
 }
 
+/** LSB bytes roundtrip with embedded 0x00 bytes. */
+static int test_steg_bytes_lsb_roundtrip(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 1.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    /* Data with embedded null bytes. */
+    unsigned char data[] = {0x89, 0x50, 0x4E, 0x47, 0x00, 0x00, 0x0D, 0x0A,
+                            0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0xFF, 0xFE};
+    unsigned data_len = sizeof(data);
+
+    unsigned enc = MD_steg_encode_bytes(host, stego, N, sr,
+                                        data, data_len, MD_STEG_LSB);
+    if (enc != data_len) { free(host); free(stego); return 0; }
+
+    unsigned char recovered[256];
+    unsigned dec = MD_steg_decode_bytes(stego, N, sr,
+                                        recovered, sizeof(recovered),
+                                        MD_STEG_LSB);
+
+    int ok = (dec == data_len) && (memcmp(recovered, data, data_len) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Frequency-band bytes roundtrip with embedded 0x00 bytes. */
+static int test_steg_bytes_freq_roundtrip(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 2.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.5, 440.0, sr);
+
+    unsigned char data[] = {0x00, 0x01, 0x02, 0x00, 0xFF, 0x00, 0xAB, 0xCD};
+    unsigned data_len = sizeof(data);
+
+    unsigned enc = MD_steg_encode_bytes(host, stego, N, sr,
+                                        data, data_len, MD_STEG_FREQ_BAND);
+    if (enc != data_len) { free(host); free(stego); return 0; }
+
+    unsigned char recovered[256];
+    unsigned dec = MD_steg_decode_bytes(stego, N, sr,
+                                        recovered, sizeof(recovered),
+                                        MD_STEG_FREQ_BAND);
+
+    int ok = (dec == data_len) && (memcmp(recovered, data, data_len) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** String API and bytes API are interoperable. */
+static int test_steg_bytes_string_compat(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 1.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    const char *secret = "Hello, steg!";
+    unsigned slen = (unsigned)strlen(secret);
+
+    /* Encode with string API, decode with bytes API. */
+    unsigned enc = MD_steg_encode(host, stego, N, sr, secret, MD_STEG_LSB);
+    if (enc != slen) { free(host); free(stego); return 0; }
+
+    unsigned char bytes_out[256];
+    unsigned dec = MD_steg_decode_bytes(stego, N, sr,
+                                        bytes_out, sizeof(bytes_out),
+                                        MD_STEG_LSB);
+    if (dec != slen || memcmp(bytes_out, secret, slen) != 0) {
+        free(host); free(stego); return 0;
+    }
+
+    /* Encode with bytes API, decode with string API. */
+    unsigned enc2 = MD_steg_encode_bytes(host, stego, N, sr,
+                                         (const unsigned char *)secret, slen,
+                                         MD_STEG_LSB);
+    if (enc2 != slen) { free(host); free(stego); return 0; }
+
+    char str_out[256];
+    unsigned dec2 = MD_steg_decode(stego, N, sr, str_out, sizeof(str_out),
+                                   MD_STEG_LSB);
+    int ok = (dec2 == slen) && (strcmp(str_out, secret) == 0);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Main: run all tests
  * -----------------------------------------------------------------------*/
@@ -4608,6 +4707,9 @@ int main(void)
     RUN_TEST(test_steg_freq_roundtrip);
     RUN_TEST(test_steg_freq_capacity);
     RUN_TEST(test_steg_freq_with_noise);
+    RUN_TEST(test_steg_bytes_lsb_roundtrip);
+    RUN_TEST(test_steg_bytes_freq_roundtrip);
+    RUN_TEST(test_steg_bytes_string_compat);
 
     /* Clean up FFTW resources */
     MD_shutdown();

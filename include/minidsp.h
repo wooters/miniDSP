@@ -14,7 +14,7 @@
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
- *   - Audio steganography (hide secret messages via LSB or frequency-band encoding)
+ *   - Audio steganography (hide secret messages or binary data via LSB or frequency-band encoding)
  *
  * These are the kinds of building blocks you'd use in an audio processing
  * pipeline -- for example, estimating which direction a sound came from
@@ -1394,5 +1394,61 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
                         double sample_rate,
                         char *message_out, unsigned max_msg_len,
                         int method);
+
+/**
+ * @brief Encode arbitrary binary data into a host audio signal.
+ *
+ * Works like MD_steg_encode() but accepts a raw byte buffer instead of a
+ * null-terminated string, so it can embed data containing @c 0x00 bytes
+ * (e.g. images, compressed archives, cryptographic keys).
+ *
+ * @param host        Input host signal (not modified).
+ * @param output      Output stego signal (caller-allocated, same length).
+ * @param signal_len  Length of host and output in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param data        Pointer to the binary data to hide.
+ * @param data_len    Length of @p data in bytes.
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Number of data bytes encoded (0 on failure).
+ *
+ * @code
+ * double host[44100], stego[44100];
+ * MD_sine_wave(host, 44100, 0.8, 440.0, 44100.0);
+ * unsigned char png_data[332];
+ * // ... read PNG file into png_data ...
+ * unsigned n = MD_steg_encode_bytes(host, stego, 44100, 44100.0,
+ *                                   png_data, 332, MD_STEG_LSB);
+ * @endcode
+ */
+unsigned MD_steg_encode_bytes(const double *host, double *output,
+                              unsigned signal_len, double sample_rate,
+                              const unsigned char *data, unsigned data_len,
+                              int method);
+
+/**
+ * @brief Decode binary data from a stego audio signal.
+ *
+ * Works like MD_steg_decode() but writes raw bytes without null termination,
+ * suitable for recovering binary payloads.
+ *
+ * @param stego       The stego signal containing the hidden data.
+ * @param signal_len  Length of the stego signal in samples.
+ * @param sample_rate Sample rate in Hz.
+ * @param data_out    Output buffer for the decoded bytes (caller-allocated).
+ * @param max_len     Maximum number of bytes to write to @p data_out.
+ * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @return            Number of data bytes decoded (0 if none found).
+ *
+ * @code
+ * unsigned char recovered[1024];
+ * unsigned n = MD_steg_decode_bytes(stego, 44100, 44100.0,
+ *                                   recovered, 1024, MD_STEG_LSB);
+ * // recovered[0..n-1] contains the original binary data
+ * @endcode
+ */
+unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
+                              double sample_rate,
+                              unsigned char *data_out, unsigned max_len,
+                              int method);
 
 #endif /* MINIDSP_H */
