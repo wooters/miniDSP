@@ -391,6 +391,10 @@ for (int i = 0; i < num_samples; i++) {
 free(lpf);
 ```
 
+## Python Bindings
+
+Python bindings for miniDSP are available in the [pyminidsp](https://github.com/wooters/pyminidsp) repository.
+
 ## Build and Test
 
 ### Dependencies
