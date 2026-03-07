@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdbool.h>
 
 /* M_PI is not guaranteed by the C standard.  Define it if the system didn't. */
 #ifndef M_PI

@@ -91,9 +91,9 @@ int FIO_read_audio(const char *infile,
 
     /* Open the file and read its metadata */
     SNDFILE *sf = sf_open(infile, SFM_READ, &sfinfo);
-    if (sf == nullptr) {
+    if (sf == NULL) {
         fprintf(stderr, "Error opening audio file: %s\n", infile);
-        *indata = nullptr;
+        *indata = NULL;
         *datalen = 0;
         *samprate = 0;
         return -1;
@@ -105,7 +105,7 @@ int FIO_read_audio(const char *infile,
                 "Use 'sox' to split multi-channel files.\n",
                 sfinfo.channels);
         sf_close(sf);
-        *indata = nullptr;
+        *indata = NULL;
         *datalen = 0;
         *samprate = 0;
         return -1;
@@ -115,16 +115,16 @@ int FIO_read_audio(const char *infile,
 
     /* Tell libsndfile whether to normalise float output to [-1, 1] */
     if (donorm == 1)
-        sf_command(sf, SFC_SET_NORM_FLOAT, nullptr, SF_TRUE);
+        sf_command(sf, SFC_SET_NORM_FLOAT, NULL, SF_TRUE);
     else
-        sf_command(sf, SFC_SET_NORM_FLOAT, nullptr, SF_FALSE);
+        sf_command(sf, SFC_SET_NORM_FLOAT, NULL, SF_FALSE);
 
     /* Allocate and read */
     float *tmpdata = malloc((size_t)nsamps * sizeof(float));
-    if (tmpdata == nullptr) {
+    if (tmpdata == NULL) {
         fprintf(stderr, "Error allocating memory for audio data\n");
         sf_close(sf);
-        *indata = nullptr;
+        *indata = NULL;
         *datalen = 0;
         *samprate = 0;
         return -1;
@@ -136,7 +136,7 @@ int FIO_read_audio(const char *infile,
                 infile, (long)nsamps, (long)nread);
         free(tmpdata);
         sf_close(sf);
-        *indata = nullptr;
+        *indata = NULL;
         *datalen = 0;
         *samprate = 0;
         return -1;
@@ -170,7 +170,7 @@ int FIO_write_npy(const char *outfile,
                   size_t veclen)
 {
     FILE *f = fopen(outfile, "wb");
-    if (f == nullptr) {
+    if (f == NULL) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
         return -1;
     }
@@ -190,7 +190,7 @@ int FIO_write_npy(const char *outfile,
 
     /* Build the padded header string */
     char *header = malloc(header_len);
-    if (header == nullptr) {
+    if (header == NULL) {
         fprintf(stderr, "Error allocating npy header\n");
         fclose(f);
         return -1;
@@ -239,7 +239,7 @@ int FIO_write_safetensors(const char *outfile,
                           size_t veclen)
 {
     FILE *f = fopen(outfile, "wb");
-    if (f == nullptr) {
+    if (f == NULL) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
         return -1;
     }
@@ -291,7 +291,7 @@ int FIO_write_wav(const char *outfile,
     sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_FLOAT;
 
     SNDFILE *sf = sf_open(outfile, SFM_WRITE, &sfinfo);
-    if (sf == nullptr) {
+    if (sf == NULL) {
         fprintf(stderr, "Error opening output WAV file: %s\n", outfile);
         return -1;
     }
@@ -334,7 +334,7 @@ int FIO_write_htk_feats(const char *outfile,
     hdr.parmkind   = 9;  /* 9 = USER (user-defined parameter type) */
 
     FILE *f = fopen(outfile, "wb");
-    if (f == nullptr) {
+    if (f == NULL) {
         fprintf(stderr, "Error opening output file: %s\n", outfile);
         return -1;
     }

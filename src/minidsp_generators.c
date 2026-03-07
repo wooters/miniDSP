@@ -15,7 +15,7 @@
 void MD_sine_wave(double *output, unsigned N, double amplitude,
                   double freq, double sample_rate)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
     double phase_step = 2.0 * M_PI * freq / sample_rate;
@@ -26,7 +26,7 @@ void MD_sine_wave(double *output, unsigned N, double amplitude,
 void MD_white_noise(double *output, unsigned N, double amplitude,
                     unsigned seed)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
 
     /* 64-bit LCG (Knuth MMIX constants) for uniform doubles in (0, 1).
@@ -67,7 +67,7 @@ void MD_white_noise(double *output, unsigned N, double amplitude,
 
 void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(position < N);
     memset(output, 0, N * sizeof(double));
@@ -77,7 +77,7 @@ void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
 void MD_chirp_linear(double *output, unsigned N, double amplitude,
                      double f_start, double f_end, double sample_rate)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
 
@@ -99,7 +99,7 @@ void MD_chirp_linear(double *output, unsigned N, double amplitude,
 void MD_chirp_log(double *output, unsigned N, double amplitude,
                   double f_start, double f_end, double sample_rate)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
     assert(f_start > 0.0);
@@ -126,7 +126,7 @@ void MD_chirp_log(double *output, unsigned N, double amplitude,
 void MD_square_wave(double *output, unsigned N, double amplitude,
                     double freq, double sample_rate)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
     double phase_step = 2.0 * M_PI * freq / sample_rate;
@@ -145,7 +145,7 @@ void MD_square_wave(double *output, unsigned N, double amplitude,
 void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
                       double freq, double sample_rate)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
     double phase_step = 2.0 * M_PI * freq / sample_rate;
@@ -160,7 +160,7 @@ void MD_shepard_tone(double *output, unsigned N, double amplitude,
                      double base_freq, double sample_rate,
                      double rate_octaves_per_sec, unsigned num_octaves)
 {
-    assert(output != nullptr);
+    assert(output != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
     assert(base_freq > 0.0);
@@ -192,7 +192,7 @@ void MD_shepard_tone(double *output, unsigned N, double amplitude,
 
     /* Per-layer phase accumulators (zero-initialised). */
     double *phases = calloc(total_layers, sizeof(double));
-    assert(phases != nullptr);
+    assert(phases != NULL);
     memset(output, 0, N * sizeof(double));
 
     for (unsigned i = 0; i < N; i++) {

@@ -89,7 +89,7 @@ static int generate_wav(const char *digits, const char *outfile)
 //! [detect-file]
 static int detect_file(const char *infile)
 {
-    float  *fdata    = nullptr;
+    float  *fdata    = NULL;
     size_t  datalen  = 0;
     unsigned samprate = 0;
 

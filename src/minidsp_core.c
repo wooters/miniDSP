@@ -44,7 +44,7 @@ double MD_dot(const double *a, const double *b, unsigned N)
  */
 double MD_energy(const double *a, unsigned N)
 {
-    assert(a != nullptr);
+    assert(a != NULL);
     if (N == 1) return a[0] * a[0];
     return MD_dot(a, a, N);
 }
@@ -59,7 +59,7 @@ double MD_energy(const double *a, unsigned N)
  */
 double MD_power(const double *a, unsigned N)
 {
-    assert(a != nullptr);
+    assert(a != NULL);
     assert(N > 0);
     return MD_energy(a, N) / (double)N;
 }
@@ -75,7 +75,7 @@ double MD_power(const double *a, unsigned N)
  */
 double MD_power_db(const double *a, unsigned N)
 {
-    assert(a != nullptr);
+    assert(a != NULL);
     assert(N > 0);
     double p = fmax(1.0e-10, MD_power(a, N));
     return 10.0 * log10(p);
@@ -107,8 +107,8 @@ void MD_scale_vec(double *in, double *out, unsigned N,
                   double oldmin, double oldmax,
                   double newmin, double newmax)
 {
-    assert(in != nullptr);
-    assert(out != nullptr);
+    assert(in != NULL);
+    assert(out != NULL);
     assert(oldmin < oldmax);
     assert(newmin < newmax);
     if (N == 0) return;
@@ -129,8 +129,8 @@ void MD_scale_vec(double *in, double *out, unsigned N,
 void MD_fit_within_range(double *in, double *out, unsigned N,
                          double newmin, double newmax)
 {
-    assert(in != nullptr);
-    assert(out != nullptr);
+    assert(in != NULL);
+    assert(out != NULL);
     assert(newmin < newmax);
     if (N == 0) return;
 
@@ -209,7 +209,7 @@ void MD_adjust_dblevel(const double *in, double *out,
  */
 double MD_entropy(const double *a, unsigned N, bool clip)
 {
-    assert(a != nullptr);
+    assert(a != NULL);
 
     if (N <= 1) return 0.0;
 
@@ -279,7 +279,7 @@ static double md_parabolic_offset(double y_left, double y_mid, double y_right)
  */
 double MD_rms(const double *a, unsigned N)
 {
-    assert(a != nullptr);
+    assert(a != NULL);
     assert(N > 0);
     return sqrt(MD_power(a, N));
 }
@@ -292,7 +292,7 @@ double MD_rms(const double *a, unsigned N)
  */
 double MD_zero_crossing_rate(const double *a, unsigned N)
 {
-    assert(a != nullptr);
+    assert(a != NULL);
     assert(N > 1);
     unsigned crossings = 0;
     for (unsigned i = 1; i < N; i++) {
@@ -313,8 +313,8 @@ double MD_zero_crossing_rate(const double *a, unsigned N)
 void MD_autocorrelation(const double *a, unsigned N,
                         double *out, unsigned max_lag)
 {
-    assert(a != nullptr);
-    assert(out != nullptr);
+    assert(a != NULL);
+    assert(out != NULL);
     assert(N > 0);
     assert(max_lag > 0 && max_lag < N);
 
@@ -342,9 +342,9 @@ void MD_peak_detect(const double *a, unsigned N, double threshold,
                     unsigned min_distance, unsigned *peaks_out,
                     unsigned *num_peaks_out)
 {
-    assert(a != nullptr);
-    assert(peaks_out != nullptr);
-    assert(num_peaks_out != nullptr);
+    assert(a != NULL);
+    assert(peaks_out != NULL);
+    assert(num_peaks_out != NULL);
     assert(min_distance >= 1);
 
     unsigned count = 0;
@@ -365,7 +365,7 @@ double MD_f0_autocorrelation(const double *signal, unsigned N,
                              double sample_rate,
                              double min_freq_hz, double max_freq_hz)
 {
-    assert(signal != nullptr);
+    assert(signal != NULL);
     assert(N >= 2);
     assert(sample_rate > 0.0);
     assert(min_freq_hz > 0.0);
@@ -428,9 +428,9 @@ double MD_f0_autocorrelation(const double *signal, unsigned N,
 void MD_mix(const double *a, const double *b, double *out,
             unsigned N, double w_a, double w_b)
 {
-    assert(a != nullptr);
-    assert(b != nullptr);
-    assert(out != nullptr);
+    assert(a != NULL);
+    assert(b != NULL);
+    assert(out != NULL);
     for (unsigned i = 0; i < N; i++) {
         out[i] = w_a * a[i] + w_b * b[i];
     }
@@ -444,14 +444,14 @@ void MD_delay_echo(const double *in, double *out, unsigned N,
                    unsigned delay_samples, double feedback,
                    double dry, double wet)
 {
-    assert(in != nullptr);
-    assert(out != nullptr);
+    assert(in != NULL);
+    assert(out != NULL);
     assert(N > 0);
     assert(delay_samples > 0);
     assert(fabs(feedback) < 1.0);
 
     double *delay = calloc(delay_samples, sizeof(double));
-    assert(delay != nullptr);
+    assert(delay != NULL);
 
     unsigned idx = 0;
     for (unsigned n = 0; n < N; n++) {
@@ -469,8 +469,8 @@ void MD_delay_echo(const double *in, double *out, unsigned N,
 void MD_tremolo(const double *in, double *out, unsigned N,
                 double rate_hz, double depth, double sample_rate)
 {
-    assert(in != nullptr);
-    assert(out != nullptr);
+    assert(in != NULL);
+    assert(out != NULL);
     assert(N > 0);
     assert(sample_rate > 0.0);
     assert(rate_hz >= 0.0);
@@ -488,14 +488,14 @@ void MD_comb_reverb(const double *in, double *out, unsigned N,
                     unsigned delay_samples, double feedback,
                     double dry, double wet)
 {
-    assert(in != nullptr);
-    assert(out != nullptr);
+    assert(in != NULL);
+    assert(out != NULL);
     assert(N > 0);
     assert(delay_samples > 0);
     assert(fabs(feedback) < 1.0);
 
     double *comb = calloc(delay_samples, sizeof(double));
-    assert(comb != nullptr);
+    assert(comb != NULL);
 
     unsigned idx = 0;
     for (unsigned n = 0; n < N; n++) {
@@ -528,7 +528,7 @@ void MD_comb_reverb(const double *in, double *out, unsigned N,
  */
 void MD_Gen_Hann_Win(double *out, unsigned n)
 {
-    assert(out != nullptr);
+    assert(out != NULL);
     assert(n > 0);
 
     if (n == 1) {
@@ -549,7 +549,7 @@ void MD_Gen_Hann_Win(double *out, unsigned n)
  */
 void MD_Gen_Hamming_Win(double *out, unsigned n)
 {
-    assert(out != nullptr);
+    assert(out != NULL);
     assert(n > 0);
 
     if (n == 1) {
@@ -573,7 +573,7 @@ void MD_Gen_Hamming_Win(double *out, unsigned n)
  */
 void MD_Gen_Blackman_Win(double *out, unsigned n)
 {
-    assert(out != nullptr);
+    assert(out != NULL);
     assert(n > 0);
 
     if (n == 1) {
@@ -593,7 +593,7 @@ void MD_Gen_Blackman_Win(double *out, unsigned n)
  */
 void MD_Gen_Rect_Win(double *out, unsigned n)
 {
-    assert(out != nullptr);
+    assert(out != NULL);
     assert(n > 0);
     for (unsigned i = 0; i < n; i++) {
         out[i] = 1.0;
