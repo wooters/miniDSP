@@ -23,6 +23,21 @@
 #ifndef MINIDSP_H
 #define MINIDSP_H
 
+/* Version macros — injected by Makefile via -D flags.
+ * Defaults here allow the header to compile standalone. */
+#ifndef MINIDSP_VERSION_MAJOR
+#define MINIDSP_VERSION_MAJOR 0
+#endif
+#ifndef MINIDSP_VERSION_MINOR
+#define MINIDSP_VERSION_MINOR 0
+#endif
+#ifndef MINIDSP_VERSION_PATCH
+#define MINIDSP_VERSION_PATCH 0
+#endif
+#ifndef MINIDSP_VERSION
+#define MINIDSP_VERSION "0.0.0"
+#endif
+
 #include <string.h>
 #include <assert.h>
 #include <stdlib.h>
