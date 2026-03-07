@@ -214,21 +214,21 @@ static unsigned freq_capacity(unsigned signal_len, double sample_rate)
  * md_steg_teardown() (declared in minidsp_internal.h).
  * ----------------------------------------------------------------------- */
 
-static double  *_bfsk_sin_lo  = nullptr;
-static double  *_bfsk_sin_hi  = nullptr;
+static double  *_bfsk_sin_lo  = NULL;
+static double  *_bfsk_sin_hi  = NULL;
 static unsigned  _bfsk_cs     = 0;
 
 static void _bfsk_setup(double sample_rate)
 {
     unsigned cs = chip_samples(sample_rate);
-    if (cs == _bfsk_cs && _bfsk_sin_lo != nullptr)
+    if (cs == _bfsk_cs && _bfsk_sin_lo != NULL)
         return;
 
     free(_bfsk_sin_lo);
     free(_bfsk_sin_hi);
     _bfsk_sin_lo = malloc(cs * sizeof(double));
     _bfsk_sin_hi = malloc(cs * sizeof(double));
-    assert(_bfsk_sin_lo != nullptr && _bfsk_sin_hi != nullptr);
+    assert(_bfsk_sin_lo != NULL && _bfsk_sin_hi != NULL);
     for (unsigned s = 0; s < cs; s++) {
         double t = (double)s / sample_rate;
         _bfsk_sin_lo[s] = sin(2.0 * M_PI * FREQ_LO * t);
@@ -241,8 +241,8 @@ void md_steg_teardown(void)
 {
     free(_bfsk_sin_lo);
     free(_bfsk_sin_hi);
-    _bfsk_sin_lo = nullptr;
-    _bfsk_sin_hi = nullptr;
+    _bfsk_sin_lo = NULL;
+    _bfsk_sin_hi = NULL;
     _bfsk_cs     = 0;
 }
 
@@ -336,7 +336,7 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
     for (unsigned i = 0; i < HEADER_BITS; i++) {
         unsigned bit = decode_one_bit(stego, signal_len, i, cs,
                                       _bfsk_sin_lo, _bfsk_sin_hi,
-                                      nullptr);
+                                      NULL);
         raw_header |= (bit << i);
     }
     unsigned msg_len = raw_header & LENGTH_MASK;
@@ -356,7 +356,7 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
             unsigned chip = HEADER_BITS + b * 8 + bit_idx;
             unsigned bit = decode_one_bit(stego, signal_len, chip, cs,
                                           _bfsk_sin_lo, _bfsk_sin_hi,
-                                          nullptr);
+                                          NULL);
             ch |= (unsigned char)(bit << bit_idx);
         }
         data_out[b] = ch;
@@ -387,11 +387,11 @@ static unsigned encode_common(const double *host, double *output,
                               const unsigned char *data, unsigned data_len,
                               int method, unsigned flags)
 {
-    assert(host != nullptr);
-    assert(output != nullptr);
+    assert(host != NULL);
+    assert(output != NULL);
     assert(signal_len > 0);
     assert(sample_rate > 0.0);
-    assert(data != nullptr);
+    assert(data != NULL);
     assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
 
     if (method == MD_STEG_FREQ_BAND)
@@ -419,10 +419,10 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
                               unsigned char *data_out, unsigned max_len,
                               int method)
 {
-    assert(stego != nullptr);
+    assert(stego != NULL);
     assert(signal_len > 0);
     assert(sample_rate > 0.0);
-    assert(data_out != nullptr);
+    assert(data_out != NULL);
     assert(max_len > 0);
     assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
 
@@ -437,7 +437,7 @@ unsigned MD_steg_encode(const double *host, double *output,
                         unsigned signal_len, double sample_rate,
                         const char *message, int method)
 {
-    assert(message != nullptr);
+    assert(message != NULL);
     return encode_common(host, output, signal_len, sample_rate,
                          (const unsigned char *)message,
                          (unsigned)strlen(message), method, 0);
@@ -448,7 +448,7 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
                         char *message_out, unsigned max_msg_len,
                         int method)
 {
-    assert(message_out != nullptr);
+    assert(message_out != NULL);
     assert(max_msg_len > 0);
     unsigned decoded = MD_steg_decode_bytes(stego, signal_len, sample_rate,
                                             (unsigned char *)message_out,
@@ -460,7 +460,7 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
 int MD_steg_detect(const double *signal, unsigned signal_len,
                    double sample_rate, int *payload_type_out)
 {
-    assert(signal != nullptr);
+    assert(signal != NULL);
     assert(signal_len > 0);
     assert(sample_rate > 0.0);
 
@@ -511,7 +511,7 @@ int MD_steg_detect(const double *signal, unsigned signal_len,
         }
     }
 
-    if (found_method >= 0 && payload_type_out != nullptr)
+    if (found_method >= 0 && payload_type_out != NULL)
         *payload_type_out = (found_header >> 31) ? MD_STEG_TYPE_BINARY
                                                  : MD_STEG_TYPE_TEXT;
 

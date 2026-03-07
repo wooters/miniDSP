@@ -1586,7 +1586,7 @@ int main(void)
                 double *win = malloc(spec_fft * sizeof(double));
                 double *frm = malloc(spec_fft * sizeof(double));
                 double *mag = malloc(spec_bins * sizeof(double));
-                double *all_mag = nullptr;
+                double *all_mag = NULL;
                 if (spec_frames > 0)
                     all_mag = malloc(spec_frames * spec_bins * sizeof(double));
 

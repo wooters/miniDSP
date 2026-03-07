@@ -51,7 +51,7 @@
 static int read_wav_to_double(const char *path, double **out,
                               unsigned *out_len, unsigned *out_sr)
 {
-    float  *fdata   = nullptr;
+    float  *fdata   = NULL;
     size_t  datalen = 0;
     unsigned sr     = 0;
 
@@ -108,7 +108,7 @@ static const char *method_name(int method)
 static int encode_wav(int method, const char *message,
                       const char *infile, const char *outfile)
 {
-    double  *host    = nullptr;
+    double  *host    = NULL;
     unsigned signal_len;
     unsigned samprate;
 
@@ -175,7 +175,7 @@ static int encode_wav(int method, const char *message,
 //! [decode-wav]
 static int decode_wav(int method, const char *infile)
 {
-    double  *stego    = nullptr;
+    double  *stego    = NULL;
     unsigned signal_len;
     unsigned samprate;
 
@@ -235,7 +235,7 @@ static int encode_image_wav(int method, const char *image_path,
 
     printf("Image: %s (%u bytes)\n", image_path, data_len);
 
-    double  *host    = nullptr;
+    double  *host    = NULL;
     unsigned signal_len;
     unsigned samprate;
 
@@ -313,7 +313,7 @@ static int encode_image_wav(int method, const char *image_path,
 static int decode_image_wav(int method, const char *infile,
                             const char *outfile)
 {
-    double  *stego    = nullptr;
+    double  *stego    = NULL;
     unsigned signal_len;
     unsigned samprate;
 
@@ -365,7 +365,7 @@ static int decode_image_wav(int method, const char *infile,
 //! [auto-detect]
 static int auto_decode_wav(const char *infile)
 {
-    double  *stego    = nullptr;
+    double  *stego    = NULL;
     unsigned signal_len;
     unsigned samprate;
 
@@ -552,7 +552,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         const char *message = argv[3];
-        const char *infile  = nullptr;
+        const char *infile  = NULL;
         const char *outfile = "steg_output.wav";
 
         for (int i = 4; i < argc - 1; i++) {
@@ -581,7 +581,7 @@ int main(int argc, char *argv[])
             return 1;
         }
         const char *image_path = argv[3];
-        const char *infile  = nullptr;
+        const char *infile  = NULL;
         const char *outfile = "steg_output.wav";
 
         for (int i = 4; i < argc - 1; i++) {
@@ -607,12 +607,12 @@ int main(int argc, char *argv[])
             opt_start = 3;
 
             /* Read WAV to detect method. */
-            double  *stego    = nullptr;
+            double  *stego    = NULL;
             unsigned signal_len, samprate;
             if (read_wav_to_double(infile, &stego, &signal_len, &samprate) != 0)
                 return 1;
             method = MD_steg_detect(stego, signal_len, (double)samprate,
-                                    nullptr);
+                                    NULL);
             free(stego);
             if (method < 0) {
                 fprintf(stderr, "No hidden payload detected in %s\n", infile);
@@ -621,7 +621,7 @@ int main(int argc, char *argv[])
             printf("Auto-detected method: %s\n", method_name(method));
         }
 
-        const char *outfile = nullptr;
+        const char *outfile = NULL;
         for (int i = opt_start; i < argc - 1; i++) {
             if (strcmp(argv[i], "-o") == 0) outfile = argv[++i];
         }

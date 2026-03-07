@@ -3,7 +3,7 @@
 # Included by the root Makefile, tests/Makefile, and examples/Makefile.
 
 CC = gcc
-CFLAGS = -std=c23 -Wall -Wextra -pedantic
+CFLAGS = -std=c17 -Wall -Wextra -pedantic
 
 # Homebrew on Apple Silicon installs to /opt/homebrew; on Intel to /usr/local.
 # If Homebrew isn't present, these lines are skipped and system paths are used.

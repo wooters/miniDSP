@@ -31,4 +31,5 @@ A small C library for audio DSP: signal measurement, FFT spectrum analysis, biqu
 
 ## Build quirks
 
+- **C17 standard** — The codebase targets `-std=c17 -Wall -Wextra -pedantic`. Use `NULL` (not `nullptr`), `#include <stdbool.h>` for `bool`, and `__attribute__((deprecated))` (not `[[deprecated]]`).
 - **Legacy demo programs** in `tests/` (`gcc_phat_test`, `testliveio`, etc.) require gnuplot_i and/or PortAudio at link time — unlike the main test suite which only needs FFTW3, math, and libsndfile.

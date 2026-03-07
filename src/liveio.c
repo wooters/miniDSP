@@ -38,8 +38,8 @@ typedef struct {
 
 static int           LA_InitDone     = 0;         /**< Has PA been initialised?  */
 static PaError       LA_LastError    = paNoError;  /**< Most recent PA error code */
-static PaStream     *LA_PlayStream   = nullptr;       /**< Active playback stream    */
-static PaStream     *LA_RecordStream = nullptr;       /**< Active recording stream   */
+static PaStream     *LA_PlayStream   = NULL;       /**< Active playback stream    */
+static PaStream     *LA_RecordStream = NULL;       /**< Active recording stream   */
 static LA_simpleData LA_data;                      /**< Shared buffer descriptor  */
 
 /* -----------------------------------------------------------------------
@@ -128,7 +128,7 @@ static int _ContinuousRecordCallback(const void *inputBuffer,
     (void)statusFlags;
 
     for (unsigned long i = 0; i < framesPerBuffer; i++) {
-        data->audiodata[data->pos_w] = (inputBuffer != nullptr) ? *rptr++ : 0;
+        data->audiodata[data->pos_w] = (inputBuffer != NULL) ? *rptr++ : 0;
         data->pos_w++;
         if (data->pos_w >= data->len) {
             data->pos_w = 0;  /* Wrap around */
@@ -172,9 +172,9 @@ static int _RecordCallback(const void *inputBuffer,
         finished    = paContinue;
     }
 
-    /* Copy samples (or write silence if input is nullptr) */
+    /* Copy samples (or write silence if input is NULL) */
     for (unsigned long i = 0; i < framesToRec; i++) {
-        *wptr++ = (inputBuffer != nullptr) ? *rptr++ : 0;
+        *wptr++ = (inputBuffer != NULL) ? *rptr++ : 0;
     }
     data->pos_w += framesToRec;
 
@@ -268,7 +268,7 @@ static LaError_t _setup_input_params(PaStreamParameters *p)
     p->channelCount              = 1;       /* Mono input */
     p->sampleFormat              = paInt16;
     p->suggestedLatency          = Pa_GetDeviceInfo(p->device)->defaultHighInputLatency;
-    p->hostApiSpecificStreamInfo = nullptr;
+    p->hostApiSpecificStreamInfo = NULL;
     return LA_OK;
 }
 
@@ -283,7 +283,7 @@ static LaError_t _setup_output_params(PaStreamParameters *p)
     p->channelCount              = 2;       /* Stereo output */
     p->sampleFormat              = paInt16;
     p->suggestedLatency          = Pa_GetDeviceInfo(p->device)->defaultHighOutputLatency;
-    p->hostApiSpecificStreamInfo = nullptr;
+    p->hostApiSpecificStreamInfo = NULL;
     return LA_OK;
 }
 
@@ -300,7 +300,7 @@ LaError_t LA_record_callback(unsigned samprate, PaStreamCallback *cb, void *cb_d
     if (_setup_input_params(&inputParams) != LA_OK) return LA_ERROR;
 
     PaError err;
-    err = Pa_OpenStream(&LA_RecordStream, &inputParams, nullptr,
+    err = Pa_OpenStream(&LA_RecordStream, &inputParams, NULL,
                         samprate, paFramesPerBufferUnspecified,
                         paClipOff, cb, cb_data);
     if (err != paNoError) return LA_ERROR;
@@ -334,7 +334,7 @@ LaError_t LA_record(void *buffer, unsigned long bufsize,
     }
 
     PaError err;
-    err = Pa_OpenStream(&LA_RecordStream, &inputParams, nullptr,
+    err = Pa_OpenStream(&LA_RecordStream, &inputParams, NULL,
                         samprate, paFramesPerBufferUnspecified,
                         paClipOff, cb, &LA_data);
     if (err != paNoError) return LA_ERROR;
@@ -364,7 +364,7 @@ LaError_t LA_play_callback(unsigned samprate, PaStreamCallback *cb, void *cb_dat
     if (_setup_output_params(&outputParams) != LA_OK) return LA_ERROR;
 
     PaError err;
-    err = Pa_OpenStream(&LA_PlayStream, nullptr, &outputParams,
+    err = Pa_OpenStream(&LA_PlayStream, NULL, &outputParams,
                         samprate, paFramesPerBufferUnspecified,
                         paNoFlag, cb, cb_data);
     if (err != paNoError) return LA_ERROR;
@@ -388,7 +388,7 @@ LaError_t LA_play(const void *buffer, unsigned long bufsize, unsigned samprate)
     if (_setup_output_params(&outputParams) != LA_OK) return LA_ERROR;
 
     PaError err;
-    err = Pa_OpenStream(&LA_PlayStream, nullptr, &outputParams,
+    err = Pa_OpenStream(&LA_PlayStream, NULL, &outputParams,
                         samprate, paFramesPerBufferUnspecified,
                         paNoFlag, _PlayCallback, &LA_data);
     if (err != paNoError) return LA_ERROR;

@@ -25,9 +25,9 @@ void MD_convolution_time(const double *signal, unsigned signal_len,
                          const double *kernel, unsigned kernel_len,
                          double *out)
 {
-    assert(signal != nullptr);
-    assert(kernel != nullptr);
-    assert(out != nullptr);
+    assert(signal != NULL);
+    assert(kernel != NULL);
+    assert(out != NULL);
     assert(signal_len > 0);
     assert(kernel_len > 0);
 
@@ -47,8 +47,8 @@ void MD_convolution_time(const double *signal, unsigned signal_len,
 void MD_moving_average(const double *signal, unsigned signal_len,
                        unsigned window_len, double *out)
 {
-    assert(signal != nullptr);
-    assert(out != nullptr);
+    assert(signal != NULL);
+    assert(out != NULL);
     assert(signal_len > 0);
     assert(window_len > 0);
 
@@ -68,9 +68,9 @@ void MD_fir_filter(const double *signal, unsigned signal_len,
                    const double *coeffs, unsigned num_taps,
                    double *out)
 {
-    assert(signal != nullptr);
-    assert(coeffs != nullptr);
-    assert(out != nullptr);
+    assert(signal != NULL);
+    assert(coeffs != NULL);
+    assert(out != NULL);
     assert(signal_len > 0);
     assert(num_taps > 0);
 
@@ -88,9 +88,9 @@ void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
                             const double *kernel, unsigned kernel_len,
                             double *out)
 {
-    assert(signal != nullptr);
-    assert(kernel != nullptr);
-    assert(out != nullptr);
+    assert(signal != NULL);
+    assert(kernel != NULL);
+    assert(out != NULL);
     assert(signal_len > 0);
     assert(kernel_len > 0);
 
@@ -109,21 +109,21 @@ void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
     fftw_complex *H = fftw_alloc_complex(num_bins);
     fftw_complex *X = fftw_alloc_complex(num_bins);
     fftw_complex *Y = fftw_alloc_complex(num_bins);
-    assert(h_time != nullptr);
-    assert(x_time != nullptr);
-    assert(y_time != nullptr);
-    assert(H != nullptr);
-    assert(X != nullptr);
-    assert(Y != nullptr);
+    assert(h_time != NULL);
+    assert(x_time != NULL);
+    assert(y_time != NULL);
+    assert(H != NULL);
+    assert(X != NULL);
+    assert(Y != NULL);
 
     memcpy(h_time, kernel, kernel_len * sizeof(double));
 
     fftw_plan plan_h = fftw_plan_dft_r2c_1d((int)nfft, h_time, H, FFTW_ESTIMATE);
     fftw_plan plan_x = fftw_plan_dft_r2c_1d((int)nfft, x_time, X, FFTW_ESTIMATE);
     fftw_plan plan_y = fftw_plan_dft_c2r_1d((int)nfft, Y, y_time, FFTW_ESTIMATE);
-    assert(plan_h != nullptr);
-    assert(plan_x != nullptr);
-    assert(plan_y != nullptr);
+    assert(plan_h != NULL);
+    assert(plan_x != NULL);
+    assert(plan_y != NULL);
 
     fftw_execute(plan_h);  /* kernel FFT once */
 

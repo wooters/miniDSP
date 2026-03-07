@@ -99,11 +99,11 @@ int FIO_write_wav(const char *outfile,
  * @param vecsamprate   Sampling rate of the feature vectors (Hz).
  * @return 0 on success, -1 on error.
  */
-[[deprecated("use FIO_write_npy or FIO_write_safetensors")]]
 int FIO_write_htk_feats(const char *outfile,
                         const float **outvecs,
                         size_t nvecs,
                         size_t veclen,
-                        unsigned vecsamprate);
+                        unsigned vecsamprate)
+    __attribute__((deprecated("use FIO_write_npy or FIO_write_safetensors")));
 
 #endif /* FILEIO_H */

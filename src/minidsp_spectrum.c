@@ -19,9 +19,9 @@
  * -----------------------------------------------------------------------*/
 
 static unsigned      _spec_N       = 0;       /* Cached signal length      */
-static double       *_spec_in      = nullptr;  /* Local copy of input       */
-static fftw_complex *_spec_out     = nullptr;  /* FFT output                */
-static fftw_plan     _spec_plan    = nullptr;  /* FFTW r2c plan             */
+static double       *_spec_in      = NULL;  /* Local copy of input       */
+static fftw_complex *_spec_out     = NULL;  /* FFT output                */
+static fftw_plan     _spec_plan    = NULL;  /* FFTW r2c plan             */
 
 /* -----------------------------------------------------------------------
  * Static variables for STFT Hanning window cache
@@ -30,7 +30,7 @@ static fftw_plan     _spec_plan    = nullptr;  /* FFTW r2c plan             */
  * window buffer is separate, since different callers may use different N.
  * -----------------------------------------------------------------------*/
 
-static double  *_stft_win   = nullptr; /* Cached Hanning window             */
+static double  *_stft_win   = NULL; /* Cached Hanning window             */
 static unsigned _stft_win_N = 0;       /* Window length corresponding to above */
 
 /* -----------------------------------------------------------------------
@@ -45,7 +45,7 @@ static unsigned _mel_num_mels = 0;
 static double _mel_sample_rate = 0.0;
 static double _mel_min_freq_hz = 0.0;
 static double _mel_max_freq_hz = 0.0;
-static double *_mel_fb = nullptr;   /* Row-major: [num_mels][N/2+1] */
+static double *_mel_fb = NULL;   /* Row-major: [num_mels][N/2+1] */
 
 /** F0-FFT peak must stand out from the average in-range spectrum. */
 #define MD_F0_FFT_PROMINENCE_RATIO 2.5
@@ -84,15 +84,15 @@ static void _spec_free(void)
 {
     if (_spec_out) fftw_free(_spec_out);
     if (_spec_in)  free(_spec_in);
-    _spec_out = nullptr;
-    _spec_in  = nullptr;
+    _spec_out = NULL;
+    _spec_in  = NULL;
 }
 
 /** Tear down spectrum analysis plan and buffers. */
 static void _spec_teardown(void)
 {
     if (_spec_plan) fftw_destroy_plan(_spec_plan);
-    _spec_plan = nullptr;
+    _spec_plan = NULL;
     _spec_free();
 }
 
@@ -119,7 +119,7 @@ static void _spec_setup(unsigned N)
 static void _stft_teardown(void)
 {
     free(_stft_win);
-    _stft_win   = nullptr;
+    _stft_win   = NULL;
     _stft_win_N = 0;
 }
 
@@ -127,7 +127,7 @@ static void _stft_teardown(void)
 static void _mel_teardown(void)
 {
     free(_mel_fb);
-    _mel_fb = nullptr;
+    _mel_fb = NULL;
     _mel_N = 0;
     _mel_num_mels = 0;
     _mel_sample_rate = 0.0;
@@ -143,7 +143,7 @@ static void _mel_setup(unsigned N, double sample_rate, unsigned num_mels,
     double f_lo = fmax(0.0, min_freq_hz);
     double f_hi = fmin(max_freq_hz, nyquist);
 
-    if (_mel_fb != nullptr
+    if (_mel_fb != NULL
         && _mel_N == N
         && _mel_num_mels == num_mels
         && _mel_sample_rate == sample_rate
@@ -163,15 +163,15 @@ static void _mel_setup(unsigned N, double sample_rate, unsigned num_mels,
     unsigned num_bins = N / 2 + 1;
     size_t fb_len = (size_t)num_mels * num_bins;
     _mel_fb = calloc(fb_len, sizeof(double));
-    assert(_mel_fb != nullptr);
+    assert(_mel_fb != NULL);
 
     if (f_hi <= f_lo) return;
 
     unsigned num_points = num_mels + 2;
     double *mel_points = malloc(num_points * sizeof(double));
     double *hz_points = malloc(num_points * sizeof(double));
-    assert(mel_points != nullptr);
-    assert(hz_points != nullptr);
+    assert(mel_points != NULL);
+    assert(hz_points != NULL);
 
     double mel_min = md_hz_to_mel(f_lo);
     double mel_max = md_hz_to_mel(f_hi);
@@ -226,7 +226,7 @@ static void _stft_setup(unsigned N)
 
     free(_stft_win);
     _stft_win = malloc(N * sizeof(double));
-    assert(_stft_win != nullptr);
+    assert(_stft_win != NULL);
     MD_Gen_Hann_Win(_stft_win, N);
     _stft_win_N = N;
 }
@@ -276,8 +276,8 @@ void MD_shutdown(void)
  */
 void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out)
 {
-    assert(signal != nullptr);
-    assert(mag_out != nullptr);
+    assert(signal != NULL);
+    assert(mag_out != NULL);
     assert(N >= 2);
 
     _spec_setup(N);
@@ -314,8 +314,8 @@ void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out)
  */
 void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out)
 {
-    assert(signal != nullptr);
-    assert(psd_out != nullptr);
+    assert(signal != NULL);
+    assert(psd_out != NULL);
     assert(N >= 2);
 
     _spec_setup(N);
@@ -356,8 +356,8 @@ void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out
  */
 void MD_phase_spectrum(const double *signal, unsigned N, double *phase_out)
 {
-    assert(signal    != nullptr);
-    assert(phase_out != nullptr);
+    assert(signal    != NULL);
+    assert(phase_out != NULL);
     assert(N >= 2);
 
     _spec_setup(N);
@@ -380,7 +380,7 @@ double MD_f0_fft(const double *signal, unsigned N,
                  double sample_rate,
                  double min_freq_hz, double max_freq_hz)
 {
-    assert(signal != nullptr);
+    assert(signal != NULL);
     assert(N >= 2);
     assert(sample_rate > 0.0);
     assert(min_freq_hz > 0.0);
@@ -479,8 +479,8 @@ unsigned MD_stft_num_frames(unsigned signal_len, unsigned N, unsigned hop)
 void MD_stft(const double *signal, unsigned signal_len,
              unsigned N, unsigned hop, double *mag_out)
 {
-    assert(signal  != nullptr);
-    assert(mag_out != nullptr);
+    assert(signal  != NULL);
+    assert(mag_out != NULL);
     assert(N   >= 2);
     assert(hop >= 1);
 
@@ -520,7 +520,7 @@ void MD_mel_filterbank(unsigned N, double sample_rate,
     assert(sample_rate > 0.0);
     assert(num_mels > 0);
     assert(min_freq_hz < max_freq_hz);
-    assert(filterbank_out != nullptr);
+    assert(filterbank_out != NULL);
 
     _mel_setup(N, sample_rate, num_mels, min_freq_hz, max_freq_hz);
 
@@ -534,8 +534,8 @@ void MD_mel_energies(const double *signal, unsigned N,
                      double min_freq_hz, double max_freq_hz,
                      double *mel_out)
 {
-    assert(signal != nullptr);
-    assert(mel_out != nullptr);
+    assert(signal != NULL);
+    assert(mel_out != NULL);
     assert(N >= 2);
     assert(sample_rate > 0.0);
     assert(num_mels > 0);
@@ -571,8 +571,8 @@ void MD_mfcc(const double *signal, unsigned N,
              double min_freq_hz, double max_freq_hz,
              double *mfcc_out)
 {
-    assert(signal != nullptr);
-    assert(mfcc_out != nullptr);
+    assert(signal != NULL);
+    assert(mfcc_out != NULL);
     assert(N >= 2);
     assert(sample_rate > 0.0);
     assert(num_mels > 0);
@@ -581,8 +581,8 @@ void MD_mfcc(const double *signal, unsigned N,
 
     double *mel = malloc(num_mels * sizeof(double));
     double *log_mel = malloc(num_mels * sizeof(double));
-    assert(mel != nullptr);
-    assert(log_mel != nullptr);
+    assert(mel != NULL);
+    assert(log_mel != NULL);
 
     MD_mel_energies(signal, N, sample_rate, num_mels,
                     min_freq_hz, max_freq_hz, mel);
