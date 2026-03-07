@@ -8,7 +8,16 @@
 
 include config.mk
 
+VERSION := $(shell cat VERSION)
+VERSION_MAJOR := $(word 1,$(subst ., ,$(VERSION)))
+VERSION_MINOR := $(word 2,$(subst ., ,$(VERSION)))
+VERSION_PATCH := $(word 3,$(subst ., ,$(VERSION)))
+
 CFLAGS += -O2 -g -Iinclude
+CFLAGS += -DMINIDSP_VERSION_MAJOR=$(VERSION_MAJOR) \
+          -DMINIDSP_VERSION_MINOR=$(VERSION_MINOR) \
+          -DMINIDSP_VERSION_PATCH=$(VERSION_PATCH) \
+          -DMINIDSP_VERSION='"$(VERSION)"'
 
 MD_SRCS = src/minidsp_core.c src/minidsp_generators.c src/minidsp_spectrum.c \
           src/minidsp_fir.c src/minidsp_dtmf.c src/minidsp_spectext.c \
@@ -57,6 +66,20 @@ docs: libminidsp.a
 	examples/gen_audio_samples
 	examples/gen_signal_plots
 	doxygen Doxyfile
+
+PREFIX ?= /usr/local
+HEADERS = $(wildcard include/*.h)
+
+.PHONY: install
+install: libminidsp.a
+	install -d $(PREFIX)/lib $(PREFIX)/include
+	install -m 644 libminidsp.a $(PREFIX)/lib/
+	install -m 644 $(HEADERS) $(PREFIX)/include/
+
+.PHONY: uninstall
+uninstall:
+	rm -f $(PREFIX)/lib/libminidsp.a
+	$(foreach h,$(notdir $(HEADERS)),rm -f $(PREFIX)/include/$(h);)
 
 .PHONY: clean
 clean:

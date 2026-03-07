@@ -29,6 +29,13 @@ A small C library for audio DSP: signal measurement, FFT spectrum analysis, biqu
 - **Comparative visuals** — Keep plot settings fixed across variants (same tap length, FFT visualization length, dB floor/range) for meaningful comparison.
 - **Guide assets** — When adding generated HTML plots/audio, update `Doxyfile` `HTML_EXTRA_FILES` and ensure every embedded iframe source is listed there.
 
+## Versioning
+
+- **Single source of truth** — The `VERSION` file at the repo root contains the semver string (e.g., `0.1.0`). The root Makefile reads it and injects `-DMINIDSP_VERSION*` flags.
+- **Header macros** — `minidsp.h` provides `MINIDSP_VERSION` (string), `MINIDSP_VERSION_MAJOR`, `MINIDSP_VERSION_MINOR`, `MINIDSP_VERSION_PATCH` (integers) with `#ifndef` defaults for standalone compilation.
+- **Git tags** — Releases are tagged `vMAJOR.MINOR.PATCH` (e.g., `v0.1.0`). The tag must match the `VERSION` file content.
+- **Install** — `make install PREFIX=/path` copies `libminidsp.a` and public headers. Default prefix is `/usr/local`.
+
 ## Build quirks
 
 - **C17 standard** — The codebase targets `-std=c17 -Wall -Wextra -pedantic`. Use `NULL` (not `nullptr`), `#include <stdbool.h>` for `bool`, and `__attribute__((deprecated))` (not `[[deprecated]]`).
