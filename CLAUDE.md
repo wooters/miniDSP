@@ -34,6 +34,7 @@ A small C library for audio DSP: signal measurement, FFT spectrum analysis, biqu
 - **Single source of truth** — The `VERSION` file at the repo root contains the semver string (e.g., `0.1.0`). The root Makefile reads it and injects `-DMINIDSP_VERSION*` flags.
 - **Header macros** — `minidsp.h` provides `MINIDSP_VERSION` (string), `MINIDSP_VERSION_MAJOR`, `MINIDSP_VERSION_MINOR`, `MINIDSP_VERSION_PATCH` (integers) with `#ifndef` defaults for standalone compilation.
 - **Git tags** — Releases are tagged `vMAJOR.MINOR.PATCH` (e.g., `v0.1.0`). The tag must match the `VERSION` file content.
+- **Release checklist** — (1) Update `VERSION` file, (2) commit, (3) `git tag -a vX.Y.Z -m "vX.Y.Z — description"`, (4) `git push --tags`.
 - **Install** — `make install PREFIX=/path` copies `libminidsp.a` and public headers. Default prefix is `/usr/local`.
 
 ## Build quirks
