@@ -88,5 +88,9 @@ examples/gen_signal_plots
 # Generated documentation
 docs/
 
+# Tools build artifacts
+tools/mel_viz/mel_viz
+tools/mel_viz/mel_viz_out/
+
 # Local Claude Code settings
 .claude/

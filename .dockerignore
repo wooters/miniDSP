@@ -48,5 +48,7 @@ guides/
 doxygen-custom/
 Doxyfile
 *~
+tools/mel_viz/mel_viz
+samples/
 .claude/
 CLAUDE.md

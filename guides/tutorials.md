@@ -19,3 +19,9 @@ and shows the resulting plots.
 - \subpage spectrogram-text — Synthesise audio that displays readable text in a spectrogram.
 - \subpage shepard-tone — Generate the auditory illusion of endlessly rising or falling pitch.
 - \subpage audio-steganography — Hide secret messages inside audio signals using [LSB](https://en.wikipedia.org/wiki/Bit_numbering#LSb_0_bit_numbering) or frequency-band encoding.
+
+## Tools
+
+Standalone programs built on the miniDSP library.
+
+- \subpage mel-viz — Mel-spectrum audio visualizer with browser-based radial animation, live mic mode, and configurable color palettes.

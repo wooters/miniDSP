@@ -391,6 +391,24 @@ for (int i = 0; i < num_samples; i++) {
 free(lpf);
 ```
 
+## Tools
+
+Standalone programs built on miniDSP.
+
+### mel_viz -- Mel-Spectrum Audio Visualizer
+
+Browser-based radial animation driven by mel-spectrum analysis. Supports WAV file playback and live microphone input, with four color palettes and real-time visual knobs.
+
+```sh
+make tools
+./tools/mel_viz/mel_viz samples/punchy_slap_bass_30s.wav -o /tmp/viz
+cd /tmp/viz && python3 -m http.server 8000
+# open http://localhost:8000
+```
+
+The `samples/` directory contains audio files ready to use with mel_viz.
+See the [mel_viz documentation](https://wooters.github.io/miniDSP/mel-viz.html) for details.
+
 ## Python Bindings
 
 Python bindings for miniDSP are available in the [pyminidsp](https://github.com/wooters/pyminidsp) repository.

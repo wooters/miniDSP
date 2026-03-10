@@ -43,6 +43,11 @@ test: libminidsp.a
 examples: libminidsp.a
 	$(MAKE) -C examples
 
+# Build tools
+.PHONY: tools
+tools: libminidsp.a
+	$(MAKE) -C tools/mel_viz
+
 # Build and test inside an Ubuntu 24.04 container (requires macOS container CLI)
 CONTAINER_TAG = minidsp-test
 
@@ -87,3 +92,4 @@ clean:
 	-rm -rf docs guides/audio guides/plots
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean
+	$(MAKE) -C tools/mel_viz clean

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mel_viz</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- data.js is optional: present in file mode, absent in mic-only mode -->
+    <script src="data.js" defer></script>
+</head>
+<body>
+    <h1>mel_viz</h1>
+
+    <div id="viz-container">
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <div id="audio-player" style="display: none;">
+        <audio id="audio" controls></audio>
+    </div>
+
+    <div id="mode-bar">
+        <button id="btn-file" style="display: none;">File</button>
+        <button id="btn-mic">Mic</button>
+        <span class="status" id="status-text"></span>
+    </div>
+
+    <div id="controls"></div>
+
+    <div id="debug-panel" style="display: none; width: 100%; max-width: 600px; margin-top: 12px; background: #151515; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; color: #888;">
+        <div style="margin-bottom: 8px; color: #aaa;">Debug</div>
+        <div>AudioContext state: <span id="dbg-ctx-state">—</span></div>
+        <div>AnalyserNode bins: <span id="dbg-bins">—</span></div>
+        <div>Raw peak dB: <span id="dbg-peak-db">—</span></div>
+        <div>Mel band sum: <span id="dbg-mel-sum">—</span></div>
+        <div style="margin-top: 8px;">
+            <canvas id="dbg-meter" width="580" height="30" style="width: 100%; height: 30px; background: #000; border-radius: 4px;"></canvas>
+        </div>
+    </div>
+
+    <script type="module">
+        import { renderFrame, resetState } from "./renderer.js";
+        import { FileProvider, MicProvider } from "./audio-provider.js";
+        import { initControls, settings } from "./controls.js";
+
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const audioEl = document.getElementById("audio");
+        const audioPlayer = document.getElementById("audio-player");
+        const btnFile = document.getElementById("btn-file");
+        const btnMic = document.getElementById("btn-mic");
+        const statusText = document.getElementById("status-text");
+        const controlsEl = document.getElementById("controls");
+        const debugPanel = document.getElementById("debug-panel");
+        const dbgCtxState = document.getElementById("dbg-ctx-state");
+        const dbgBins = document.getElementById("dbg-bins");
+        const dbgPeakDb = document.getElementById("dbg-peak-db");
+        const dbgMelSum = document.getElementById("dbg-mel-sum");
+        const dbgMeterCanvas = document.getElementById("dbg-meter");
+        const dbgMeterCtx = dbgMeterCanvas.getContext("2d");
+
+        let provider = null;
+        let animId = null;
+        let micProvider = null;
+
+        /* Detect whether precomputed data is available */
+        const hasData = typeof MEL_VIZ_DATA !== "undefined";
+
+        /* Set canvas size */
+        const vizWidth = hasData ? MEL_VIZ_DATA.width : 720;
+        const vizHeight = hasData ? MEL_VIZ_DATA.height : 720;
+        canvas.width = vizWidth;
+        canvas.height = vizHeight;
+        canvas.style.width = Math.min(vizWidth, 600) + "px";
+        canvas.style.height = Math.min(vizHeight, 600) + "px";
+
+        /* Initialize controls */
+        initControls(controlsEl, () => { /* settings update is automatic */ });
+
+        /* Setup modes.
+         * In mic-only mode, do NOT auto-start — browsers require a user
+         * gesture (click) before AudioContext.resume() will succeed. */
+        if (hasData) {
+            btnFile.style.display = "";
+            audioPlayer.style.display = "";
+            audioEl.src = MEL_VIZ_DATA.audioFile;
+            audioEl.load();
+            audioEl.addEventListener("error", () => {
+                statusText.textContent = "Audio load error — check format/path";
+                console.error("Audio error:", audioEl.error);
+            });
+            startFileMode();
+        } else {
+            statusText.textContent = "Click Mic to start";
+        }
+
+        btnFile.addEventListener("click", () => {
+            if (micProvider) { micProvider.stop(); micProvider = null; }
+            startFileMode();
+        });
+
+        btnMic.addEventListener("click", () => {
+            startMicMode();
+        });
+
+        /* --- File mode --- */
+        function startFileMode() {
+            btnFile.classList.add("active");
+            btnMic.classList.remove("active");
+            statusText.textContent = "File mode — press play";
+
+            provider = new FileProvider(MEL_VIZ_DATA);
+            resetState();
+            startLoop();
+        }
+
+        /* --- Mic mode --- */
+        async function startMicMode() {
+            btnMic.classList.add("active");
+            btnFile.classList.remove("active");
+            statusText.textContent = "Requesting mic access...";
+
+            if (!micProvider) {
+                micProvider = new MicProvider();
+                try {
+                    await micProvider.start();
+                } catch (err) {
+                    statusText.textContent = "Mic access denied: " + err.message;
+                    return;
+                }
+            }
+
+            provider = micProvider;
+            resetState();
+            debugPanel.style.display = "";
+            statusText.textContent = "Mic mode — listening";
+            startLoop();
+        }
+
+        /* --- Animation loop --- */
+        let dbgFrameCount = 0;
+        function startLoop() {
+            if (animId) cancelAnimationFrame(animId);
+
+            function loop() {
+                let time = 0;
+                if (provider.isLive) {
+                    time = 0; /* mic provider ignores time */
+                } else {
+                    time = audioEl.currentTime || 0;
+                }
+
+                const frame = provider.getFrame(time);
+                const bass = provider.getBass(time);
+
+                renderFrame(ctx, canvas.width, canvas.height, frame, bass);
+
+                /* Debug: update every ~10 frames to avoid layout thrash */
+                if (provider.isLive && micProvider && (dbgFrameCount++ % 10 === 0)) {
+                    updateDebug(frame);
+                }
+
+                animId = requestAnimationFrame(loop);
+            }
+            loop();
+        }
+
+        function updateDebug(frame) {
+            const mp = micProvider;
+            dbgCtxState.textContent = mp.audioCtx ? mp.audioCtx.state : "null";
+
+            if (mp.analyser) {
+                dbgBins.textContent = mp.analyser.frequencyBinCount;
+
+                /* Read raw FFT data directly for debug */
+                const rawDb = new Float32Array(mp.analyser.frequencyBinCount);
+                mp.analyser.getFloatFrequencyData(rawDb);
+                const peakDb = Math.max(...rawDb);
+                dbgPeakDb.textContent = peakDb.toFixed(1) + " dB";
+
+                /* Draw a simple level meter from raw FFT bins */
+                const w = dbgMeterCanvas.width;
+                const h = dbgMeterCanvas.height;
+                dbgMeterCtx.fillStyle = "#000";
+                dbgMeterCtx.fillRect(0, 0, w, h);
+
+                /* Map peak dB to meter: -100 dB = empty, 0 dB = full */
+                const level = Math.max(0, (peakDb + 100) / 100);
+                const barW = level * w;
+                const color = level > 0.7 ? "#f00" : level > 0.3 ? "#ff0" : "#0f0";
+                dbgMeterCtx.fillStyle = color;
+                dbgMeterCtx.fillRect(0, 0, barW, h);
+
+                /* dB scale markers */
+                dbgMeterCtx.fillStyle = "#666";
+                dbgMeterCtx.font = "10px monospace";
+                for (let db = -80; db <= 0; db += 20) {
+                    const x = ((db + 100) / 100) * w;
+                    dbgMeterCtx.fillRect(x, 0, 1, h);
+                    dbgMeterCtx.fillText(db + "", x + 2, 10);
+                }
+            } else {
+                dbgBins.textContent = "no analyser";
+                dbgPeakDb.textContent = "—";
+            }
+
+            /* Mel band sum */
+            let melSum = 0;
+            for (let i = 0; i < frame.length; i++) melSum += frame[i];
+            dbgMelSum.textContent = melSum.toExponential(3);
+        }
+    </script>
+</body>
+</html>
