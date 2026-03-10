@@ -1,1 +1,1 @@
-Read the @CLAUDE.md file.
+CLAUDE.md
