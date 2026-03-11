@@ -7,7 +7,7 @@ listener hears only the original sound, while a decoder can extract the
 hidden payload.
 
 miniDSP provides two complementary methods in `src/minidsp_steg.c`,
-demonstrated in `examples/audio_steg.c`:
+demonstrated in `tools/audio_steg/audio_steg.c`:
 
 | Method | Identifier | Capacity | Robustness | Audibility |
 |:-------|:-----------|:---------|:-----------|:-----------|
@@ -17,8 +17,8 @@ demonstrated in `examples/audio_steg.c`:
 Build and run the self-test from the repository root:
 
 ```sh
-make -C examples audio_steg
-cd examples && ./audio_steg
+make -C tools/audio_steg
+cd tools/audio_steg && ./audio_steg
 ```
 
 ---
@@ -606,7 +606,7 @@ printf("Hidden: %s\n", recovered);  // "hidden!"
 
 ## Example program
 
-The example `examples/audio_steg.c` provides a command-line tool for
+The tool `tools/audio_steg/audio_steg.c` provides a command-line program for
 encoding and decoding steganographic messages and binary data in WAV files.
 
 **Self-test** (no arguments):

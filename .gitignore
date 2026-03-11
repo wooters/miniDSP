@@ -74,10 +74,6 @@ examples/shepard_tone.csv
 examples/shepard_tone.html
 examples/shepard_tone.wav
 
-examples/audio_steg
-examples/audio_steg.csv
-examples/audio_steg.html
-
 # Generated assets for documentation
 guides/audio/
 guides/plots/
@@ -91,6 +87,7 @@ docs/
 # Tools build artifacts
 tools/mel_viz/mel_viz
 tools/mel_viz/mel_viz_out/
+tools/audio_steg/audio_steg
 
 # Local Claude Code settings
 .claude/

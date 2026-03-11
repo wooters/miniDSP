@@ -230,7 +230,7 @@ int main(void)
      * ------------------------------------------------------------------*/
     {
         const char *images[] = {
-            "examples/space_invader.png", "examples/minidsp_qr.png"
+            "tools/audio_steg/space_invader.png", "tools/audio_steg/minidsp_qr.png"
         };
         const char *wav_out[] = {
             "guides/audio/steg_lsb_invader.wav",

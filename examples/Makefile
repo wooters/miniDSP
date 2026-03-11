@@ -12,7 +12,7 @@ CFLAGS += -O2 -g -I../include
 EXAMPLES = magnitude_spectrum power_spectral_density spectrogram phase_spectrum sine_wave white_noise impulse chirp_wave square_sawtooth basic_operations window_functions fir_convolution simple_effects pitch_detection mel_mfcc
 
 # Examples that need libsndfile (for WAV file I/O)
-SNDFILE_EXAMPLES = dtmf_detector spectrogram_text shepard_tone audio_steg
+SNDFILE_EXAMPLES = dtmf_detector spectrogram_text shepard_tone
 
 ALL_EXAMPLES = $(EXAMPLES) $(SNDFILE_EXAMPLES)
 
@@ -57,7 +57,6 @@ plot: $(ALL_EXAMPLES)
 	./dtmf_detector
 	./spectrogram_text
 	./shepard_tone
-	./audio_steg
 
 .PHONY: clean
 clean:

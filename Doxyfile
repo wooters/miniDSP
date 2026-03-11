@@ -10,7 +10,7 @@ FILE_PATTERNS          = *.h *.c *.md
 RECURSIVE              = NO
 EXCLUDE                = doxygen-awesome-css tests
 USE_MDFILE_AS_MAINPAGE = README.md
-EXAMPLE_PATH           = examples
+EXAMPLE_PATH           = examples tools/audio_steg
 IMAGE_PATH             = guides/images
 
 # --- C optimizations ---
@@ -105,8 +105,8 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/audio/steg_freq.wav \
                          guides/plots/steg_lsb_diff.html \
                          guides/plots/steg_freq_spectrogram.html \
-                         examples/space_invader.png \
-                         examples/minidsp_qr.png \
+                         tools/audio_steg/space_invader.png \
+                         tools/audio_steg/minidsp_qr.png \
                          guides/audio/steg_lsb_invader.wav \
                          guides/audio/steg_lsb_qr.wav \
                          guides/images/steg_recovered_invader.png \

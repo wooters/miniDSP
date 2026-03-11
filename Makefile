@@ -47,6 +47,7 @@ examples: libminidsp.a
 .PHONY: tools
 tools: libminidsp.a
 	$(MAKE) -C tools/mel_viz
+	$(MAKE) -C tools/audio_steg
 
 # Build and test inside an Ubuntu 24.04 container (requires macOS container CLI)
 CONTAINER_TAG = minidsp-test
@@ -93,3 +94,4 @@ clean:
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean
 	$(MAKE) -C tools/mel_viz clean
+	$(MAKE) -C tools/audio_steg clean
