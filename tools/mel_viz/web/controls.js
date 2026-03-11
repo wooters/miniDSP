@@ -9,6 +9,7 @@ import { PALETTES } from "./palettes.js";
 
 export const settings = {
     palette: "plasma",
+    scale: "mel",
     smoothing: 0.27,
     bassSensitivity: 0.5,
     wobble: 0.78,
@@ -43,6 +44,17 @@ export function initControls(container, onChange) {
         ],
         String(settings.numGroups), (val) => {
             settings.numGroups = parseInt(val);
+            onChange();
+        });
+
+    /* Frequency scale dropdown */
+    addDropdown(container, "Scale", "scale",
+        [
+            { value: "mel", label: "Mel" },
+            { value: "linear", label: "Linear" }
+        ],
+        settings.scale, (val) => {
+            settings.scale = val;
             onChange();
         });
 

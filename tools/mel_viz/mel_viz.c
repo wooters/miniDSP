@@ -249,6 +249,68 @@ static unsigned compute_mel_frames(const double *samples, unsigned num_samples,
 }
 
 /* -------------------------------------------------------------------
+ * Linear analysis
+ * ---------------------------------------------------------------- */
+
+/**
+ * Compute per-frame linear-spaced band energies.
+ *
+ * Applies a Hann window, computes one-sided PSD, then bins into num_bands
+ * uniformly-spaced frequency bands over [min_freq, max_freq].
+ *
+ * num_frames must match the value returned by compute_mel_frames() for the
+ * same config — caller is responsible for passing the correct count.
+ */
+static void compute_linear_frames(const double *samples, unsigned num_samples,
+                                  double sample_rate, const config_t *cfg,
+                                  unsigned num_frames, double *linear_out)
+{
+    unsigned hop = (unsigned)(sample_rate / cfg->fps);
+    if (hop == 0) hop = 1;
+
+    unsigned N = cfg->fft_size;
+    unsigned num_bins = N / 2 + 1;
+    double bin_hz = sample_rate / N;
+
+    /* Precompute Hann window */
+    double *win = malloc(N * sizeof(double));
+    double *buf = malloc(N * sizeof(double));
+    double *psd = malloc(num_bins * sizeof(double));
+    assert(win && buf && psd);
+    MD_Gen_Hann_Win(win, N);
+
+    for (unsigned f = 0; f < num_frames; f++) {
+        unsigned offset = f * hop;
+        assert(offset + N <= num_samples);
+
+        /* Apply Hann window */
+        for (unsigned i = 0; i < N; i++)
+            buf[i] = samples[offset + i] * win[i];
+
+        /* Compute PSD: |X(k)|^2 / N */
+        MD_power_spectral_density(buf, N, psd);
+
+        /* Bin PSD into num_bands uniform Hz bands */
+        double *row = linear_out + (size_t)f * cfg->num_mels;
+        for (unsigned b = 0; b < cfg->num_mels; b++) {
+            double band_lo = cfg->min_freq + (cfg->max_freq - cfg->min_freq) * b / cfg->num_mels;
+            double band_hi = cfg->min_freq + (cfg->max_freq - cfg->min_freq) * (b + 1) / cfg->num_mels;
+            double sum = 0.0;
+            for (unsigned k = 0; k < num_bins; k++) {
+                double freq = k * bin_hz;
+                if (freq >= band_lo && freq < band_hi)
+                    sum += psd[k];
+            }
+            row[b] = sum;
+        }
+    }
+
+    free(win);
+    free(buf);
+    free(psd);
+}
+
+/* -------------------------------------------------------------------
  * Output assembly
  * ---------------------------------------------------------------- */
 
@@ -292,7 +354,8 @@ static int copy_file(const char *src, const char *dst)
 
 static int write_data_js(const char *path, const config_t *cfg,
                          double sample_rate, unsigned num_frames,
-                         const double *mel_frames, const double *bass_env)
+                         const double *mel_frames, const double *linear_frames,
+                         const double *bass_env)
 {
     FILE *fp = fopen(path, "w");
     if (!fp) {
@@ -315,6 +378,17 @@ static int write_data_js(const char *path, const config_t *cfg,
     size_t total = (size_t)num_frames * cfg->num_mels;
     for (size_t i = 0; i < total; i++) {
         fprintf(fp, "%.6g", mel_frames[i]);
+        if (i + 1 < total) {
+            fprintf(fp, ",");
+            if ((i + 1) % 12 == 0) fprintf(fp, "\n    ");
+        }
+    }
+    fprintf(fp, "\n  ],\n");
+
+    /* Write linear frames as flat array */
+    fprintf(fp, "  linearFrames: [\n    ");
+    for (size_t i = 0; i < total; i++) {
+        fprintf(fp, "%.6g", linear_frames[i]);
         if (i + 1 < total) {
             fprintf(fp, ",");
             if ((i + 1) % 12 == 0) fprintf(fp, "\n    ");
@@ -360,7 +434,8 @@ static void get_exe_dir(const char *argv0, char *dir, size_t dir_size)
 
 static int assemble_output(const char *argv0, const config_t *cfg,
                            double sample_rate, unsigned num_frames,
-                           const double *mel_frames, const double *bass_env)
+                           const double *mel_frames, const double *linear_frames,
+                           const double *bass_env)
 {
     /* Create output directory */
     if (mkdir_p(cfg->output_dir) != 0) {
@@ -394,7 +469,7 @@ static int assemble_output(const char *argv0, const config_t *cfg,
     /* Write data.js */
     snprintf(dst_path, sizeof(dst_path), "%s/data.js", cfg->output_dir);
     if (write_data_js(dst_path, cfg, sample_rate, num_frames,
-                      mel_frames, bass_env) != 0)
+                      mel_frames, linear_frames, bass_env) != 0)
         return -1;
 
     return 0;
@@ -433,18 +508,32 @@ int main(int argc, char **argv)
     double *bass_env   = NULL;
     unsigned num_frames = compute_mel_frames(samples, num_samples, sample_rate,
                                             &cfg, &mel_frames, &bass_env);
-    free(samples);
-
-    if (num_frames == 0)
+    if (num_frames == 0) {
+        free(samples);
         return 1;
+    }
+
+    /* Compute linear frames (same frame count, same band count) */
+    double *linear_frames = malloc((size_t)num_frames * cfg.num_mels * sizeof(double));
+    if (!linear_frames) {
+        fprintf(stderr, "Error: allocation failed\n");
+        free(samples);
+        free(mel_frames);
+        free(bass_env);
+        return 1;
+    }
+    compute_linear_frames(samples, num_samples, sample_rate, &cfg,
+                          num_frames, linear_frames);
+    free(samples);
 
     printf("Frames: %u (%.0f fps, FFT=%u, %u mel bands)\n",
            num_frames, (double)cfg.fps, cfg.fft_size, cfg.num_mels);
 
     /* Assemble output */
     if (assemble_output(argv[0], &cfg, sample_rate, num_frames,
-                        mel_frames, bass_env) != 0) {
+                        mel_frames, linear_frames, bass_env) != 0) {
         free(mel_frames);
+        free(linear_frames);
         free(bass_env);
         MD_shutdown();
         return 1;
@@ -454,6 +543,7 @@ int main(int argc, char **argv)
     printf("Open in browser: open %s/index.html\n", cfg.output_dir);
 
     free(mel_frames);
+    free(linear_frames);
     free(bass_env);
     MD_shutdown();
     return 0;

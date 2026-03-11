@@ -6,6 +6,8 @@
  *   MicProvider   — live mic via Web Audio API + AnalyserNode + mel weighting
  */
 
+import { settings } from "./controls.js";
+
 /* -------------------------------------------------------------------
  * HTK mel conversion (matches the C library's mel mapping)
  * ---------------------------------------------------------------- */
@@ -28,13 +30,16 @@ export class FileProvider {
         this.numBands = data.numBands;
         this.fps = data.fps;
         this.numFrames = data.numFrames;
+        this.linearFrames = data.linearFrames || null;
     }
 
-    /** Get mel energies for the given time (seconds). */
+    /** Get band energies for the given time (seconds). */
     getFrame(time) {
         const f = Math.floor(time * this.fps);
         const idx = Math.max(0, Math.min(f, this.numFrames - 1));
-        return this.data.frames.slice(
+        const src = (settings.scale === "linear" && this.linearFrames)
+            ? this.linearFrames : this.data.frames;
+        return src.slice(
             idx * this.numBands,
             (idx + 1) * this.numBands
         );
@@ -61,7 +66,9 @@ export class MicProvider {
         this.audioCtx = null;
         this.freqData = null;
         this.melWeights = null;
+        this.linearWeights = null;
         this.melBuf = new Float32Array(this.numBands);
+        this.linearBuf = new Float32Array(this.numBands);
         this.bassVal = 0;
         this.bassDecay = 0.85;
         this._active = false;
@@ -84,10 +91,19 @@ export class MicProvider {
         const binCount = this.analyser.frequencyBinCount;
         this.freqData = new Float32Array(binCount);
 
+        const minHz = 40;
+        const maxHz = this.audioCtx.sampleRate / 2;
+
         /* Build mel filterbank weights */
         this.melWeights = buildMelWeights(
             binCount, this.audioCtx.sampleRate,
-            this.numBands, 40, this.audioCtx.sampleRate / 2
+            this.numBands, minHz, maxHz
+        );
+
+        /* Build linear filterbank weights */
+        this.linearWeights = buildLinearWeights(
+            binCount, this.audioCtx.sampleRate,
+            this.numBands, minHz, maxHz
         );
 
         this._active = true;
@@ -101,7 +117,7 @@ export class MicProvider {
         }
     }
 
-    /** Get mel energies (time parameter ignored for live input). */
+    /** Get band energies (time parameter ignored for live input). */
     getFrame(_time) {
         if (!this._active || !this.analyser) {
             return new Float32Array(this.numBands);
@@ -109,18 +125,21 @@ export class MicProvider {
 
         this.analyser.getFloatFrequencyData(this.freqData);
 
-        /* Convert dB to linear power and apply mel weights */
+        /* Convert dB to linear power and apply both weight matrices */
         const binCount = this.freqData.length;
         for (let m = 0; m < this.numBands; m++) {
-            let sum = 0;
+            let melSum = 0;
+            let linSum = 0;
             for (let k = 0; k < binCount; k++) {
                 const power = Math.pow(10, this.freqData[k] / 10);
-                sum += power * this.melWeights[m * binCount + k];
+                melSum += power * this.melWeights[m * binCount + k];
+                linSum += power * this.linearWeights[m * binCount + k];
             }
-            this.melBuf[m] = sum;
+            this.melBuf[m] = melSum;
+            this.linearBuf[m] = linSum;
         }
 
-        return this.melBuf;
+        return settings.scale === "linear" ? this.linearBuf : this.melBuf;
     }
 
     /** Get bass envelope value. */
@@ -141,6 +160,28 @@ export class MicProvider {
 /* -------------------------------------------------------------------
  * Mel filterbank construction (JS implementation)
  * ---------------------------------------------------------------- */
+
+/**
+ * Build rectangular filterbank weights for uniformly-spaced Hz bands.
+ * Each band spans an equal portion of [minHz, maxHz].
+ */
+function buildLinearWeights(numBins, sampleRate, numBands, minHz, maxHz) {
+    const weights = new Float32Array(numBands * numBins);
+    const fftSize = (numBins - 1) * 2;
+    const binHz = sampleRate / fftSize;
+    const bandWidth = (maxHz - minHz) / numBands;
+
+    for (let b = 0; b < numBands; b++) {
+        const bandLo = minHz + bandWidth * b;
+        const bandHi = minHz + bandWidth * (b + 1);
+        for (let k = 0; k < numBins; k++) {
+            const freq = k * binHz;
+            weights[b * numBins + k] = (freq >= bandLo && freq < bandHi) ? 1.0 : 0.0;
+        }
+    }
+
+    return weights;
+}
 
 function buildMelWeights(numBins, sampleRate, numMels, minHz, maxHz) {
     const weights = new Float32Array(numMels * numBins);
