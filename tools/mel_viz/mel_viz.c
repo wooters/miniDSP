@@ -378,7 +378,7 @@ static int assemble_output(const char *argv0, const config_t *cfg,
     /* Copy web assets */
     const char *web_files[] = {
         "index.html", "renderer.js", "audio-provider.js",
-        "palettes.js", "controls.js", "style.css", NULL
+        "palettes.js", "controls.js", "exporter.js", "style.css", NULL
     };
 
     for (int i = 0; web_files[i]; i++) {

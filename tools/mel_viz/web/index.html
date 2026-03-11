@@ -25,6 +25,15 @@
         <span class="status" id="status-text"></span>
     </div>
 
+    <div id="export-bar" style="display: none;">
+        <button id="btn-export">Export MP4</button>
+        <div id="export-progress" style="display: none;">
+            <div id="export-progress-bar"><div id="export-progress-fill"></div></div>
+            <span id="export-progress-text">0%</span>
+        </div>
+
+    </div>
+
     <div id="controls"></div>
 
     <div id="debug-panel" style="display: none; width: 100%; max-width: 600px; margin-top: 12px; background: #151515; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; color: #888;">
@@ -42,6 +51,7 @@
         import { renderFrame, resetState } from "./renderer.js";
         import { FileProvider, MicProvider } from "./audio-provider.js";
         import { initControls, settings } from "./controls.js";
+        import { isExportSupported, startExport, cancelExport } from "./exporter.js";
 
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
@@ -59,9 +69,17 @@
         const dbgMeterCanvas = document.getElementById("dbg-meter");
         const dbgMeterCtx = dbgMeterCanvas.getContext("2d");
 
+        /* Export UI elements */
+        const exportBar = document.getElementById("export-bar");
+        const btnExport = document.getElementById("btn-export");
+        const exportProgress = document.getElementById("export-progress");
+        const exportProgressFill = document.getElementById("export-progress-fill");
+        const exportProgressText = document.getElementById("export-progress-text");
+
         let provider = null;
         let animId = null;
         let micProvider = null;
+        let exporting = false;
 
         /* Detect whether precomputed data is available */
         const hasData = typeof MEL_VIZ_DATA !== "undefined";
@@ -89,6 +107,12 @@
                 statusText.textContent = "Audio load error — check format/path";
                 console.error("Audio error:", audioEl.error);
             });
+
+            /* Show export button in file mode if WebCodecs is available */
+            if (isExportSupported()) {
+                exportBar.style.display = "";
+            }
+
             startFileMode();
         } else {
             statusText.textContent = "Click Mic to start";
@@ -103,10 +127,19 @@
             startMicMode();
         });
 
+        btnExport.addEventListener("click", () => {
+            if (exporting) {
+                cancelExport();
+            } else {
+                beginExport();
+            }
+        });
+
         /* --- File mode --- */
         function startFileMode() {
             btnFile.classList.add("active");
             btnMic.classList.remove("active");
+            if (isExportSupported()) exportBar.style.display = "";
             statusText.textContent = "File mode — press play";
 
             provider = new FileProvider(MEL_VIZ_DATA);
@@ -118,6 +151,7 @@
         async function startMicMode() {
             btnMic.classList.add("active");
             btnFile.classList.remove("active");
+            exportBar.style.display = "none";
             statusText.textContent = "Requesting mic access...";
 
             if (!micProvider) {
@@ -163,6 +197,52 @@
                 animId = requestAnimationFrame(loop);
             }
             loop();
+        }
+
+        /* --- Export --- */
+        async function beginExport() {
+            exporting = true;
+            btnExport.textContent = "Cancel";
+            btnExport.classList.add("exporting");
+            exportProgress.style.display = "";
+            exportProgressFill.style.width = "0%";
+            exportProgressText.textContent = "0%";
+
+            /* Pause live animation and audio */
+            if (animId) { cancelAnimationFrame(animId); animId = null; }
+            audioEl.pause();
+
+            await startExport({
+                canvas, ctx, renderFrameFn: renderFrame, resetStateFn: resetState,
+                melData: MEL_VIZ_DATA, audioUrl: MEL_VIZ_DATA.audioFile,
+                onProgress(current, total) {
+                    const pct = Math.round(100 * current / total);
+                    exportProgressFill.style.width = pct + "%";
+                    exportProgressText.textContent = pct + "%";
+                },
+                onComplete() {
+                    finishExport("Export complete — file downloaded");
+                },
+                onCancel() {
+                    finishExport("Export cancelled");
+                },
+                onError(err) {
+                    console.error("Export error:", err);
+                    finishExport("Export failed: " + err.message);
+                },
+            });
+        }
+
+        function finishExport(msg) {
+            exporting = false;
+            btnExport.textContent = "Export MP4";
+            btnExport.classList.remove("exporting");
+            exportProgress.style.display = "none";
+            statusText.textContent = msg;
+
+            /* Restart live animation */
+            resetState();
+            startLoop();
         }
 
         function updateDebug(frame) {

@@ -82,6 +82,71 @@ audio {
     color: #888;
 }
 
+/* Export bar */
+#export-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 16px;
+}
+
+#btn-export {
+    background: #222;
+    color: #ccc;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 6px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.15s;
+    flex-shrink: 0;
+}
+
+#btn-export:hover {
+    background: #333;
+}
+
+#btn-export.exporting {
+    background: #6b1a1a;
+    border-color: #a33;
+    color: #fcc;
+}
+
+#export-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+#export-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: #222;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+#export-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: #4a9;
+    border-radius: 3px;
+    transition: width 0.1s linear;
+}
+
+#export-progress-text {
+    font-size: 12px;
+    color: #888;
+    font-variant-numeric: tabular-nums;
+    width: 32px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
 /* Controls panel */
 #controls {
     width: 100%;
