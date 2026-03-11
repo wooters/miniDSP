@@ -81,8 +81,9 @@ guides/images/steg_recovered_*.png
 examples/gen_audio_samples
 examples/gen_signal_plots
 
-# Generated documentation
-docs/
+# Generated documentation (but keep source assets)
+docs/*
+!docs/assets/
 
 # Tools build artifacts
 tools/mel_viz/mel_viz
