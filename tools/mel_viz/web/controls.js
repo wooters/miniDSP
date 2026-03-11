@@ -9,11 +9,11 @@ import { PALETTES } from "./palettes.js";
 
 export const settings = {
     palette: "plasma",
-    smoothing: 0.7,
+    smoothing: 0.27,
     bassSensitivity: 0.5,
-    wobble: 0.3,
-    glowIntensity: 1.0,
-    numGroups: 8
+    wobble: 0.78,
+    glowIntensity: 1.93,
+    numGroups: 12
 };
 
 /**

@@ -20,7 +20,7 @@ body {
 
 #side-panel {
     position: relative;
-    width: 260px;
+    width: 340px;
     flex-shrink: 0;
     background: #111;
     border-right: 1px solid #2a2a2a;
@@ -28,7 +28,7 @@ body {
 }
 
 .panel-collapsed #side-panel {
-    margin-left: -260px;
+    margin-left: -340px;
 }
 
 .panel-content {
