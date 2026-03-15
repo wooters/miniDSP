@@ -21,10 +21,19 @@ GP_OBJ = $(GP)/gnuplot_i.o
 
 # --- Primary test target ---
 
-test_minidsp: test_minidsp.o ../libminidsp.a
+TEST_SRCS = test_minidsp.c test_core.c test_effects.c test_generators.c \
+            test_spectrum.c test_fir.c test_gcc.c test_biquad.c \
+            test_windows.c test_dtmf.c test_spectext.c test_steg.c \
+            test_fileio.c test_resample.c
+
+TEST_OBJS = $(TEST_SRCS:.c=.o)
+
+HEADERS = ../include/minidsp.h ../include/biquad.h ../include/fileio.h test_helpers.h
+
+test_minidsp: $(TEST_OBJS) ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS) -lfftw3 -lsndfile -lm
 
-test_minidsp.o: test_minidsp.c ../include/minidsp.h ../include/biquad.h ../include/fileio.h
+$(TEST_OBJS): %.o: %.c $(HEADERS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Convenience target: build and run
