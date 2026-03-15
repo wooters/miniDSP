@@ -247,6 +247,19 @@ if (n == 1) {
 void MD_Gen_Kaiser_Win(double *out, unsigned n, double beta);
 ```
 
+**Visuals** — window taps and magnitude response (\f$\beta = 10\f$):
+
+\htmlonly
+<div style="display:flex;gap:0.75rem;margin:1em 0;flex-wrap:wrap;">
+  <iframe src="kaiser_window_time.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+  <iframe src="kaiser_window_spectrum.html" style="flex:1;min-width:280px;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+</div>
+\endhtmlonly
+
+With \f$\beta = 10\f$, the Kaiser window achieves ~100 dB stopband
+attenuation — much deeper suppression than Blackman, with a comparable
+main lobe width.
+
 **Quick example:**
 
 \snippet window_functions.c generate-kaiser

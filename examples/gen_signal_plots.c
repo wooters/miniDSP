@@ -803,11 +803,13 @@ int main(void)
      * ----------------------------------------------------------------*/
     printf("Window function visuals:\n");
 
-    double hann[WINDOW_N], hamming[WINDOW_N], blackman[WINDOW_N], rect[WINDOW_N];
+    double hann[WINDOW_N], hamming[WINDOW_N], blackman[WINDOW_N], rect[WINDOW_N],
+           kaiser[WINDOW_N];
     MD_Gen_Hann_Win(hann, WINDOW_N);
     MD_Gen_Hamming_Win(hamming, WINDOW_N);
     MD_Gen_Blackman_Win(blackman, WINDOW_N);
     MD_Gen_Rect_Win(rect, WINDOW_N);
+    MD_Gen_Kaiser_Win(kaiser, WINDOW_N, 10.0);
 
     write_window_time_html("guides/plots/hann_window_time.html",
                            "Hanning Window - Time Domain", hann, WINDOW_N);
@@ -831,6 +833,12 @@ int main(void)
                            "Rectangular Window - Time Domain", rect, WINDOW_N);
     write_window_spectrum_html("guides/plots/rect_window_spectrum.html",
                                "Rectangular Window - Magnitude Response", rect,
+                               WINDOW_N, WINDOW_FFT_VIS);
+
+    write_window_time_html("guides/plots/kaiser_window_time.html",
+                           "Kaiser Window - Time Domain", kaiser, WINDOW_N);
+    write_window_spectrum_html("guides/plots/kaiser_window_spectrum.html",
+                               "Kaiser Window - Magnitude Response", kaiser,
                                WINDOW_N, WINDOW_FFT_VIS);
 
     MD_shutdown();   /* release N=4096 plan */
