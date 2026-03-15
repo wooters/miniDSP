@@ -35,6 +35,9 @@ examples/dtmf_detector
 examples/spectrogram_text
 examples/gen_audio_samples
 examples/gen_signal_plots
+examples/resampler
+examples/resampler.csv
+examples/resampler.html
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test

@@ -84,6 +84,42 @@ void MD_fir_filter(const double *signal, unsigned signal_len,
     }
 }
 
+void MD_design_lowpass_fir(double *coeffs, unsigned num_taps,
+                           double cutoff_freq, double sample_rate,
+                           double kaiser_beta)
+{
+    assert(coeffs != NULL);
+    assert(num_taps > 0);
+    assert(sample_rate > 0.0);
+    assert(cutoff_freq > 0.0);
+    assert(cutoff_freq < sample_rate / 2.0);
+
+    double fc = cutoff_freq / sample_rate;  /* normalized cutoff */
+    double center = (double)(num_taps - 1) / 2.0;
+
+    /* Generate Kaiser window */
+    double *kaiser = malloc(num_taps * sizeof(double));
+    assert(kaiser != NULL);
+    MD_Gen_Kaiser_Win(kaiser, num_taps, kaiser_beta);
+
+    /* Windowed sinc */
+    double sum = 0.0;
+    for (unsigned i = 0; i < num_taps; i++) {
+        double x = (double)i - center;
+        coeffs[i] = 2.0 * fc * MD_sinc(2.0 * fc * x) * kaiser[i];
+        sum += coeffs[i];
+    }
+
+    free(kaiser);
+
+    /* Normalize for unity DC gain */
+    if (fabs(sum) > 1e-30) {
+        for (unsigned i = 0; i < num_taps; i++) {
+            coeffs[i] /= sum;
+        }
+    }
+}
+
 void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
                             const double *kernel, unsigned kernel_len,
                             double *out)

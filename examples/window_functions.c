@@ -20,7 +20,7 @@ static void print_summary(const char *name, const double *w, unsigned n)
 int main(void)
 {
     const unsigned N = 64;
-    double hann[N], hamming[N], blackman[N], rect[N];
+    double hann[N], hamming[N], blackman[N], rect[N], kaiser[N];
 
     //! [generate-hann]
     MD_Gen_Hann_Win(hann, N);
@@ -37,6 +37,10 @@ int main(void)
     //! [generate-rect]
     MD_Gen_Rect_Win(rect, N);
     //! [generate-rect]
+
+    //! [generate-kaiser]
+    MD_Gen_Kaiser_Win(kaiser, N, 10.0);
+    //! [generate-kaiser]
 
     //! [generate-all-windows]
     MD_Gen_Hann_Win(hann, N);
@@ -50,6 +54,7 @@ int main(void)
     print_summary("Hamming", hamming, N);
     print_summary("Blackman", blackman, N);
     print_summary("Rect", rect, N);
+    print_summary("Kaiser", kaiser, N);
 
     return 0;
 }

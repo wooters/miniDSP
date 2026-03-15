@@ -4,7 +4,7 @@
 edges do not create a large discontinuity. That discontinuity causes
 **[spectral leakage](https://en.wikipedia.org/wiki/Spectral_leakage)**: energy spreads into neighboring bins.
 
-miniDSP provides four common windows so you can compare the trade-off
+miniDSP provides five windows so you can compare the trade-off
 between main-lobe width (frequency resolution) and [sidelobe](https://en.wikipedia.org/wiki/Sidelobes) level
 (leakage suppression).
 
@@ -204,17 +204,69 @@ the highest sidelobes.
 
 ---
 
+## Kaiser window
+
+The [Kaiser window](https://en.wikipedia.org/wiki/Kaiser_window) uses the
+zeroth-order modified Bessel function \f$I_0\f$ to provide continuous control
+over the sidelobe/mainlobe tradeoff via a single parameter \f$\beta\f$:
+
+\f[
+w[n] = \frac{I_0\!\left(\beta\,\sqrt{1 - \left(\frac{2n}{N-1}-1\right)^2}\right)}
+            {I_0(\beta)},
+\quad n = 0, 1, \ldots, N-1
+\f]
+
+Higher \f$\beta\f$ values produce lower sidelobes (better leakage suppression)
+at the cost of a wider main lobe:
+- \f$\beta \approx 5\f$ : ~45 dB stopband attenuation
+- \f$\beta \approx 10\f$ : ~100 dB stopband attenuation
+- \f$\beta \approx 14\f$ : ~120 dB stopband attenuation
+
+**Reading the formula in C:**
+
+```c
+// n -> N (window length), i -> n (sample index), out[i] -> w[n]
+// beta -> shape parameter, inv_i0_beta -> 1/I₀(β)
+if (n == 1) {
+    out[0] = 1.0;
+} else {
+    double inv_i0_beta = 1.0 / MD_bessel_i0(beta);
+    double n_minus_1 = (double)(n - 1);
+    for (unsigned i = 0; i < n; i++) {
+        double t = 2.0 * (double)i / n_minus_1 - 1.0;
+        double arg = 1.0 - t * t;
+        if (arg < 0.0) arg = 0.0;
+        out[i] = MD_bessel_i0(beta * sqrt(arg)) * inv_i0_beta;
+    }
+}
+```
+
+**API:**
+
+```c
+void MD_Gen_Kaiser_Win(double *out, unsigned n, double beta);
+```
+
+**Quick example:**
+
+\snippet window_functions.c generate-kaiser
+
+---
+
 ## Quick comparison
 
-| Window | Edge values | Sidelobes | Main lobe |
-|--------|-------------|-----------|-----------|
-| Rectangular | 1.0 | Highest | Narrowest |
-| Hanning | 0.0 | Low | Medium |
-| Hamming | 0.08 | Lower first sidelobe | Medium |
-| Blackman | 0.0 | Lowest of these four | Widest |
+| Window | Edge values | Sidelobes | Main lobe | Tunable? |
+|--------|-------------|-----------|-----------|----------|
+| Rectangular | 1.0 | Highest | Narrowest | No |
+| Hanning | 0.0 | Low | Medium | No |
+| Hamming | 0.08 | Lower first sidelobe | Medium | No |
+| Blackman | 0.0 | Very low | Widest | No |
+| Kaiser | > 0 | Configurable via \f$\beta\f$ | Configurable | Yes |
 
 If you are unsure where to start, Hanning is a good default. Use
 Blackman when leakage suppression matters more than peak sharpness.
+Use Kaiser when you need precise control over the sidelobe level
+(e.g., for FIR filter design or resampling).
 All response plots above use the same tap length and zero-padded FFT
 size, so sidelobe and main-lobe differences are directly comparable.
 
@@ -224,6 +276,7 @@ size, so sidelobe and main-lobe differences are directly comparable.
 - [Hann function](https://en.wikipedia.org/wiki/Hann_function) -- Wikipedia
 - [Hamming window](https://en.wikipedia.org/wiki/Window_function#Hann_and_Hamming_windows) -- Wikipedia
 - [Blackman window](https://en.wikipedia.org/wiki/Window_function#Blackman_window) -- Wikipedia
+- [Kaiser window](https://en.wikipedia.org/wiki/Kaiser_window) -- Wikipedia
 
 ## API reference
 
@@ -231,3 +284,4 @@ size, so sidelobe and main-lobe differences are directly comparable.
 - MD_Gen_Hamming_Win() -- generate a Hamming window
 - MD_Gen_Blackman_Win() -- generate a Blackman window
 - MD_Gen_Rect_Win() -- generate a rectangular window
+- MD_Gen_Kaiser_Win() -- generate a Kaiser window with configurable \f$\beta\f$

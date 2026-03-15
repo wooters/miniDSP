@@ -74,6 +74,10 @@ examples/shepard_tone.csv
 examples/shepard_tone.html
 examples/shepard_tone.wav
 
+examples/resampler
+examples/resampler.csv
+examples/resampler.html
+
 # Generated assets for documentation
 guides/audio/
 guides/plots/

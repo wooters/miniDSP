@@ -512,6 +512,43 @@ void MD_comb_reverb(const double *in, double *out, unsigned N,
 }
 
 /* -----------------------------------------------------------------------
+ * Public API: math utilities
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Zeroth-order modified Bessel function of the first kind.
+ *
+ * Uses the power series:  I₀(x) = Σ [(x/2)^k / k!]²
+ * Converges until the term is below 1e-15 * sum (relative tolerance).
+ */
+double MD_bessel_i0(double x)
+{
+    double sum  = 1.0;
+    double term = 1.0;
+    double half_x = x / 2.0;
+
+    for (unsigned k = 1; k < 300; k++) {
+        term *= (half_x / (double)k);
+        double term_sq = term * term;
+        sum += term_sq;
+        if (term_sq < 1e-15 * sum) break;
+    }
+    return sum;
+}
+
+/**
+ * Normalized sinc function: sin(πx) / (πx).
+ *
+ * Returns 1.0 for |x| < 1e-12 to avoid division by zero.
+ */
+double MD_sinc(double x)
+{
+    if (fabs(x) < 1e-12) return 1.0;
+    double px = M_PI * x;
+    return sin(px) / px;
+}
+
+/* -----------------------------------------------------------------------
  * Public API: window generation
  * -----------------------------------------------------------------------*/
 
@@ -597,5 +634,36 @@ void MD_Gen_Rect_Win(double *out, unsigned n)
     assert(n > 0);
     for (unsigned i = 0; i < n; i++) {
         out[i] = 1.0;
+    }
+}
+
+/**
+ * Generate a Kaiser window.
+ *
+ * The formula is:  w[i] = I₀(β * sqrt(1 - ((2i/(n-1)) - 1)²)) / I₀(β)
+ *
+ * The β parameter controls the sidelobe/mainlobe tradeoff:
+ *   - β ≈ 5   → ~45 dB stopband attenuation
+ *   - β ≈ 10  → ~100 dB stopband attenuation
+ *   - β ≈ 14  → ~120 dB stopband attenuation
+ */
+void MD_Gen_Kaiser_Win(double *out, unsigned n, double beta)
+{
+    assert(out != NULL);
+    assert(n > 0);
+
+    if (n == 1) {
+        out[0] = 1.0;
+        return;
+    }
+
+    double inv_i0_beta = 1.0 / MD_bessel_i0(beta);
+    double n_minus_1 = (double)(n - 1);
+
+    for (unsigned i = 0; i < n; i++) {
+        double t = 2.0 * (double)i / n_minus_1 - 1.0;  /* in [-1, 1] */
+        double arg = 1.0 - t * t;
+        if (arg < 0.0) arg = 0.0;  /* clamp floating-point rounding */
+        out[i] = MD_bessel_i0(beta * sqrt(arg)) * inv_i0_beta;
     }
 }

@@ -3,8 +3,9 @@
 [Finite impulse response (FIR)](https://en.wikipedia.org/wiki/Finite_impulse_response) filtering and [convolution](https://en.wikipedia.org/wiki/Convolution) are core DSP tools:
 you shape a signal by summing delayed, weighted copies of it.
 
-miniDSP provides four related APIs so students can start with direct
-time-domain sums and then compare against the FFT overlap-add fast method.
+miniDSP provides five related APIs so students can start with direct
+time-domain sums, compare against the FFT overlap-add fast method, and
+design lowpass filters from scratch.
 
 ---
 
@@ -227,6 +228,63 @@ void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
 
 ---
 
+## Lowpass FIR filter design
+
+The [windowed-sinc method](https://en.wikipedia.org/wiki/Sinc_filter) designs a lowpass FIR filter
+by sampling the ideal sinc impulse response and tapering it with a window function.
+Using a [Kaiser window](https://en.wikipedia.org/wiki/Kaiser_window) gives precise control over
+stopband attenuation via the \f$\beta\f$ parameter.
+
+For a normalized cutoff \f$f_c = \mathrm{cutoff\_freq} / \mathrm{sample\_rate}\f$
+and filter length \f$N\f$:
+
+\f[
+h[i] = 2\,f_c\;\mathrm{sinc}\!\bigl(2\,f_c\,(i - (N-1)/2)\bigr)
+       \;\cdot\; w_{\mathrm{Kaiser}}[i],
+\quad i = 0, 1, \ldots, N-1
+\f]
+
+The coefficients are then normalized so they sum to 1.0 (unity DC gain).
+
+**Reading the formula in C:**
+
+```c
+// num_taps -> N, cutoff_freq -> Hz, sample_rate -> Hz
+// fc -> normalized cutoff, center -> (N-1)/2, coeffs[i] -> h[i]
+double fc = cutoff_freq / sample_rate;
+double center = (double)(num_taps - 1) / 2.0;
+
+double kaiser[num_taps];
+MD_Gen_Kaiser_Win(kaiser, num_taps, kaiser_beta);
+
+double sum = 0.0;
+for (unsigned i = 0; i < num_taps; i++) {
+    double x = (double)i - center;
+    coeffs[i] = 2.0 * fc * sin(M_PI * 2.0 * fc * x)
+              / (M_PI * 2.0 * fc * x) * kaiser[i];
+    // (the sinc function handles x == 0 -> 1.0)
+    sum += coeffs[i];
+}
+// Normalize for unity DC gain
+for (unsigned i = 0; i < num_taps; i++) {
+    coeffs[i] /= sum;
+}
+```
+
+**API:**
+
+```c
+void MD_design_lowpass_fir(double *coeffs, unsigned num_taps,
+                           double cutoff_freq, double sample_rate,
+                           double kaiser_beta);
+```
+
+**Quick example:**
+
+\snippet fir_convolution.c lowpass-fir-design
+
+---
+
 ## Quick comparison
 
 | Method | Output length | Typical cost | Best use |
@@ -235,15 +293,18 @@ void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
 | Moving average | \f$N\f$ | \f$O(N)\f$ (running sum) | First FIR low-pass example |
 | General FIR | \f$N\f$ | \f$O(NM)\f$ | Arbitrary FIR taps |
 | FFT overlap-add | \f$N+M-1\f$ | \f$O(N\log N)\f$ blocks | Long kernels / fast offline convolution |
+| Lowpass FIR design | \f$N\f$ taps | Design: \f$O(N)\f$ | Anti-aliasing, band-limiting |
 
 Use direct methods to build intuition, then compare with overlap-add to see
-why FFT-based convolution matters for longer filters.
+why FFT-based convolution matters for longer filters. Use the lowpass designer
+when you need a specific cutoff frequency with controlled stopband attenuation.
 
 ## Further reading
 
 - [Convolution](https://en.wikipedia.org/wiki/Convolution) -- Wikipedia
 - [Finite impulse response](https://en.wikipedia.org/wiki/Finite_impulse_response) -- Wikipedia
 - [Overlap-add method](https://en.wikipedia.org/wiki/Overlap%E2%80%93add_method) -- Wikipedia
+- [Sinc filter](https://en.wikipedia.org/wiki/Sinc_filter) -- Wikipedia
 
 ## API reference
 
@@ -252,3 +313,4 @@ why FFT-based convolution matters for longer filters.
 - MD_moving_average() -- causal moving-average FIR filter
 - MD_fir_filter() -- causal arbitrary-coefficient FIR filter
 - MD_convolution_fft_ola() -- full convolution via FFT overlap-add
+- MD_design_lowpass_fir() -- design a Kaiser-windowed sinc lowpass FIR filter

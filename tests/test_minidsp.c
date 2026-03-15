@@ -4508,6 +4508,360 @@ static int test_steg_detect_roundtrip(void)
 }
 
 /* -----------------------------------------------------------------------
+ * MD_bessel_i0 tests
+ * -----------------------------------------------------------------------*/
+
+static int test_bessel_i0_at_zero(void)
+{
+    return approx_equal(MD_bessel_i0(0.0), 1.0, 1e-15);
+}
+
+static int test_bessel_i0_known_x1(void)
+{
+    return approx_equal(MD_bessel_i0(1.0), 1.2660658777520084, 1e-10);
+}
+
+static int test_bessel_i0_known_x5(void)
+{
+    return approx_equal(MD_bessel_i0(5.0), 27.239871823604442, 1e-6);
+}
+
+static int test_bessel_i0_monotonic(void)
+{
+    double prev = MD_bessel_i0(0.0);
+    double xs[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    for (unsigned i = 0; i < 5; i++) {
+        double cur = MD_bessel_i0(xs[i]);
+        if (cur <= prev) return 0;
+        prev = cur;
+    }
+    return 1;
+}
+
+/* -----------------------------------------------------------------------
+ * MD_sinc tests
+ * -----------------------------------------------------------------------*/
+
+static int test_sinc_at_zero(void)
+{
+    return approx_equal(MD_sinc(0.0), 1.0, 1e-15);
+}
+
+static int test_sinc_integer_zeros(void)
+{
+    int ints[] = {-3, -2, -1, 1, 2, 3};
+    for (unsigned i = 0; i < 6; i++) {
+        if (!approx_equal(MD_sinc((double)ints[i]), 0.0, 1e-15))
+            return 0;
+    }
+    return 1;
+}
+
+static int test_sinc_half(void)
+{
+    return approx_equal(MD_sinc(0.5), 2.0 / M_PI, 1e-12);
+}
+
+static int test_sinc_near_zero_threshold(void)
+{
+    return approx_equal(MD_sinc(1e-13), 1.0, 1e-15);
+}
+
+/* -----------------------------------------------------------------------
+ * MD_Gen_Kaiser_Win tests
+ * -----------------------------------------------------------------------*/
+
+static int test_kaiser_single_sample(void)
+{
+    double w;
+    MD_Gen_Kaiser_Win(&w, 1, 10.0);
+    return approx_equal(w, 1.0, 1e-15);
+}
+
+static int test_kaiser_symmetry(void)
+{
+    unsigned n = 128;
+    double w[128];
+    MD_Gen_Kaiser_Win(w, n, 10.0);
+    for (unsigned i = 0; i < n / 2; i++) {
+        if (!approx_equal(w[i], w[n - 1 - i], 1e-12))
+            return 0;
+    }
+    return 1;
+}
+
+static int test_kaiser_tapered_ends(void)
+{
+    unsigned n = 128;
+    double w[128];
+    MD_Gen_Kaiser_Win(w, n, 10.0);
+    /* Ends should be positive but less than center */
+    if (w[0] <= 0.0) return 0;
+    if (w[0] >= w[n / 2]) return 0;
+    return 1;
+}
+
+static int test_kaiser_peak_at_center(void)
+{
+    unsigned n = 129;
+    double w[129];
+    MD_Gen_Kaiser_Win(w, n, 10.0);
+    unsigned center = n / 2;
+    /* Center should be the maximum */
+    for (unsigned i = 0; i < n; i++) {
+        if (w[i] > w[center] + 1e-12) return 0;
+    }
+    return 1;
+}
+
+static int test_kaiser_beta_comparison(void)
+{
+    unsigned n = 128;
+    double w_low[128], w_high[128];
+    MD_Gen_Kaiser_Win(w_low, n, 5.0);
+    MD_Gen_Kaiser_Win(w_high, n, 14.0);
+    /* Higher beta → more tapered (smaller end/center ratio) */
+    double ratio_low = w_low[0] / w_low[n / 2];
+    double ratio_high = w_high[0] / w_high[n / 2];
+    return ratio_high < ratio_low;
+}
+
+/* -----------------------------------------------------------------------
+ * MD_design_lowpass_fir tests
+ * -----------------------------------------------------------------------*/
+
+static int test_lowpass_fir_dc_gain(void)
+{
+    unsigned taps = 65;
+    double h[65];
+    MD_design_lowpass_fir(h, taps, 4000.0, 48000.0, 10.0);
+    double sum = 0.0;
+    for (unsigned i = 0; i < taps; i++) sum += h[i];
+    return approx_equal(sum, 1.0, 1e-12);
+}
+
+static int test_lowpass_fir_symmetry(void)
+{
+    unsigned taps = 65;
+    double h[65];
+    MD_design_lowpass_fir(h, taps, 4000.0, 48000.0, 10.0);
+    for (unsigned i = 0; i < taps / 2; i++) {
+        if (!approx_equal(h[i], h[taps - 1 - i], 1e-12))
+            return 0;
+    }
+    return 1;
+}
+
+static int test_lowpass_fir_passband(void)
+{
+    /* A 1 kHz tone through a 4 kHz LPF should pass with < 0.1 dB loss */
+    unsigned sr = 48000;
+    unsigned N = 4096;
+    double *sig = malloc(N * sizeof(double));
+    double *out = malloc(N * sizeof(double));
+    unsigned taps = 65;
+    double h[65];
+
+    MD_sine_wave(sig, N, 1.0, 1000.0, (double)sr);
+    MD_design_lowpass_fir(h, taps, 4000.0, (double)sr, 10.0);
+    MD_fir_filter(sig, N, h, taps, out);
+
+    /* Measure RMS of steady-state output (skip startup transient) */
+    double rms_in = MD_rms(sig + taps, N - taps);
+    double rms_out = MD_rms(out + taps, N - taps);
+    double db_diff = 20.0 * log10(rms_out / rms_in);
+
+    free(sig);
+    free(out);
+    return fabs(db_diff) < 0.1;
+}
+
+static int test_lowpass_fir_stopband(void)
+{
+    /* A 10 kHz tone through a 4 kHz LPF should be attenuated > 60 dB */
+    unsigned sr = 48000;
+    unsigned N = 4096;
+    double *sig = malloc(N * sizeof(double));
+    double *out = malloc(N * sizeof(double));
+    unsigned taps = 65;
+    double h[65];
+
+    MD_sine_wave(sig, N, 1.0, 10000.0, (double)sr);
+    MD_design_lowpass_fir(h, taps, 4000.0, (double)sr, 10.0);
+    MD_fir_filter(sig, N, h, taps, out);
+
+    double rms_in = MD_rms(sig + taps, N - taps);
+    double rms_out = MD_rms(out + taps, N - taps);
+    double attenuation_db = 20.0 * log10(rms_out / rms_in);
+
+    free(sig);
+    free(out);
+    return attenuation_db < -60.0;
+}
+
+/* -----------------------------------------------------------------------
+ * MD_resample_output_len tests
+ * -----------------------------------------------------------------------*/
+
+static int test_resample_output_len_upsample(void)
+{
+    return MD_resample_output_len(44100, 44100.0, 48000.0) == 48000;
+}
+
+static int test_resample_output_len_downsample(void)
+{
+    return MD_resample_output_len(48000, 48000.0, 44100.0) == 44100;
+}
+
+static int test_resample_output_len_noninteger(void)
+{
+    unsigned expected = (unsigned)ceil(1000.0 * 48000.0 / 44100.0);
+    return MD_resample_output_len(1000, 44100.0, 48000.0) == expected;
+}
+
+/* -----------------------------------------------------------------------
+ * MD_resample tests
+ * -----------------------------------------------------------------------*/
+
+static int test_resample_identity(void)
+{
+    unsigned N = 1024;
+    double *in = malloc(N * sizeof(double));
+    double *out = malloc(N * sizeof(double));
+    MD_sine_wave(in, N, 1.0, 100.0, 8000.0);
+
+    unsigned n = MD_resample(in, N, out, N,
+                             8000.0, 8000.0, 32, 10.0);
+    if (n != N) { free(in); free(out); return 0; }
+
+    for (unsigned i = 0; i < N; i++) {
+        if (!approx_equal(in[i], out[i], 1e-6)) {
+            free(in); free(out); return 0;
+        }
+    }
+    free(in); free(out);
+    return 1;
+}
+
+static int test_resample_dc_preservation(void)
+{
+    unsigned N_in = 1000;
+    unsigned N_out = MD_resample_output_len(N_in, 44100.0, 48000.0);
+    double *in = malloc(N_in * sizeof(double));
+    double *out = malloc(N_out * sizeof(double));
+
+    for (unsigned i = 0; i < N_in; i++) in[i] = 1.0;
+
+    unsigned n = MD_resample(in, N_in, out, N_out,
+                             44100.0, 48000.0, 32, 10.0);
+    /* Interior samples (away from boundary effects) should be ~1.0.
+     * The filter has 2*num_zero_crossings = 64 taps, so boundary effects
+     * extend about that many samples from each edge. Use generous margin. */
+    int ok = 1;
+    unsigned margin = 128;
+    for (unsigned i = margin; i + margin < n; i++) {
+        if (!approx_equal(out[i], 1.0, 1e-4)) { ok = 0; break; }
+    }
+    free(in); free(out);
+    return ok;
+}
+
+static int test_resample_sine_frequency(void)
+{
+    /* 440 Hz sine at 44100 Hz → resample to 48000 Hz → measure F0 */
+    unsigned N_in = 44100;  /* 1 second */
+    unsigned N_out = MD_resample_output_len(N_in, 44100.0, 48000.0);
+    double *in = malloc(N_in * sizeof(double));
+    double *out = malloc(N_out * sizeof(double));
+
+    MD_sine_wave(in, N_in, 1.0, 440.0, 44100.0);
+
+    unsigned n = MD_resample(in, N_in, out, N_out,
+                             44100.0, 48000.0, 32, 10.0);
+
+    /* Measure F0 of the output */
+    double f0 = MD_f0_autocorrelation(out, n, 48000.0, 100.0, 2000.0);
+
+    free(in); free(out);
+    return fabs(f0 - 440.0) < 1.0;
+}
+
+static int test_resample_output_length_matches(void)
+{
+    /* Test multiple rate pairs */
+    struct { double in_rate; double out_rate; } pairs[] = {
+        {44100.0, 48000.0},
+        {48000.0, 44100.0},
+        {16000.0,  8000.0},
+        { 8000.0, 16000.0},
+        {44100.0, 22050.0},
+    };
+    unsigned N_in = 1000;
+
+    for (unsigned p = 0; p < 5; p++) {
+        unsigned expected = MD_resample_output_len(N_in, pairs[p].in_rate,
+                                                   pairs[p].out_rate);
+        double *in = malloc(N_in * sizeof(double));
+        double *out = malloc(expected * sizeof(double));
+        MD_sine_wave(in, N_in, 1.0, 100.0, pairs[p].in_rate);
+
+        unsigned actual = MD_resample(in, N_in, out, expected,
+                                      pairs[p].in_rate, pairs[p].out_rate,
+                                      16, 10.0);
+        free(in); free(out);
+        if (actual != expected) return 0;
+    }
+    return 1;
+}
+
+static int test_resample_energy_preservation(void)
+{
+    /* White noise resampled should have similar RMS */
+    unsigned N_in = 8000;
+    unsigned N_out = MD_resample_output_len(N_in, 44100.0, 48000.0);
+    double *in = malloc(N_in * sizeof(double));
+    double *out = malloc(N_out * sizeof(double));
+
+    MD_white_noise(in, N_in, 1.0, 42);
+
+    unsigned n = MD_resample(in, N_in, out, N_out,
+                             44100.0, 48000.0, 32, 10.0);
+
+    double rms_in = MD_rms(in, N_in);
+    /* Skip boundary samples for RMS measurement */
+    unsigned margin = 128;
+    double rms_out = MD_rms(out + margin, n - 2 * margin);
+    double db_diff = 20.0 * log10(rms_out / rms_in);
+
+    free(in); free(out);
+    return fabs(db_diff) < 0.5;
+}
+
+static int test_resample_antialiasing(void)
+{
+    /* 20 kHz sine at 48 kHz, downsample to 16 kHz.
+     * The 20 kHz component is above the 8 kHz Nyquist of the output,
+     * so it should be suppressed. */
+    unsigned N_in = 4800;  /* 0.1 seconds at 48k */
+    unsigned N_out = MD_resample_output_len(N_in, 48000.0, 16000.0);
+    double *in = malloc(N_in * sizeof(double));
+    double *out = malloc(N_out * sizeof(double));
+
+    MD_sine_wave(in, N_in, 1.0, 20000.0, 48000.0);
+
+    unsigned n = MD_resample(in, N_in, out, N_out,
+                             48000.0, 16000.0, 32, 10.0);
+
+    /* Output should be near-silent (aliased frequency suppressed) */
+    unsigned margin = 64;
+    double rms_out = MD_rms(out + margin, n - 2 * margin);
+    double attenuation_db = 20.0 * log10(fmax(rms_out, 1e-15));
+
+    free(in); free(out);
+    return attenuation_db < -60.0;
+}
+
+/* -----------------------------------------------------------------------
  * Main: run all tests
  * -----------------------------------------------------------------------*/
 
@@ -4798,6 +5152,44 @@ int main(void)
     RUN_TEST(test_steg_detect_freq);
     RUN_TEST(test_steg_detect_clean);
     RUN_TEST(test_steg_detect_roundtrip);
+
+    printf("\n--- MD_bessel_i0 ---\n");
+    RUN_TEST(test_bessel_i0_at_zero);
+    RUN_TEST(test_bessel_i0_known_x1);
+    RUN_TEST(test_bessel_i0_known_x5);
+    RUN_TEST(test_bessel_i0_monotonic);
+
+    printf("\n--- MD_sinc ---\n");
+    RUN_TEST(test_sinc_at_zero);
+    RUN_TEST(test_sinc_integer_zeros);
+    RUN_TEST(test_sinc_half);
+    RUN_TEST(test_sinc_near_zero_threshold);
+
+    printf("\n--- MD_Gen_Kaiser_Win ---\n");
+    RUN_TEST(test_kaiser_single_sample);
+    RUN_TEST(test_kaiser_symmetry);
+    RUN_TEST(test_kaiser_tapered_ends);
+    RUN_TEST(test_kaiser_peak_at_center);
+    RUN_TEST(test_kaiser_beta_comparison);
+
+    printf("\n--- MD_design_lowpass_fir ---\n");
+    RUN_TEST(test_lowpass_fir_dc_gain);
+    RUN_TEST(test_lowpass_fir_symmetry);
+    RUN_TEST(test_lowpass_fir_passband);
+    RUN_TEST(test_lowpass_fir_stopband);
+
+    printf("\n--- MD_resample_output_len ---\n");
+    RUN_TEST(test_resample_output_len_upsample);
+    RUN_TEST(test_resample_output_len_downsample);
+    RUN_TEST(test_resample_output_len_noninteger);
+
+    printf("\n--- MD_resample ---\n");
+    RUN_TEST(test_resample_identity);
+    RUN_TEST(test_resample_dc_preservation);
+    RUN_TEST(test_resample_sine_frequency);
+    RUN_TEST(test_resample_output_length_matches);
+    RUN_TEST(test_resample_energy_preservation);
+    RUN_TEST(test_resample_antialiasing);
 
     /* Clean up FFTW resources */
     MD_shutdown();

@@ -7,9 +7,11 @@
  *   - Signal analysis (RMS, zero-crossing rate, autocorrelation, peak detection, F0 estimation, mixing)
  *   - Simple effects (delay/echo, tremolo, and comb-filter reverb)
  *   - Signal scaling and gain adjustment
- *   - Window generation (Hanning, Hamming, Blackman, rectangular)
+ *   - Math utilities (Bessel I₀, normalized sinc)
+ *   - Window generation (Hanning, Hamming, Blackman, rectangular, Kaiser)
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth, Shepard tone)
- *   - FIR filtering and convolution (time-domain and FFT overlap-add)
+ *   - FIR filtering, convolution, and lowpass FIR design (time-domain and FFT overlap-add)
+ *   - Sample rate conversion (polyphase sinc resampler)
  *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, and MFCCs
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
@@ -464,6 +466,35 @@ void MD_convolution_fft_ola(const double *signal, unsigned signal_len,
                             const double *kernel, unsigned kernel_len,
                             double *out);
 
+/**
+ * Design a Kaiser-windowed sinc lowpass FIR filter.
+ *
+ * Generates a linear-phase lowpass filter with the specified cutoff
+ * frequency and Kaiser window shape.  The coefficients are normalized
+ * to unity DC gain (they sum to 1.0).
+ *
+ * \f[
+ *   h[i] = 2\,f_c\;\mathrm{sinc}\!\bigl(2\,f_c\,(i - (N-1)/2)\bigr)
+ *          \;\cdot\; w_{\mathrm{Kaiser}}[i]
+ * \f]
+ * where \f$f_c = \mathrm{cutoff\_freq} / \mathrm{sample\_rate}\f$.
+ *
+ * @param coeffs       Output buffer of length num_taps (caller-allocated).
+ * @param num_taps     Filter length (must be > 0).
+ * @param cutoff_freq  -6 dB cutoff frequency in Hz (must be > 0
+ *                     and < sample_rate / 2).
+ * @param sample_rate  Sampling rate in Hz (must be > 0).
+ * @param kaiser_beta  Kaiser window \f$\beta\f$ parameter (e.g. 10.0).
+ *
+ * @code
+ * double h[65];
+ * MD_design_lowpass_fir(h, 65, 4000.0, 48000.0, 10.0);  // 4 kHz LPF
+ * @endcode
+ */
+void MD_design_lowpass_fir(double *coeffs, unsigned num_taps,
+                           double cutoff_freq, double sample_rate,
+                           double kaiser_beta);
+
 /* -----------------------------------------------------------------------
  * Signal scaling and conditioning
  * -----------------------------------------------------------------------*/
@@ -803,6 +834,47 @@ void MD_mfcc(const double *signal, unsigned N,
              double *mfcc_out);
 
 /* -----------------------------------------------------------------------
+ * Math utilities
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Zeroth-order modified Bessel function of the first kind, \f$I_0(x)\f$.
+ *
+ * Computed via the power series:
+ * \f[
+ *   I_0(x) = \sum_{k=0}^{\infty} \left[\frac{(x/2)^k}{k!}\right]^2
+ * \f]
+ * Converges until the term is below \f$10^{-15}\f$ relative tolerance.
+ *
+ * @param x  Input value (any real number).
+ * @return   \f$I_0(x)\f$.  Always \f$\geq 1\f$ since \f$I_0(0)=1\f$.
+ *
+ * @code
+ * double val = MD_bessel_i0(5.0);  // ≈ 27.2399
+ * @endcode
+ */
+double MD_bessel_i0(double x);
+
+/**
+ * Normalized sinc function: \f$\mathrm{sinc}(x) = \sin(\pi x)/(\pi x)\f$.
+ *
+ * \f[
+ *   \mathrm{sinc}(x) = \begin{cases}
+ *     1 & \text{if } |x| < 10^{-12} \\
+ *     \dfrac{\sin(\pi x)}{\pi x} & \text{otherwise}
+ *   \end{cases}
+ * \f]
+ *
+ * @param x  Input value.
+ * @return   sinc(x).  Equals 1 at zero, 0 at nonzero integers.
+ *
+ * @code
+ * double v = MD_sinc(0.5);  // ≈ 0.6366 (2/π)
+ * @endcode
+ */
+double MD_sinc(double x);
+
+/* -----------------------------------------------------------------------
  * Window generation
  * -----------------------------------------------------------------------*/
 
@@ -829,6 +901,30 @@ void MD_Gen_Blackman_Win(double *out, unsigned n);
  * Useful as a baseline reference (equivalent to no tapering).
  */
 void MD_Gen_Rect_Win(double *out, unsigned n);
+
+/**
+ * Generate a Kaiser window of length n with shape parameter beta.
+ *
+ * \f[
+ *   w[i] = \frac{I_0\!\left(\beta\,\sqrt{1 - \left(\frac{2i}{n-1}-1\right)^2}\right)}
+ *               {I_0(\beta)}
+ * \f]
+ *
+ * The \f$\beta\f$ parameter controls the sidelobe/mainlobe tradeoff:
+ *   - \f$\beta \approx 5\f$  : ~45 dB stopband attenuation (fast/draft)
+ *   - \f$\beta \approx 10\f$ : ~100 dB stopband attenuation (high quality)
+ *   - \f$\beta \approx 14\f$ : ~120 dB stopband attenuation (mastering)
+ *
+ * @param out   Output buffer of length n (caller-allocated).
+ * @param n     Window length.  Must be > 0.  For n == 1, outputs 1.0.
+ * @param beta  Shape parameter (> 0 for useful windows).
+ *
+ * @code
+ * double win[256];
+ * MD_Gen_Kaiser_Win(win, 256, 10.0);  // high-quality Kaiser window
+ * @endcode
+ */
+void MD_Gen_Kaiser_Win(double *out, unsigned n, double beta);
 
 /* -----------------------------------------------------------------------
  * Signal generators
@@ -1502,5 +1598,61 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
  */
 int MD_steg_detect(const double *signal, unsigned signal_len,
                    double sample_rate, int *payload_type_out);
+
+/* -----------------------------------------------------------------------
+ * Sample rate conversion
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Compute the output buffer size needed for resampling.
+ *
+ * Returns \f$\lceil \mathrm{input\_len} \times
+ * \mathrm{out\_rate} / \mathrm{in\_rate} \rceil\f$.
+ *
+ * @param input_len  Number of input samples (must be > 0).
+ * @param in_rate    Input sample rate in Hz (must be > 0).
+ * @param out_rate   Output sample rate in Hz (must be > 0).
+ * @return           Required output buffer length.
+ *
+ * @code
+ * unsigned n = MD_resample_output_len(44100, 44100.0, 48000.0);  // 48000
+ * @endcode
+ */
+unsigned MD_resample_output_len(unsigned input_len,
+                                double in_rate, double out_rate);
+
+/**
+ * Resample a signal from one sample rate to another using polyphase
+ * sinc interpolation.
+ *
+ * Uses a fixed table of 512 sub-phases with linear interpolation and
+ * a Kaiser-windowed sinc anti-aliasing filter.  Anti-aliasing cutoff
+ * is automatically set to \f$\min(\mathrm{in\_rate}, \mathrm{out\_rate})/2\f$.
+ *
+ * @param input              Input signal of length input_len.
+ * @param input_len          Number of input samples (must be > 0).
+ * @param output             Output buffer (caller-allocated).  Use
+ *                           MD_resample_output_len() to size it.
+ * @param max_output_len     Capacity of output buffer.  Must be >=
+ *                           MD_resample_output_len(input_len, in_rate, out_rate).
+ * @param in_rate            Input sample rate in Hz (must be > 0).
+ * @param out_rate           Output sample rate in Hz (must be > 0).
+ * @param num_zero_crossings Number of sinc zero-crossings per side.
+ *                           Higher = better quality.  Typical: 32.
+ * @param kaiser_beta        Kaiser window shape parameter.
+ *                           Typical: 10.0 for ~100 dB stopband.
+ * @return                   Number of samples written to output.
+ *
+ * @code
+ * double in[44100], out[48000];
+ * MD_sine_wave(in, 44100, 1.0, 440.0, 44100.0);
+ * unsigned n = MD_resample(in, 44100, out, 48000,
+ *                          44100.0, 48000.0, 32, 10.0);
+ * @endcode
+ */
+unsigned MD_resample(const double *input, unsigned input_len,
+                     double *output, unsigned max_output_len,
+                     double in_rate, double out_rate,
+                     unsigned num_zero_crossings, double kaiser_beta);
 
 #endif /* MINIDSP_H */

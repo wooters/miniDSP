@@ -19,7 +19,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 - **Spectrogram (STFT)** -- sliding-window FFT producing a time-frequency magnitude matrix; the standard tool for visualising time-varying audio.
 - **Mel filterbank** -- triangular filters spaced on the mel scale for perceptually motivated spectral features.
 - **MFCCs** -- mel-frequency cepstral coefficients from log mel energies via DCT-II (C0 included).
-- **Window functions** -- Hanning, Hamming, Blackman, and rectangular windows for FFT analysis trade-off studies.
+- **Window functions** -- Hanning, Hamming, Blackman, rectangular, and Kaiser windows for FFT analysis trade-off studies.
 
 ### Signal Generators (minidsp.h)
 
@@ -78,6 +78,12 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 - **Moving-average filter** -- simplest causal FIR low-pass with zero-padded startup.
 - **General FIR filter** -- apply arbitrary tap coefficients to build custom FIR responses.
 - **FFT overlap-add convolution** -- fast full convolution for longer kernels.
+- **Lowpass FIR design** -- Kaiser-windowed sinc lowpass filter with configurable cutoff and stopband attenuation.
+
+### Sample Rate Conversion (minidsp.h)
+
+- **Polyphase sinc resampler** -- high-quality offline resampling between arbitrary sample rates (e.g., 44100 to 48000 Hz) using a 512-phase Kaiser-windowed sinc interpolation filter with >100 dB stopband attenuation.
+- **Math utilities** -- zeroth-order modified Bessel function (I₀) and normalized sinc function, useful as standalone building blocks.
 
 ### Signal Measurement (minidsp.h)
 

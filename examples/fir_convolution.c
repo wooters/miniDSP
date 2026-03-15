@@ -108,6 +108,17 @@ int main(void)
     MD_convolution_fft_ola(signal, N, kernel, kernel_len, y_conv_fft);
     //! [fft-convolution]
 
+    /* ---------------------------------------------------------------
+     * 5) Lowpass FIR filter design
+     * ---------------------------------------------------------------*/
+    //! [lowpass-fir-design]
+    double lpf[65];
+    MD_design_lowpass_fir(lpf, 65, 2000.0, sample_rate, 10.0);
+    //! [lowpass-fir-design]
+
+    double *y_lpf = malloc(N * sizeof(double));
+    MD_fir_filter(signal, N, lpf, 65, y_lpf);
+
     /* Compare direct and FFT full convolution results. */
     double max_err = 0.0;
     for (unsigned i = 0; i < conv_len; i++) {
@@ -120,9 +131,11 @@ int main(void)
     print_first("Moving average", y_ma, N, 8);
     print_first("General FIR", y_fir, N, 8);
     print_first("FFT OLA convolution", y_conv_fft, conv_len, 8);
+    print_first("Lowpass FIR (2kHz)", y_lpf, N, 8);
     printf("Max |time_conv - fft_conv| = %.3e\n", max_err);
 
     MD_shutdown();
+    free(y_lpf);
     free(y_fir);
     free(y_ma);
     free(y_conv_fft);
