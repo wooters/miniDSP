@@ -14,7 +14,7 @@
  *
  * -----------------------------------------------------------------------
  *
- * How a biquad filter works (for students):
+ * How a biquad filter works (for users):
  *
  * A biquad filter is defined by the "difference equation":
  *

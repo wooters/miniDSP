@@ -3,7 +3,7 @@
 [Finite impulse response (FIR)](https://en.wikipedia.org/wiki/Finite_impulse_response) filtering and [convolution](https://en.wikipedia.org/wiki/Convolution) are core DSP tools:
 you shape a signal by summing delayed, weighted copies of it.
 
-miniDSP provides five related APIs so students can start with direct
+miniDSP provides five related APIs so users can start with direct
 time-domain sums, compare against the FFT overlap-add fast method, and
 design lowpass filters from scratch.
 
