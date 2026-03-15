@@ -180,6 +180,20 @@ static int test_power_sine(void)
     return approx_equal(p, 0.5, 1e-4);
 }
 
+/** Power of an all-zero signal should be zero. */
+static int test_power_zero(void)
+{
+    double a[] = {0.0, 0.0, 0.0, 0.0};
+    return approx_equal(MD_power(a, 4), 0.0, 1e-15);
+}
+
+/** Power of a single sample equals x^2. */
+static int test_power_single(void)
+{
+    double a[] = {5.0};
+    return approx_equal(MD_power(a, 1), 25.0, 1e-15);
+}
+
 /* -----------------------------------------------------------------------
  * Tests for MD_power_db()
  * -----------------------------------------------------------------------*/
@@ -232,6 +246,25 @@ static int test_scale_endpoints(void)
     return ok;
 }
 
+/** Scaling with identical in/out ranges returns input unchanged. */
+static int test_scale_identity_range(void)
+{
+    int ok = 1;
+    ok &= approx_equal(MD_scale(3.7, 0.0, 10.0, 0.0, 10.0), 3.7, 1e-15);
+    ok &= approx_equal(MD_scale(-5.0, -10.0, 10.0, -10.0, 10.0), -5.0, 1e-15);
+    return ok;
+}
+
+/** Inverted output range reverses direction. */
+static int test_scale_inverted_range(void)
+{
+    int ok = 1;
+    ok &= approx_equal(MD_scale(0.0, 0.0, 10.0, 100.0, 0.0), 100.0, 1e-15);
+    ok &= approx_equal(MD_scale(10.0, 0.0, 10.0, 100.0, 0.0), 0.0, 1e-15);
+    ok &= approx_equal(MD_scale(5.0, 0.0, 10.0, 100.0, 0.0), 50.0, 1e-15);
+    return ok;
+}
+
 /** Scale a vector. */
 static int test_scale_vec(void)
 {
@@ -275,6 +308,19 @@ static int test_fit_in_range_rescale(void)
     return ok;
 }
 
+/** Constant signal (min==max): already fits, copied unchanged. */
+static int test_fit_in_range_constant(void)
+{
+    double in[]  = {7.0, 7.0, 7.0};
+    double out[3];
+    MD_fit_within_range(in, out, 3, 0.0, 10.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], 7.0, 1e-15);
+    ok &= approx_equal(out[1], 7.0, 1e-15);
+    ok &= approx_equal(out[2], 7.0, 1e-15);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Tests for MD_adjust_dblevel()
  * -----------------------------------------------------------------------*/
@@ -302,6 +348,36 @@ static int test_adjust_dblevel(void)
     /* The output dB might not exactly match if clipping occurred,
      * but for a small signal boosted to -10 dB it should be close. */
     return approx_equal(actual_db, target_db, 0.5);
+}
+
+/** Silent input should produce silent output (not NaN/Inf). */
+static int test_adjust_dblevel_silence(void)
+{
+    unsigned N = 100;
+    double in[100], out[100];
+    memset(in, 0, sizeof(in));
+
+    MD_adjust_dblevel(in, out, N, -10.0);
+
+    for (unsigned i = 0; i < N; i++) {
+        if (out[i] != 0.0) return 0;
+    }
+    return 1;
+}
+
+/** Extremely quiet input should produce finite output (no NaN/Inf). */
+static int test_adjust_dblevel_near_zero(void)
+{
+    unsigned N = 100;
+    double in[100], out[100];
+    for (unsigned i = 0; i < N; i++) in[i] = 1e-300;
+
+    MD_adjust_dblevel(in, out, N, -10.0);
+
+    for (unsigned i = 0; i < N; i++) {
+        if (isnan(out[i]) || isinf(out[i])) return 0;
+    }
+    return 1;
 }
 
 /* -----------------------------------------------------------------------
@@ -808,6 +884,34 @@ static int test_mix_inplace(void)
     return ok;
 }
 
+/** Both weights zero should produce silence. */
+static int test_mix_zero_weights(void)
+{
+    double a[] = {1.0, 2.0, 3.0};
+    double b[] = {4.0, 5.0, 6.0};
+    double out[3];
+    MD_mix(a, b, out, 3, 0.0, 0.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], 0.0, 1e-15);
+    ok &= approx_equal(out[1], 0.0, 1e-15);
+    ok &= approx_equal(out[2], 0.0, 1e-15);
+    return ok;
+}
+
+/** Weight 0.0/1.0 should pass through the second signal. */
+static int test_mix_passthrough_b(void)
+{
+    double a[] = {1.0, 2.0, 3.0};
+    double b[] = {10.0, 20.0, 30.0};
+    double out[3];
+    MD_mix(a, b, out, 3, 0.0, 1.0);
+    int ok = 1;
+    ok &= approx_equal(out[0], 10.0, 1e-15);
+    ok &= approx_equal(out[1], 20.0, 1e-15);
+    ok &= approx_equal(out[2], 30.0, 1e-15);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Tests for simple effects
  * -----------------------------------------------------------------------*/
@@ -899,6 +1003,24 @@ static int test_tremolo_gain_bounds(void)
     return ok;
 }
 
+/** Tremolo at full depth (1.0) should reach zero gain. */
+static int test_tremolo_full_depth(void)
+{
+    const unsigned N = 8000;
+    double in[N], out[N];
+    for (unsigned i = 0; i < N; i++) in[i] = 1.0;
+
+    MD_tremolo(in, out, N, 5.0, 1.0, 8000.0);
+
+    /* With depth=1.0, gain oscillates between 0.0 and 1.0.
+     * Find the minimum output value — it should reach ~0. */
+    double min_val = out[0];
+    for (unsigned i = 1; i < N; i++) {
+        if (out[i] < min_val) min_val = out[i];
+    }
+    return approx_equal(min_val, 0.0, 0.01);
+}
+
 /** Comb reverb with wet=0 should pass through dry input exactly. */
 static int test_comb_reverb_dry_passthrough(void)
 {
@@ -949,6 +1071,26 @@ static int test_comb_reverb_inplace(void)
     int ok = 1;
     for (unsigned i = 0; i < 6; i++) {
         ok &= approx_equal(inout[i], ref_out[i], 1e-12);
+    }
+    return ok;
+}
+
+/** Comb reverb with feedback=0: impulse produces input + one delayed copy, no further repeats. */
+static int test_comb_reverb_zero_feedback(void)
+{
+    const unsigned N = 20;
+    double in[N], out[N];
+    memset(in, 0, sizeof(in));
+    in[0] = 1.0;
+
+    MD_comb_reverb(in, out, N, 4, 0.0, 0.0, 1.0);
+
+    /* With feedback=0: y_comb = x + 0*delayed = x.
+     * So wet output is just the input. Only impulse at index 0. */
+    int ok = 1;
+    ok &= approx_equal(out[0], 1.0, 1e-12);
+    for (unsigned i = 1; i < N; i++) {
+        ok &= approx_equal(out[i], 0.0, 1e-12);
     }
     return ok;
 }
@@ -1073,6 +1215,33 @@ static int test_moving_average_matches_boxcar_fir(void)
     return ok;
 }
 
+/** Moving average with width=1 is identity (output equals input). */
+static int test_moving_average_width_one(void)
+{
+    double x[] = {1.0, -2.0, 3.0, -4.0, 5.0};
+    double y[5];
+    MD_moving_average(x, 5, 1, y);
+    int ok = 1;
+    for (unsigned i = 0; i < 5; i++) {
+        ok &= approx_equal(y[i], x[i], 1e-15);
+    }
+    return ok;
+}
+
+/** FIR filter with single coefficient scales the signal. */
+static int test_fir_filter_single_tap(void)
+{
+    double x[] = {1.0, 2.0, 3.0, 4.0};
+    double b[] = {0.5};
+    double y[4];
+    MD_fir_filter(x, 4, b, 1, y);
+    int ok = 1;
+    for (unsigned i = 0; i < 4; i++) {
+        ok &= approx_equal(y[i], x[i] * 0.5, 1e-15);
+    }
+    return ok;
+}
+
 /** FFT overlap-add should match direct time-domain convolution. */
 static int test_convolution_fft_ola_matches_time(void)
 {
@@ -1167,6 +1336,22 @@ static int test_convolution_fft_ola_different_lengths(void)
         if (!ok) break;
     }
 
+    return ok;
+}
+
+/** FFT overlap-add with length-1 unit kernel reproduces input. */
+static int test_convolution_fft_ola_impulse_identity(void)
+{
+    double x[] = {1.0, -2.0, 3.0, -4.0, 5.0, -6.0, 7.0, -8.0};
+    double h[] = {1.0};
+    unsigned out_len = MD_convolution_num_samples(8, 1);
+    double y[8];
+    MD_convolution_fft_ola(x, 8, h, 1, y);
+    int ok = 1;
+    for (unsigned i = 0; i < 8; i++) {
+        ok &= approx_equal(y[i], x[i], 1e-10);
+    }
+    (void)out_len;
     return ok;
 }
 
@@ -1324,6 +1509,37 @@ static int test_window_single_sample(void)
         && approx_equal(hamming, 1.0, 1e-15)
         && approx_equal(blackman, 1.0, 1e-15)
         && approx_equal(rect, 1.0, 1e-15);
+}
+
+/** Hann window of length 2: both endpoints should be zero. */
+static int test_hann_length_two(void)
+{
+    double win[2];
+    MD_Gen_Hann_Win(win, 2);
+    return approx_equal(win[0], 0.0, 1e-15)
+        && approx_equal(win[1], 0.0, 1e-15);
+}
+
+/** Hamming window of length 2: both endpoints equal the minimum (~0.08). */
+static int test_hamming_length_two(void)
+{
+    double win[2];
+    MD_Gen_Hamming_Win(win, 2);
+    /* Hamming: w[n] = 0.54 - 0.46*cos(2*pi*n/(N-1)). For N=2: n=0 → 0.08, n=1 → 0.08 */
+    int ok = approx_equal(win[0], 0.08, 1e-10);
+    ok &= approx_equal(win[1], 0.08, 1e-10);
+    return ok;
+}
+
+/** Blackman window of length 2: both endpoints near zero. */
+static int test_blackman_length_two(void)
+{
+    double win[2];
+    MD_Gen_Blackman_Win(win, 2);
+    /* Blackman: w[n] = 0.42 - 0.5*cos(2pi*n/(N-1)) + 0.08*cos(4pi*n/(N-1)).
+     * For N=2: n=0 → 0.42 - 0.5 + 0.08 = 0.0, n=1 → same */
+    return approx_equal(win[0], 0.0, 1e-10)
+        && approx_equal(win[1], 0.0, 1e-10);
 }
 
 /* -----------------------------------------------------------------------
@@ -1963,6 +2179,26 @@ static int test_phase_spectrum_different_lengths(void)
     return ok;
 }
 
+/** Phase of a constant (DC-only) signal: DC bin should have zero phase. */
+static int test_phase_spectrum_dc_signal(void)
+{
+    unsigned N = 256;
+    double sig[256];
+    for (unsigned i = 0; i < N; i++) sig[i] = 3.0;
+
+    unsigned num_bins = N / 2 + 1;
+    double phase[num_bins];
+    MD_phase_spectrum(sig, N, phase);
+
+    /* DC bin should be 0 phase (all energy is real, positive) */
+    int ok = approx_equal(phase[0], 0.0, 1e-10);
+    /* All non-DC bins should also have ~0 phase (they're ~0 magnitude) */
+    for (unsigned k = 1; k < num_bins; k++) {
+        ok &= approx_equal(phase[k], 0.0, 1e-10);
+    }
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Tests for MD_gcc() and MD_get_delay() -- GCC-PHAT
  *
@@ -2205,6 +2441,39 @@ static int test_gcc_different_lengths(void)
     return ok;
 }
 
+/** Identical signals should produce zero delay estimate. */
+static int test_gcc_identical_signals(void)
+{
+    unsigned N = 4096;
+    double *sig = calloc(N, sizeof(double));
+    for (unsigned i = 0; i < N; i++)
+        sig[i] = sin(2.0 * M_PI * (double)i / 64.0);
+    int d = MD_get_delay(sig, sig, N, NULL, 50, PHAT);
+    free(sig);
+    return (d == 0);
+}
+
+/** Two silent signals should produce zero cross-correlation. */
+static int test_gcc_silence(void)
+{
+    unsigned N = 1024;
+    double *siga = calloc(N, sizeof(double));
+    double *sigb = calloc(N, sizeof(double));
+    double *lagvals = malloc(N * sizeof(double));
+
+    MD_gcc(siga, sigb, N, lagvals, PHAT);
+
+    int ok = 1;
+    for (unsigned i = 0; i < N; i++) {
+        ok &= approx_equal(lagvals[i], 0.0, 1e-15);
+    }
+
+    free(lagvals);
+    free(sigb);
+    free(siga);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * Tests for BiQuad filters
  *
@@ -2243,6 +2512,31 @@ static int test_biquad_invalid_type(void)
 {
     biquad *b = BiQuad_new(999, 0.0, 1000.0, 44100.0, 1.0);
     return (b == NULL);
+}
+
+/** BiQuad_new should return NULL for freq=0 (sin(omega)==0). */
+static int test_biquad_freq_zero(void)
+{
+    biquad *b = BiQuad_new(LPF, 0.0, 0.0, 44100.0, 1.0);
+    return (b == NULL);
+}
+
+/** BiQuad_new should return NULL for freq=Nyquist (sin(omega)==0). */
+static int test_biquad_freq_nyquist(void)
+{
+    biquad *b = BiQuad_new(LPF, 0.0, 22050.0, 44100.0, 1.0);
+    return (b == NULL);
+}
+
+/** Frequencies just inside valid range should succeed. */
+static int test_biquad_freq_near_boundaries(void)
+{
+    biquad *b1 = BiQuad_new(LPF, 0.0, 1.0, 44100.0, 1.0);
+    biquad *b2 = BiQuad_new(LPF, 0.0, 22049.0, 44100.0, 1.0);
+    int ok = (b1 != NULL) && (b2 != NULL);
+    free(b2);
+    free(b1);
+    return ok;
 }
 
 /** Low-pass filter: should pass low frequencies, attenuate high. */
@@ -2487,6 +2781,28 @@ static int test_sine_amplitude_negative(void)
     return ok;
 }
 
+/** Zero amplitude produces all-zero output. */
+static int test_sine_zero_amplitude(void)
+{
+    double out[64];
+    MD_sine_wave(out, 64, 0.0, 440.0, 44100.0);
+    for (unsigned i = 0; i < 64; i++) {
+        if (fabs(out[i]) > 1e-15) return 0;
+    }
+    return 1;
+}
+
+/** Zero frequency: sin(0) = 0 for all samples. */
+static int test_sine_zero_frequency(void)
+{
+    double out[64];
+    MD_sine_wave(out, 64, 1.0, 0.0, 44100.0);
+    for (unsigned i = 0; i < 64; i++) {
+        if (fabs(out[i]) > 1e-15) return 0;
+    }
+    return 1;
+}
+
 /* -----------------------------------------------------------------------
  * Tests for MD_white_noise()
  * -----------------------------------------------------------------------*/
@@ -2601,6 +2917,17 @@ static int test_white_noise_odd_length(void)
     MD_white_noise(out7, 7, 1.0, 0);
     for (unsigned i = 0; i < 7; i++) {
         if (isnan(out7[i]) || isinf(out7[i])) return 0;
+    }
+    return 1;
+}
+
+/** Zero amplitude produces all-zero output. */
+static int test_white_noise_zero_amplitude(void)
+{
+    double out[128];
+    MD_white_noise(out, 128, 0.0, 42);
+    for (unsigned i = 0; i < 128; i++) {
+        if (fabs(out[i]) > 1e-15) return 0;
     }
     return 1;
 }
@@ -2916,6 +3243,17 @@ static int test_square_amplitude_negative(void)
     return ok;
 }
 
+/** Zero amplitude produces all-zero output. */
+static int test_square_zero_amplitude(void)
+{
+    double out[64];
+    MD_square_wave(out, 64, 0.0, 1000.0, 16000.0);
+    for (unsigned i = 0; i < 64; i++) {
+        if (fabs(out[i]) > 1e-15) return 0;
+    }
+    return 1;
+}
+
 /* -----------------------------------------------------------------------
  * Tests for MD_sawtooth_wave()
  * -----------------------------------------------------------------------*/
@@ -2978,6 +3316,17 @@ static int test_sawtooth_amplitude_negative(void)
     for (unsigned i = 0; i < N; i++)
         ok &= approx_equal(neg[i], -pos[i], 1e-12);
     return ok;
+}
+
+/** Zero amplitude produces all-zero output. */
+static int test_sawtooth_zero_amplitude(void)
+{
+    double out[64];
+    MD_sawtooth_wave(out, 64, 0.0, 1000.0, 16000.0);
+    for (unsigned i = 0; i < 64; i++) {
+        if (fabs(out[i]) > 1e-15) return 0;
+    }
+    return 1;
 }
 
 /* -----------------------------------------------------------------------
@@ -3257,6 +3606,40 @@ static int test_stft_plan_recache(void)
         free(signal);
     }
 
+    return ok;
+}
+
+/** Single-frame STFT (signal_len == N) should match windowed magnitude spectrum. */
+static int test_stft_single_frame(void)
+{
+    unsigned N = 256;
+    unsigned num_bins = N / 2 + 1;
+    double signal[256];
+
+    /* Create a simple signal */
+    MD_sine_wave(signal, N, 1.0, 1000.0, 8000.0);
+
+    /* STFT with signal_len == N → exactly 1 frame */
+    unsigned num_frames = MD_stft_num_frames(N, N, N);
+    if (num_frames != 1) return 0;
+
+    double stft_out[num_bins];
+    MD_stft(signal, N, N, N, stft_out);
+
+    /* Compute magnitude spectrum of the Hann-windowed signal for comparison */
+    double windowed[256];
+    double window[256];
+    MD_Gen_Hann_Win(window, N);
+    for (unsigned i = 0; i < N; i++) windowed[i] = signal[i] * window[i];
+
+    double mag[num_bins];
+    MD_magnitude_spectrum(windowed, N, mag);
+
+    /* They should match */
+    int ok = 1;
+    for (unsigned k = 0; k < num_bins; k++) {
+        ok &= approx_equal(stft_out[k], mag[k], 1e-10);
+    }
     return ok;
 }
 
@@ -3925,6 +4308,17 @@ static int test_dtmf_detect_q24_minimum(void)
     return ok;
 }
 
+/** Silent signal should produce zero detected digits. */
+static int test_dtmf_detect_silence(void)
+{
+    unsigned N = 8000;  /* 1 second at 8 kHz */
+    double *sig = calloc(N, sizeof(double));
+    MD_DTMFTone tones[16];
+    unsigned n = MD_dtmf_detect(sig, N, 8000.0, tones, 16);
+    free(sig);
+    return (n == 0);
+}
+
 /* -----------------------------------------------------------------------
  * MD_shepard_tone
  * -----------------------------------------------------------------------*/
@@ -4055,6 +4449,20 @@ static int test_shepard_gaussian_envelope(void)
 
     int ok = (centre_peak > edge_peak * 2.0);
     free(mag);
+    free(buf);
+    return ok;
+}
+
+/** Zero amplitude produces all-zero output. */
+static int test_shepard_zero_amplitude(void)
+{
+    unsigned N = 8192;
+    double *buf = malloc(N * sizeof(double));
+    MD_shepard_tone(buf, N, 0.0, 440.0, 44100.0, 0.5, 8);
+    int ok = 1;
+    for (unsigned i = 0; i < N; i++) {
+        if (fabs(buf[i]) > 1e-15) { ok = 0; break; }
+    }
     free(buf);
     return ok;
 }
@@ -4507,6 +4915,23 @@ static int test_steg_detect_roundtrip(void)
     return ok;
 }
 
+/** Empty message should encode zero bits and leave host unchanged. */
+static int test_steg_encode_empty_message(void)
+{
+    const unsigned N = 4000;
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, 44100.0);
+
+    unsigned bits = MD_steg_encode(host, stego, N, 44100.0,
+                                   "", MD_STEG_LSB);
+    int ok = (bits == 0);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
 /* -----------------------------------------------------------------------
  * MD_bessel_i0 tests
  * -----------------------------------------------------------------------*/
@@ -4538,6 +4963,17 @@ static int test_bessel_i0_monotonic(void)
     return 1;
 }
 
+/** I0 is an even function: I0(-x) == I0(x). */
+static int test_bessel_i0_negative_symmetry(void)
+{
+    double xs[] = {1.0, 2.5, 5.0, 10.0};
+    for (unsigned i = 0; i < 4; i++) {
+        if (!approx_equal(MD_bessel_i0(-xs[i]), MD_bessel_i0(xs[i]), 1e-12))
+            return 0;
+    }
+    return 1;
+}
+
 /* -----------------------------------------------------------------------
  * MD_sinc tests
  * -----------------------------------------------------------------------*/
@@ -4565,6 +5001,17 @@ static int test_sinc_half(void)
 static int test_sinc_near_zero_threshold(void)
 {
     return approx_equal(MD_sinc(1e-13), 1.0, 1e-15);
+}
+
+/** Sinc is an even function: sinc(-x) == sinc(x). */
+static int test_sinc_symmetry(void)
+{
+    double xs[] = {0.5, 1.5, 2.7, 0.01, 3.14};
+    for (unsigned i = 0; i < 5; i++) {
+        if (!approx_equal(MD_sinc(-xs[i]), MD_sinc(xs[i]), 1e-15))
+            return 0;
+    }
+    return 1;
 }
 
 /* -----------------------------------------------------------------------
@@ -4624,6 +5071,18 @@ static int test_kaiser_beta_comparison(void)
     double ratio_low = w_low[0] / w_low[n / 2];
     double ratio_high = w_high[0] / w_high[n / 2];
     return ratio_high < ratio_low;
+}
+
+/** Kaiser window with beta=0 should equal a rectangular window (all ones). */
+static int test_kaiser_beta_zero(void)
+{
+    unsigned n = 64;
+    double w[64];
+    MD_Gen_Kaiser_Win(w, n, 0.0);
+    for (unsigned i = 0; i < n; i++) {
+        if (!approx_equal(w[i], 1.0, 1e-12)) return 0;
+    }
+    return 1;
 }
 
 /* -----------------------------------------------------------------------
@@ -4699,6 +5158,55 @@ static int test_lowpass_fir_stopband(void)
     return attenuation_db < -60.0;
 }
 
+/** Near-Nyquist cutoff should pass a high-frequency tone with minimal attenuation. */
+static int test_lowpass_fir_near_nyquist(void)
+{
+    unsigned sr = 48000;
+    unsigned N = 4096;
+    double *sig = malloc(N * sizeof(double));
+    double *out = malloc(N * sizeof(double));
+    unsigned taps = 65;
+    double h[65];
+
+    /* 10 kHz tone through a 20 kHz LPF (Nyquist at 24 kHz) */
+    MD_sine_wave(sig, N, 1.0, 10000.0, (double)sr);
+    MD_design_lowpass_fir(h, taps, 20000.0, (double)sr, 10.0);
+    MD_fir_filter(sig, N, h, taps, out);
+
+    double rms_in = MD_rms(sig + taps, N - taps);
+    double rms_out = MD_rms(out + taps, N - taps);
+    double db_diff = 20.0 * log10(rms_out / rms_in);
+
+    free(sig);
+    free(out);
+    return fabs(db_diff) < 0.5;
+}
+
+/** Very low cutoff should heavily attenuate a mid-range tone. */
+static int test_lowpass_fir_very_low_cutoff(void)
+{
+    unsigned sr = 44100;
+    unsigned N = 8192;
+    unsigned taps = 257;
+    double *sig = malloc(N * sizeof(double));
+    double *out = malloc(N * sizeof(double));
+    double *h   = malloc(taps * sizeof(double));
+
+    /* 5 kHz tone through a 100 Hz LPF with enough taps for sharp rolloff */
+    MD_sine_wave(sig, N, 1.0, 5000.0, (double)sr);
+    MD_design_lowpass_fir(h, taps, 100.0, (double)sr, 10.0);
+    MD_fir_filter(sig, N, h, taps, out);
+
+    double rms_in = MD_rms(sig + taps, N - taps);
+    double rms_out = MD_rms(out + taps, N - taps);
+    double attenuation_db = 20.0 * log10(rms_out / rms_in);
+
+    free(h);
+    free(sig);
+    free(out);
+    return attenuation_db < -30.0;
+}
+
 /* -----------------------------------------------------------------------
  * MD_resample_output_len tests
  * -----------------------------------------------------------------------*/
@@ -4717,6 +5225,12 @@ static int test_resample_output_len_noninteger(void)
 {
     unsigned expected = (unsigned)ceil(1000.0 * 48000.0 / 44100.0);
     return MD_resample_output_len(1000, 44100.0, 48000.0) == expected;
+}
+
+/** Same rate should return same length. */
+static int test_resample_output_len_same_rate(void)
+{
+    return MD_resample_output_len(1000, 44100.0, 44100.0) == 1000;
 }
 
 /* -----------------------------------------------------------------------
@@ -4885,6 +5399,8 @@ int main(void)
     printf("\n--- MD_power ---\n");
     RUN_TEST(test_power_known);
     RUN_TEST(test_power_sine);
+    RUN_TEST(test_power_zero);
+    RUN_TEST(test_power_single);
 
     printf("\n--- MD_power_db ---\n");
     RUN_TEST(test_power_db_known);
@@ -4894,14 +5410,19 @@ int main(void)
     printf("\n--- MD_scale / MD_scale_vec ---\n");
     RUN_TEST(test_scale_midpoint);
     RUN_TEST(test_scale_endpoints);
+    RUN_TEST(test_scale_identity_range);
+    RUN_TEST(test_scale_inverted_range);
     RUN_TEST(test_scale_vec);
 
     printf("\n--- MD_fit_within_range ---\n");
     RUN_TEST(test_fit_in_range_no_change);
     RUN_TEST(test_fit_in_range_rescale);
+    RUN_TEST(test_fit_in_range_constant);
 
     printf("\n--- MD_adjust_dblevel ---\n");
     RUN_TEST(test_adjust_dblevel);
+    RUN_TEST(test_adjust_dblevel_silence);
+    RUN_TEST(test_adjust_dblevel_near_zero);
 
     printf("\n--- MD_entropy ---\n");
     RUN_TEST(test_entropy_uniform);
@@ -4958,6 +5479,8 @@ int main(void)
     RUN_TEST(test_mix_passthrough);
     RUN_TEST(test_mix_energy);
     RUN_TEST(test_mix_inplace);
+    RUN_TEST(test_mix_zero_weights);
+    RUN_TEST(test_mix_passthrough_b);
 
     printf("\n--- Simple effects ---\n");
     RUN_TEST(test_delay_echo_dry_passthrough);
@@ -4965,19 +5488,24 @@ int main(void)
     RUN_TEST(test_delay_echo_inplace);
     RUN_TEST(test_tremolo_depth_zero_passthrough);
     RUN_TEST(test_tremolo_gain_bounds);
+    RUN_TEST(test_tremolo_full_depth);
     RUN_TEST(test_comb_reverb_dry_passthrough);
     RUN_TEST(test_comb_reverb_impulse_decay);
     RUN_TEST(test_comb_reverb_inplace);
+    RUN_TEST(test_comb_reverb_zero_feedback);
 
     printf("\n--- FIR filters / convolution ---\n");
     RUN_TEST(test_convolution_num_samples);
     RUN_TEST(test_convolution_time_known_small);
     RUN_TEST(test_convolution_time_impulse_identity);
     RUN_TEST(test_fir_filter_known_taps);
+    RUN_TEST(test_fir_filter_single_tap);
     RUN_TEST(test_moving_average_step_response);
     RUN_TEST(test_moving_average_matches_boxcar_fir);
+    RUN_TEST(test_moving_average_width_one);
     RUN_TEST(test_convolution_fft_ola_matches_time);
     RUN_TEST(test_convolution_fft_ola_different_lengths);
+    RUN_TEST(test_convolution_fft_ola_impulse_identity);
 
     printf("\n--- Window generation ---\n");
     RUN_TEST(test_hann_endpoints);
@@ -4993,6 +5521,9 @@ int main(void)
     RUN_TEST(test_blackman_range);
     RUN_TEST(test_rect_all_ones);
     RUN_TEST(test_window_single_sample);
+    RUN_TEST(test_hann_length_two);
+    RUN_TEST(test_hamming_length_two);
+    RUN_TEST(test_blackman_length_two);
 
     printf("\n--- MD_magnitude_spectrum ---\n");
     RUN_TEST(test_mag_spectrum_single_sine);
@@ -5021,6 +5552,7 @@ int main(void)
     RUN_TEST(test_phase_spectrum_impulse_at_one);
     RUN_TEST(test_phase_spectrum_zeros);
     RUN_TEST(test_phase_spectrum_different_lengths);
+    RUN_TEST(test_phase_spectrum_dc_signal);
 
     printf("\n--- GCC-PHAT delay estimation ---\n");
     RUN_TEST(test_gcc_phat_positive_delay);
@@ -5031,9 +5563,14 @@ int main(void)
     RUN_TEST(test_gcc_multiple_delays);
     RUN_TEST(test_gcc_lagvals_structure);
     RUN_TEST(test_gcc_different_lengths);
+    RUN_TEST(test_gcc_identical_signals);
+    RUN_TEST(test_gcc_silence);
 
     printf("\n--- Biquad filters ---\n");
     RUN_TEST(test_biquad_invalid_type);
+    RUN_TEST(test_biquad_freq_zero);
+    RUN_TEST(test_biquad_freq_nyquist);
+    RUN_TEST(test_biquad_freq_near_boundaries);
     RUN_TEST(test_biquad_lpf);
     RUN_TEST(test_biquad_hpf);
     RUN_TEST(test_biquad_bpf);
@@ -5049,6 +5586,8 @@ int main(void)
     RUN_TEST(test_sine_full_period);
     RUN_TEST(test_sine_spectrum_peak);
     RUN_TEST(test_sine_amplitude_negative);
+    RUN_TEST(test_sine_zero_amplitude);
+    RUN_TEST(test_sine_zero_frequency);
 
     printf("\n--- MD_white_noise ---\n");
     RUN_TEST(test_white_noise_mean_near_zero);
@@ -5057,6 +5596,7 @@ int main(void)
     RUN_TEST(test_white_noise_different_seeds);
     RUN_TEST(test_white_noise_flat_spectrum);
     RUN_TEST(test_white_noise_odd_length);
+    RUN_TEST(test_white_noise_zero_amplitude);
 
     printf("\n--- MD_impulse ---\n");
     RUN_TEST(test_impulse_at_zero);
@@ -5082,11 +5622,13 @@ int main(void)
     RUN_TEST(test_square_high_low);
     RUN_TEST(test_square_spectrum_harmonics);
     RUN_TEST(test_square_amplitude_negative);
+    RUN_TEST(test_square_zero_amplitude);
 
     printf("\n--- MD_sawtooth_wave ---\n");
     RUN_TEST(test_sawtooth_midpoint);
     RUN_TEST(test_sawtooth_spectrum_harmonics);
     RUN_TEST(test_sawtooth_amplitude_negative);
+    RUN_TEST(test_sawtooth_zero_amplitude);
 
     printf("\n--- MD_stft ---\n");
     RUN_TEST(test_stft_num_frames);
@@ -5097,6 +5639,7 @@ int main(void)
     RUN_TEST(test_stft_non_negative);
     RUN_TEST(test_stft_parseval_per_frame);
     RUN_TEST(test_stft_plan_recache);
+    RUN_TEST(test_stft_single_frame);
 
     printf("\n--- Mel / MFCC ---\n");
     RUN_TEST(test_mel_filterbank_bounds_and_triangles);
@@ -5122,6 +5665,7 @@ int main(void)
     RUN_TEST(test_dtmf_detect_16khz);
     RUN_TEST(test_dtmf_detect_timestamps);
     RUN_TEST(test_dtmf_detect_q24_minimum);
+    RUN_TEST(test_dtmf_detect_silence);
 
     printf("\n--- MD_shepard_tone ---\n");
     RUN_TEST(test_shepard_nonzero_energy);
@@ -5129,6 +5673,7 @@ int main(void)
     RUN_TEST(test_shepard_static_octave_peaks);
     RUN_TEST(test_shepard_rising_vs_falling);
     RUN_TEST(test_shepard_gaussian_envelope);
+    RUN_TEST(test_shepard_zero_amplitude);
 
     printf("\n--- MD_spectrogram_text ---\n");
     RUN_TEST(test_spectext_output_length);
@@ -5152,18 +5697,21 @@ int main(void)
     RUN_TEST(test_steg_detect_freq);
     RUN_TEST(test_steg_detect_clean);
     RUN_TEST(test_steg_detect_roundtrip);
+    RUN_TEST(test_steg_encode_empty_message);
 
     printf("\n--- MD_bessel_i0 ---\n");
     RUN_TEST(test_bessel_i0_at_zero);
     RUN_TEST(test_bessel_i0_known_x1);
     RUN_TEST(test_bessel_i0_known_x5);
     RUN_TEST(test_bessel_i0_monotonic);
+    RUN_TEST(test_bessel_i0_negative_symmetry);
 
     printf("\n--- MD_sinc ---\n");
     RUN_TEST(test_sinc_at_zero);
     RUN_TEST(test_sinc_integer_zeros);
     RUN_TEST(test_sinc_half);
     RUN_TEST(test_sinc_near_zero_threshold);
+    RUN_TEST(test_sinc_symmetry);
 
     printf("\n--- MD_Gen_Kaiser_Win ---\n");
     RUN_TEST(test_kaiser_single_sample);
@@ -5171,17 +5719,21 @@ int main(void)
     RUN_TEST(test_kaiser_tapered_ends);
     RUN_TEST(test_kaiser_peak_at_center);
     RUN_TEST(test_kaiser_beta_comparison);
+    RUN_TEST(test_kaiser_beta_zero);
 
     printf("\n--- MD_design_lowpass_fir ---\n");
     RUN_TEST(test_lowpass_fir_dc_gain);
     RUN_TEST(test_lowpass_fir_symmetry);
     RUN_TEST(test_lowpass_fir_passband);
     RUN_TEST(test_lowpass_fir_stopband);
+    RUN_TEST(test_lowpass_fir_near_nyquist);
+    RUN_TEST(test_lowpass_fir_very_low_cutoff);
 
     printf("\n--- MD_resample_output_len ---\n");
     RUN_TEST(test_resample_output_len_upsample);
     RUN_TEST(test_resample_output_len_downsample);
     RUN_TEST(test_resample_output_len_noninteger);
+    RUN_TEST(test_resample_output_len_same_rate);
 
     printf("\n--- MD_resample ---\n");
     RUN_TEST(test_resample_identity);

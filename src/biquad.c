@@ -106,6 +106,13 @@ biquad *BiQuad_new(int type, smp_type dbGain,
      * alpha = controls the bandwidth (Q factor)
      * beta  = helper for shelf filter coefficients
      */
+    /* Guard: sin(omega) is zero when freq <= 0 or freq >= srate/2.
+     * The alpha formula divides by sin(omega), so bail out. */
+    if (freq <= 0.0 || freq >= srate / 2.0) {
+        free(b);
+        return NULL;
+    }
+
     A     = pow(10.0, dbGain / 40.0);
     omega = 2.0 * M_PI * freq / srate;
     sn    = sin(omega);

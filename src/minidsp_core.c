@@ -174,6 +174,13 @@ void MD_adjust_dblevel(const double *in, double *out,
      *   (gain^2 / N) * sum(in[i]^2) = desired_power
      *   gain = sqrt(desired_power * N / energy_in) */
     double input_energy = MD_energy(in, N);
+
+    /* Guard: cannot amplify silence — copy input and return */
+    if (input_energy == 0.0) {
+        for (unsigned i = 0; i < N; i++) out[i] = in[i];
+        return;
+    }
+
     double gain = sqrt((desired_power * (double)N) / input_energy);
 
     /* Apply the gain and check for out-of-range values */
