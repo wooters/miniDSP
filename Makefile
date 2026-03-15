@@ -90,7 +90,7 @@ uninstall:
 .PHONY: clean
 clean:
 	-rm -f src/*.o libminidsp.a
-	-rm -rf docs guides/audio guides/plots
+	-rm -rf docs/html guides/audio guides/plots
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean
 	$(MAKE) -C tools/mel_viz clean
