@@ -93,10 +93,10 @@ HTML spectrogram, and a static PNG image.
 **Usage:**
 
 ```sh
-./spectrogram_text [TEXT] [--colormap viridis|grayscale]
+./spectrogram_text [TEXT] [--colormap hot|grayscale]
 ```
 
-Default text is `"HELLO"`, default colormap is `viridis`.
+Default text is `"HELLO"`, default colormap is `hot`.
 
 **Synthesis and STFT parameters** used by the example (so you can replicate the
 spectrogram with your own tools):
@@ -110,7 +110,7 @@ spectrogram with your own tools):
 | STFT FFT size  | 1024              |
 | STFT hop       | 16 samples (1 ms) |
 | dB range       | −80 to 0 dB       |
-| Colorscale     | Viridis (or grayscale) |
+| Colorscale     | Hot (or grayscale) |
 
 Outputs: `spectrogram_text.wav`, `spectrogram_text.html`, `spectrogram_text.png`.
 
