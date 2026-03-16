@@ -12,4 +12,4 @@
 ## 3. Verify
 
 - [x] 3.1 Run `make docs` locally and confirm `docs/html/signal-generators.html` still contains `<div id="page-nav" class="page-nav-panel">`
-- [ ] 3.2 Push to main and confirm the deployed site at wooters.github.io/miniDSP shows the right-side TOC panel on guide pages
+- [x] 3.2 Push to main and confirm the deployed site at wooters.github.io/miniDSP shows the right-side TOC panel on guide pages
