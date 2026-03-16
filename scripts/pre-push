@@ -42,6 +42,23 @@ while read local_ref local_sha remote_ref remote_sha; do
 
             echo ""
             echo "All tests passed -- pushing to main."
+
+            # Remind about version tagging if HEAD is untagged
+            latest_tag=$(git describe --tags --abbrev=0 2>/dev/null)
+            if [ -n "$latest_tag" ]; then
+                head_tags=$(git tag --points-at HEAD 2>/dev/null)
+                if [ -z "$head_tags" ]; then
+                    count=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null)
+                    version=$(cat VERSION 2>/dev/null)
+                    echo ""
+                    echo "================================================"
+                    echo "  VERSION CHECK: ${count} commits since ${latest_tag}"
+                    echo "  VERSION file says: ${version:-unknown}"
+                    echo "  Consider: git tag -a v${version} -m \"v${version}\""
+                    echo "================================================"
+                fi
+            fi
+
             exit 0
             ;;
     esac
