@@ -3,7 +3,7 @@
 [![Docs](https://github.com/wooters/miniDSP/actions/workflows/docs.yml/badge.svg)](https://github.com/wooters/miniDSP/actions/workflows/docs.yml)
 [![Pages](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://wooters.github.io/miniDSP/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/wooters/miniDSP/blob/main/LICENSE)
-[![Language: C](https://img.shields.io/badge/language-C23-orange)](https://en.wikipedia.org/wiki/C23_(C_standard_revision))
+[![Language: C](https://img.shields.io/badge/language-C17-orange)](https://en.wikipedia.org/wiki/C17_(C_standard_revision))
 
 A small C library of DSP (Digital Signal Processing) routines for audio applications.
 
@@ -143,7 +143,7 @@ Save the code above as `my_program.c`.
 **Compile it directly:**
 
 ```sh
-gcc -std=c23 -Ipath/to/miniDSP/include my_program.c \
+gcc -std=c17 -Ipath/to/miniDSP/include my_program.c \
     -Lpath/to/miniDSP -lminidsp -lfftw3 -lm -o my_program
 ```
 
@@ -153,7 +153,7 @@ gcc -std=c23 -Ipath/to/miniDSP/include my_program.c \
 MINIDSP_DIR = path/to/miniDSP
 
 CC      = gcc
-CFLAGS  = -std=c23 -Wall -Wextra -I$(MINIDSP_DIR)/include
+CFLAGS  = -std=c17 -Wall -Wextra -I$(MINIDSP_DIR)/include
 LDFLAGS = -L$(MINIDSP_DIR)
 LDLIBS  = -lminidsp -lfftw3 -lm
 
@@ -436,8 +436,6 @@ Install the following libraries before building:
 
 The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
 
-On Ubuntu, GCC 14 or later is required for `-std=c23` support. Ubuntu 24.04 ships GCC 13 by default, so install `gcc-14` explicitly (`apt install gcc-14`).
-
 ### Compile the library
 
 ```sh
@@ -452,7 +450,7 @@ make test       # builds and runs all tests
 
 ### Test inside an Ubuntu container
 
-To verify the library builds and passes all tests on Linux (Ubuntu 24.04 with GCC 14):
+To verify the library builds and passes all tests on Linux (Ubuntu 24.04):
 
 ```sh
 make container-test   # builds image, then runs make test inside the container
