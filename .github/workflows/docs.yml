@@ -22,8 +22,15 @@ jobs:
         with:
           submodules: true
 
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y doxygen gcc-14 libc6-dev make libfftw3-dev libsndfile1-dev portaudio19-dev
+      - name: Install Doxygen 1.16.1
+        run: |
+          curl -fsSL https://github.com/doxygen/doxygen/releases/download/Release_1_16_1/doxygen-1.16.1.linux.bin.tar.gz -o doxygen.tar.gz
+          tar xzf doxygen.tar.gz
+          sudo install -m 755 doxygen-1.16.1/bin/doxygen /usr/local/bin/doxygen
+          rm -rf doxygen.tar.gz doxygen-1.16.1
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc-14 libc6-dev make libfftw3-dev libsndfile1-dev portaudio19-dev
 
       - name: Generate documentation
         run: make docs CC=gcc-14
