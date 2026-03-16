@@ -100,3 +100,4 @@ tools/audio_steg/audio_steg
 
 # Local Claude Code settings
 .claude/
+.DS_Store
