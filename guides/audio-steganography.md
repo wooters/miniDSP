@@ -6,13 +6,14 @@ of hiding a secret message inside an innocuous-looking cover medium.
 listener hears only the original sound, while a decoder can extract the
 hidden payload.
 
-miniDSP provides two complementary methods in `src/minidsp_steg.c`,
+miniDSP provides three complementary methods in `src/minidsp_steg.c`,
 demonstrated in `tools/audio_steg/audio_steg.c`:
 
 | Method | Identifier | Capacity | Robustness | Audibility |
 |:-------|:-----------|:---------|:-----------|:-----------|
 | **LSB** (Least Significant Bit) | `MD_STEG_LSB` | High (~1 bit/sample) | Fragile | Inaudible (~-90 dB) |
 | **Frequency-band** (BFSK) | `MD_STEG_FREQ_BAND` | Lower (~2.6 kbit/s) | Moderate | Near-inaudible (ultrasonic) |
+| **Spectrogram text** (hybrid) | `MD_STEG_SPECTEXT` | ~4 chars/sec visual | Fragile (like LSB) | Inaudible (ultrasonic) |
 
 Build and run the self-test from the repository root:
 
@@ -304,6 +305,140 @@ carriers.  The main 440 Hz tone dominates the audible range.
 
 ---
 
+## Method 3: Spectrogram Text (spectext)
+
+### The idea
+
+What if a hidden message were visible to the *human eye* as well as recoverable
+by machine?  The **spectext** method combines LSB data encoding (for reliable
+machine decode) with **spectrogram text art** in the 18--23.5 kHz ultrasonic
+band (for visual verification).  Open the stego file in any spectrogram viewer
+and the message is spelled out in the high frequencies — while a listener hears
+nothing unusual.
+
+The spectrogram art also acts as a **tamper indicator**: if the text is intact,
+the LSB data likely is too.
+
+### Encode pipeline
+
+```
+host.wav ──┐
+(any SR)   │
+           ▼
+    ┌──────────────┐     ┌────────────────────┐
+    │ MD_resample()│────▶│  host @ 48 kHz     │
+    │ to 48 kHz    │     │  (if needed)       │
+    └──────────────┘     └────────┬───────────┘
+                                  │
+"SECRET" ──┐                      │
+           ▼                      │
+    ┌──────────────────────┐      │
+    │MD_spectrogram_text() │      │
+    │ freq: 18–23.5 kHz    │      │
+    │ 30 ms / column       │      │
+    │ amplitude: 0.02      │      │
+    └──────────┬───────────┘      │
+               │ mix (add)        │
+               ▼                  ▼
+           ┌──────────────────────────┐
+           │  host + spectrogram art  │
+           └────────────┬─────────────┘
+                        │ LSB encode (last step)
+                        ▼
+                   stego.wav (48 kHz)
+```
+
+The spectrogram art is mixed into the host **before** LSB encoding, so the
+LSB bits remain undisturbed.  Decode simply reads the LSB channel.
+
+### Automatic upsampling
+
+The spectrogram art uses the 18--23.5 kHz band, which requires a Nyquist
+frequency of at least 23.5 kHz (sample rate >= 47 kHz).  If the input host
+is below 48 kHz, the encoder automatically upsamples it using
+`MD_resample()`.  The output is always 48 kHz.
+
+### Fixed column width and capacity
+
+Each character in the bitmap font is 8 columns wide (5 data + 3 spacing).
+Each column occupies a fixed **30 ms** of audio, giving 240 ms per character:
+
+\f[
+C_{\text{spectext}} = \left\lfloor \frac{D}{0.24} \right\rfloor \text{ characters}
+\f]
+
+where \f$D\f$ is the host signal duration in seconds.
+
+**Reading the formula in C:**
+
+```c
+// D -> duration_sec,  C_spectext -> vis_chars
+double duration_sec = (double)signal_len / sample_rate;
+unsigned vis_chars = (unsigned)(duration_sec / 0.24);
+```
+
+**Visual capacity by audio duration:**
+
+| Audio duration | Max visible chars |
+|:---------------|------------------:|
+| 3 s            | 12                |
+| 10 s           | 41                |
+| 30 s           | 125               |
+| 60 s           | 250               |
+
+### Frequency mapping and amplitude
+
+The 7 rows of the 5x7 bitmap font are mapped linearly across the
+18--23.5 kHz band.  Row 0 (top of character) maps to 23.5 kHz;
+row 6 (bottom) maps to 18 kHz.
+
+The spectrogram text is generated at full amplitude by `MD_spectrogram_text()`
+(normalised to 0.9 peak), then scaled to **0.02** (~-34 dB) before mixing.
+This is loud enough to be clearly visible in a spectrogram but completely
+inaudible — most adults cannot hear above 18 kHz.
+
+### Visual truncation
+
+If the message is longer than the visual capacity, the spectrogram art shows
+only the first N characters that fit.  The full message is always recoverable
+via the LSB data channel, which has much higher capacity (~5.5 KB/sec at
+48 kHz).  For binary payloads, the spectrogram art shows `[BIN <N>B]` as a
+label.
+
+### Listening comparison
+
+**After spectext encoding** (same host, message "miniDSP" hidden via spectext):
+
+\htmlonly
+<audio controls style="margin: 0.5em 0;">
+  <source src="steg_spectext.wav" type="audio/wav">
+  <em>Your browser does not support the audio element.</em>
+</audio>
+\endhtmlonly
+
+The ultrasonic tones at 18--23.5 kHz are far above the audible range.
+
+**Spectrogram** showing "miniDSP" rendered as text art in the ultrasonic band:
+
+\htmlonly
+<iframe src="steg_spectext_spectrogram.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
+\endhtmlonly
+
+The 440 Hz host tone is visible at the bottom of the spectrogram.  The text
+"miniDSP" is rendered in the 18--23.5 kHz band near the top, using the 5x7
+bitmap font from `MD_spectrogram_text()`.
+
+### Trade-offs
+
+| Advantage | Disadvantage |
+|:----------|:-------------|
+| Human-readable visual watermark | Lower visual capacity than LSB data capacity |
+| Machine-readable round-trip via LSB | Requires 48 kHz output (auto-upsampled) |
+| Visual tamper indicator | Destroyed by lossy compression (like LSB) |
+| Completely inaudible | Destroyed by low-pass filtering above 18 kHz |
+
+---
+
 ## Embedding binary data
 
 The string-based API (`MD_steg_encode` / `MD_steg_decode`) uses null-terminated
@@ -465,7 +600,7 @@ unsigned MD_steg_encode(const double *host, double *output,
 | `signal_len`  | Number of samples. |
 | `sample_rate` | Sample rate in Hz. |
 | `message`     | Null-terminated secret message. |
-| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+| `method`      | `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, or `MD_STEG_SPECTEXT`. |
 
 Returns the number of message bytes encoded (0 on failure).
 
@@ -485,7 +620,7 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
 | `sample_rate` | Sample rate in Hz. |
 | `message_out` | Output buffer (caller-allocated, null-terminated on return). |
 | `max_msg_len` | Size of buffer including null terminator. |
-| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+| `method`      | `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, or `MD_STEG_SPECTEXT`. |
 
 Returns the number of message bytes decoded (0 if none found).
 
@@ -506,7 +641,7 @@ unsigned MD_steg_encode_bytes(const double *host, double *output,
 | `sample_rate` | Sample rate in Hz. |
 | `data`        | Pointer to the binary data to hide. |
 | `data_len`    | Length of data in bytes. |
-| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+| `method`      | `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, or `MD_STEG_SPECTEXT`. |
 
 Returns the number of data bytes encoded (0 on failure).
 
@@ -526,7 +661,7 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
 | `sample_rate` | Sample rate in Hz. |
 | `data_out`    | Output buffer for the decoded bytes (caller-allocated). |
 | `max_len`     | Maximum number of bytes to write to buffer. |
-| `method`      | `MD_STEG_LSB` or `MD_STEG_FREQ_BAND`. |
+| `method`      | `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, or `MD_STEG_SPECTEXT`. |
 
 Returns the number of data bytes decoded (0 if none found).
 
@@ -538,8 +673,8 @@ int MD_steg_detect(const double *signal, unsigned signal_len,
 ```
 
 Inspects a signal and determines which steganography method (if any) was used.
-Returns `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, or `-1` if no hidden payload is
-found.  The optional `payload_type_out` receives `MD_STEG_TYPE_TEXT` (0) or
+Returns `MD_STEG_LSB`, `MD_STEG_FREQ_BAND`, `MD_STEG_SPECTEXT`, or `-1` if
+no hidden payload is found.  The optional `payload_type_out` receives `MD_STEG_TYPE_TEXT` (0) or
 `MD_STEG_TYPE_BINARY` (1).
 
 | Parameter          | Description |
@@ -602,6 +737,26 @@ MD_steg_decode(stego, 132300, 44100.0, recovered, 256, MD_STEG_FREQ_BAND);
 printf("Hidden: %s\n", recovered);  // "hidden!"
 ```
 
+**Encode and decode with spectrogram text (spectext):**
+
+```c
+double host[132300];  // 3 s at 44.1 kHz
+MD_sine_wave(host, 132300, 0.8, 440.0, 44100.0);
+
+// Output at 48 kHz — compute required buffer size
+unsigned out_len = MD_resample_output_len(132300, 44100.0, 48000.0);
+double *stego = malloc(out_len * sizeof(double));
+
+MD_steg_encode(host, stego, 132300, 44100.0, "miniDSP", MD_STEG_SPECTEXT);
+
+// Decode from the 48 kHz output
+char recovered[256];
+MD_steg_decode(stego, out_len, 48000.0, recovered, 256, MD_STEG_SPECTEXT);
+printf("Hidden: %s\n", recovered);  // "miniDSP"
+// View stego in a spectrogram to see "miniDSP" in the 18-23.5 kHz band
+free(stego);
+```
+
 ---
 
 ## Example program
@@ -655,6 +810,9 @@ encoding and decoding steganographic messages and binary data in WAV files.
 # Decode without specifying method (auto-detect)
 ./audio_steg --decode stego.wav
 
+# Encode using spectext (hybrid LSB + spectrogram art)
+./audio_steg --encode spectext "miniDSP" -i music.wav -o stego.wav
+
 # Encode a binary file (image) using LSB
 ./audio_steg --encode-image lsb space_invader.png -o steg_invader.wav
 
@@ -666,15 +824,17 @@ encoding and decoding steganographic messages and binary data in WAV files.
 
 ## Choosing a method
 
-| Criterion | LSB | Frequency-band |
-|:----------|:----|:---------------|
-| **Message size** | Up to ~16 KB per second of audio | Up to ~121 bytes per 3 s |
-| **Audio quality** | Imperceptible (-90 dB) | Near-imperceptible (ultrasonic, -34 dB) |
-| **Survives lossy compression** | No | No (but more tolerant of noise) |
-| **Survives additive noise** | No (bit errors) | Yes (mild noise) |
-| **Sample rate requirement** | Any | >= 40 kHz (44.1 or 48 kHz) |
-| **Best for** | Lossless pipelines (WAV/FLAC) | Environments with light interference |
+| Criterion | LSB | Frequency-band | Spectext |
+|:----------|:----|:---------------|:---------|
+| **Message size** | Up to ~16 KB/s of audio | Up to ~121 B per 3 s | ~4 chars/s (visual); LSB capacity for data |
+| **Audio quality** | Imperceptible (-90 dB) | Near-imperceptible (-34 dB) | Imperceptible (ultrasonic, -34 dB) |
+| **Survives lossy compression** | No | No (but tolerates noise) | No |
+| **Survives additive noise** | No (bit errors) | Yes (mild noise) | No (LSB channel) |
+| **Sample rate requirement** | Any | >= 40 kHz | Output always 48 kHz |
+| **Visual verification** | No | No (spectrogram shows carriers) | Yes — text readable in spectrogram |
+| **Best for** | Lossless pipelines (WAV/FLAC) | Light interference environments | Visual watermarking + machine decode |
 
 For maximum capacity and fidelity in lossless pipelines, use **LSB**.
 For slightly more robust hiding in near-ultrasonic bands, use
-**frequency-band**.
+**frequency-band**.  For a human-readable visual watermark with machine-readable
+data recovery, use **spectext**.

@@ -111,6 +111,8 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          tools/audio_steg/minidsp_qr.png \
                          guides/audio/steg_lsb_invader.wav \
                          guides/audio/steg_lsb_qr.wav \
+                         guides/audio/steg_spectext.wav \
+                         guides/plots/steg_spectext_spectrogram.html \
                          guides/images/steg_recovered_invader.png \
                          guides/images/steg_recovered_qr.png \
                          docs/assets/mel-viz-demo.mp4 \

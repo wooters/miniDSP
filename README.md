@@ -44,6 +44,7 @@ A small C library of DSP (Digital Signal Processing) routines for audio applicat
 
 - **LSB steganography** -- hide messages or binary data in the lowest bit of 16-bit PCM samples; high capacity, inaudible distortion (~-90 dB).
 - **Frequency-band steganography** -- hide data as near-ultrasonic BFSK tones (18.5/19.5 kHz); lower capacity but more robust to noise.
+- **Spectrogram-text steganography** -- hybrid: LSB data encoding + spectrogram text art in the 18--23.5 kHz band; message is machine-decodable and visually readable in any spectrogram viewer.
 
 ### Filters (biquad.h)
 

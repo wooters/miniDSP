@@ -368,6 +368,193 @@ static int test_steg_encode_empty_message(void)
 }
 
 /* -----------------------------------------------------------------------
+ * Tests for MD_STEG_SPECTEXT (hybrid LSB + spectrogram text art)
+ * -----------------------------------------------------------------------*/
+
+/** Spectext capacity at 3 seconds / 44.1 kHz is limited by visual. */
+static int test_steg_spectext_capacity(void)
+{
+    /* 3 sec at 44.1 kHz => visual cap = floor(3.0 / 0.24) = 12 */
+    unsigned cap = MD_steg_capacity(132300, 44100.0, MD_STEG_SPECTEXT);
+    return cap == 12;
+}
+
+/** Spectext capacity at 30 seconds / 48 kHz. */
+static int test_steg_spectext_capacity_long(void)
+{
+    /* 30 sec => visual cap = floor(30.0 / 0.24) = 125 */
+    unsigned cap = MD_steg_capacity(1440000, 48000.0, MD_STEG_SPECTEXT);
+    return cap == 125;
+}
+
+/** Round-trip encode/decode at 48 kHz (no resampling needed). */
+static int test_steg_spectext_roundtrip_48k(void)
+{
+    const double sr = 48000.0;
+    const unsigned N = (unsigned)(sr * 3.0);  /* 3 seconds */
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    const char *secret = "HELLO";
+    unsigned enc = MD_steg_encode(host, stego, N, sr,
+                                  secret, MD_STEG_SPECTEXT);
+    if (enc == 0) { free(host); free(stego); return 0; }
+
+    char recovered[256];
+    unsigned dec = MD_steg_decode(stego, N, sr,
+                                  recovered, 256, MD_STEG_SPECTEXT);
+
+    int ok = (dec == enc) && (strcmp(recovered, secret) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Round-trip encode/decode at 44.1 kHz (resampling triggered). */
+static int test_steg_spectext_roundtrip_44k(void)
+{
+    const double sr = 44100.0;
+    const unsigned N = (unsigned)(sr * 3.0);  /* 3 seconds */
+    double *host = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    /* Output is at 48 kHz — compute required length. */
+    unsigned out_len = MD_resample_output_len(N, sr, 48000.0);
+    double *stego = malloc(out_len * sizeof(double));
+
+    const char *secret = "HI";
+    unsigned enc = MD_steg_encode(host, stego, N, sr,
+                                  secret, MD_STEG_SPECTEXT);
+    if (enc == 0) { free(host); free(stego); return 0; }
+
+    /* Decode from the 48 kHz output. */
+    char recovered[256];
+    unsigned dec = MD_steg_decode(stego, out_len, 48000.0,
+                                  recovered, 256, MD_STEG_SPECTEXT);
+
+    int ok = (dec == enc) && (strcmp(recovered, secret) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Visual truncation: 20-char message in 3-sec host, full message via decode. */
+static int test_steg_spectext_truncation(void)
+{
+    const double sr = 48000.0;
+    const unsigned N = (unsigned)(sr * 3.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    /* 20 chars, but visual cap is 12 at 3 sec. LSB can hold all 20. */
+    const char *secret = "TWENTY_CHAR_MESSAGE!";
+    unsigned enc = MD_steg_encode(host, stego, N, sr,
+                                  secret, MD_STEG_SPECTEXT);
+    if (enc != 20) { free(host); free(stego); return 0; }
+
+    char recovered[256];
+    unsigned dec = MD_steg_decode(stego, N, sr,
+                                  recovered, 256, MD_STEG_SPECTEXT);
+
+    int ok = (dec == 20) && (strcmp(recovered, secret) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Binary encode/decode round-trip via spectext. */
+static int test_steg_spectext_bytes_roundtrip(void)
+{
+    const double sr = 48000.0;
+    const unsigned N = (unsigned)(sr * 5.0);  /* 5 sec for capacity */
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.5, 440.0, sr);
+
+    unsigned char data[] = {0x89, 0x50, 0x4E, 0x00, 0xFF, 0xAB};
+    unsigned data_len = sizeof(data);
+
+    unsigned enc = MD_steg_encode_bytes(host, stego, N, sr,
+                                        data, data_len, MD_STEG_SPECTEXT);
+    if (enc != data_len) { free(host); free(stego); return 0; }
+
+    unsigned char recovered[256];
+    unsigned dec = MD_steg_decode_bytes(stego, N, sr,
+                                        recovered, sizeof(recovered),
+                                        MD_STEG_SPECTEXT);
+
+    int ok = (dec == data_len) && (memcmp(recovered, data, data_len) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Spectext decode produces same result as LSB decode on same signal. */
+static int test_steg_spectext_decode_equals_lsb(void)
+{
+    const double sr = 48000.0;
+    const unsigned N = (unsigned)(sr * 3.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    MD_steg_encode(host, stego, N, sr, "MATCH", MD_STEG_SPECTEXT);
+
+    char msg_spectext[256], msg_lsb[256];
+    unsigned dec_st = MD_steg_decode(stego, N, sr,
+                                     msg_spectext, 256, MD_STEG_SPECTEXT);
+    unsigned dec_lsb = MD_steg_decode(stego, N, sr,
+                                      msg_lsb, 256, MD_STEG_LSB);
+
+    int ok = (dec_st == dec_lsb) && (strcmp(msg_spectext, msg_lsb) == 0);
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Detect spectext-encoded signal returns MD_STEG_SPECTEXT. */
+static int test_steg_detect_spectext(void)
+{
+    const double sr = 48000.0;
+    const unsigned N = (unsigned)(sr * 3.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    MD_steg_encode(host, stego, N, sr, "VISIBLE", MD_STEG_SPECTEXT);
+
+    int payload_type = -1;
+    int method = MD_steg_detect(stego, N, sr, &payload_type);
+    int ok = (method == MD_STEG_SPECTEXT) && (payload_type == MD_STEG_TYPE_TEXT);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/** Detect plain LSB at 48 kHz still returns MD_STEG_LSB (no ultrasonic energy). */
+static int test_steg_detect_lsb_not_spectext(void)
+{
+    const double sr = 48000.0;
+    const unsigned N = (unsigned)(sr * 1.0);
+    double *host  = malloc(N * sizeof(double));
+    double *stego = malloc(N * sizeof(double));
+    MD_sine_wave(host, N, 0.8, 440.0, sr);
+
+    MD_steg_encode(host, stego, N, sr, "just lsb", MD_STEG_LSB);
+
+    int payload_type = -1;
+    int method = MD_steg_detect(stego, N, sr, &payload_type);
+    int ok = (method == MD_STEG_LSB) && (payload_type == MD_STEG_TYPE_TEXT);
+
+    free(stego);
+    free(host);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Public entry point
  * -----------------------------------------------------------------------*/
 
@@ -389,4 +576,13 @@ void run_steg_tests(void)
     RUN_TEST(test_steg_detect_clean);
     RUN_TEST(test_steg_detect_roundtrip);
     RUN_TEST(test_steg_encode_empty_message);
+    RUN_TEST(test_steg_spectext_capacity);
+    RUN_TEST(test_steg_spectext_capacity_long);
+    RUN_TEST(test_steg_spectext_roundtrip_48k);
+    RUN_TEST(test_steg_spectext_roundtrip_44k);
+    RUN_TEST(test_steg_spectext_truncation);
+    RUN_TEST(test_steg_spectext_bytes_roundtrip);
+    RUN_TEST(test_steg_spectext_decode_equals_lsb);
+    RUN_TEST(test_steg_detect_spectext);
+    RUN_TEST(test_steg_detect_lsb_not_spectext);
 }

@@ -16,7 +16,7 @@
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
- *   - Audio steganography (hide, detect, and recover secret messages or binary data via LSB or frequency-band encoding)
+ *   - Audio steganography (hide, detect, and recover secret messages or binary data via LSB, frequency-band, or spectrogram-text encoding)
  *
  * These are the kinds of building blocks you'd use in an audio processing
  * pipeline -- for example, estimating which direction a sound came from
@@ -1435,6 +1435,22 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
 #define MD_STEG_LSB       0
 /** Steganography method: near-ultrasonic frequency-band modulation (BFSK). */
 #define MD_STEG_FREQ_BAND 1
+/** Steganography method: hybrid LSB + spectrogram text art.
+ *
+ *  Encodes the message via LSB (machine-readable round-trip) and
+ *  simultaneously renders it as text in a spectrogram using sine tones
+ *  in the 18--23.5 kHz ultrasonic band (human-readable visual watermark).
+ *
+ *  The host signal is automatically upsampled to 48 kHz if its sample
+ *  rate is below 48 kHz, so the output buffer must be sized for
+ *  @c MD_resample_output_len(signal_len, sample_rate, 48000.0) samples
+ *  when the input rate is less than 48 kHz.
+ *
+ *  Visual capacity is limited by host duration: each character occupies
+ *  240 ms (8 bitmap columns at 30 ms each).  Messages longer than the
+ *  visual capacity are truncated for the spectrogram art, but the full
+ *  message is always recoverable via the LSB data channel. */
+#define MD_STEG_SPECTEXT  2
 
 /** Payload type flag: text (null-terminated string). */
 #define MD_STEG_TYPE_TEXT   0
@@ -1446,7 +1462,7 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
  *
  * @param signal_len  Length of the host signal in samples.
  * @param sample_rate Sample rate in Hz.
- * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @param method      MD_STEG_LSB, MD_STEG_FREQ_BAND, or MD_STEG_SPECTEXT.
  * @return            Maximum message bytes that fit (excluding null terminator).
  */
 unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method);
@@ -1467,12 +1483,18 @@ unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method);
  *   near-ultrasonic band (18.5 / 19.5 kHz).  Requires
  *   @p sample_rate >= 40000 Hz so the carriers remain below Nyquist.
  *
+ * - **MD_STEG_SPECTEXT** — hybrid: LSB data + spectrogram text art in the
+ *   18--23.5 kHz band.  Auto-upsamples to 48 kHz; output buffer must be
+ *   sized for the 48 kHz signal length when input rate < 48 kHz.
+ *
  * @param host        Input host signal (not modified).
- * @param output      Output stego signal (caller-allocated, same length).
+ * @param output      Output stego signal (caller-allocated; for MD_STEG_SPECTEXT
+ *                    with sample_rate < 48 kHz, must hold
+ *                    MD_resample_output_len(signal_len, sample_rate, 48000) samples).
  * @param signal_len  Length of host and output in samples.
  * @param sample_rate Sample rate in Hz.
  * @param message     Null-terminated message string to hide.
- * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @param method      MD_STEG_LSB, MD_STEG_FREQ_BAND, or MD_STEG_SPECTEXT.
  * @return            Number of message bytes encoded (0 on failure).
  *
  * @code
@@ -1497,7 +1519,7 @@ unsigned MD_steg_encode(const double *host, double *output,
  * @param sample_rate Sample rate in Hz.
  * @param message_out Output buffer for the decoded message (caller-allocated).
  * @param max_msg_len Size of @p message_out buffer (including null terminator).
- * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @param method      MD_STEG_LSB, MD_STEG_FREQ_BAND, or MD_STEG_SPECTEXT.
  * @return            Number of message bytes decoded (0 if none found).
  *
  * @code
@@ -1525,7 +1547,7 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
  * @param sample_rate Sample rate in Hz.
  * @param data        Pointer to the binary data to hide.
  * @param data_len    Length of @p data in bytes.
- * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @param method      MD_STEG_LSB, MD_STEG_FREQ_BAND, or MD_STEG_SPECTEXT.
  * @return            Number of data bytes encoded (0 on failure).
  *
  * @code
@@ -1553,7 +1575,7 @@ unsigned MD_steg_encode_bytes(const double *host, double *output,
  * @param sample_rate Sample rate in Hz.
  * @param data_out    Output buffer for the decoded bytes (caller-allocated).
  * @param max_len     Maximum number of bytes to write to @p data_out.
- * @param method      MD_STEG_LSB or MD_STEG_FREQ_BAND.
+ * @param method      MD_STEG_LSB, MD_STEG_FREQ_BAND, or MD_STEG_SPECTEXT.
  * @return            Number of data bytes decoded (0 if none found).
  *
  * @code
@@ -1583,8 +1605,8 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
  * @param sample_rate      Sample rate in Hz.
  * @param payload_type_out If non-null, receives MD_STEG_TYPE_TEXT or
  *                         MD_STEG_TYPE_BINARY when a method is detected.
- * @return                 MD_STEG_LSB, MD_STEG_FREQ_BAND, or -1 if no
- *                         steganographic content is detected.
+ * @return                 MD_STEG_LSB, MD_STEG_FREQ_BAND, MD_STEG_SPECTEXT,
+ *                         or -1 if no steganographic content is detected.
  *
  * @code
  * int payload_type;

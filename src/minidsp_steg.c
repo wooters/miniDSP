@@ -2,7 +2,7 @@
  * @file minidsp_steg.c
  * @brief Audio steganography: hide secret messages inside audio signals.
  *
- * Two methods are provided:
+ * Three methods are provided:
  *
  *   - **LSB (Least Significant Bit)** — encodes message bits in the lowest
  *     bit of a 16-bit PCM representation of each sample.  High capacity,
@@ -13,6 +13,11 @@
  *     in short time chips.  Lower capacity but survives mild resampling
  *     and compression.  Requires sample_rate >= 40000 Hz so the carrier
  *     frequencies remain below Nyquist.
+ *
+ *   - **Spectrogram text (spectext)** — hybrid: LSB for machine-readable
+ *     data + spectrogram text art in the 18-24 kHz ultrasonic band for
+ *     visual verification.  Auto-upsamples to 48 kHz.  The visual channel
+ *     uses a fixed 30 ms column width (240 ms per character).
  *
  * Both methods prepend a 32-bit little-endian header before the payload.
  * Bits 0–30 hold the message byte count; bit 31 is a payload type flag
@@ -366,6 +371,188 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
 }
 
 /* -----------------------------------------------------------------------
+ * Spectrogram text steganography (hybrid LSB + visual)
+ *
+ * Combines LSB encoding (for machine-readable decode) with spectrogram
+ * text art in the 18-24 kHz ultrasonic band (for visual verification).
+ * Auto-upsamples to 48 kHz so Nyquist >= 24 kHz.
+ *
+ * Each bitmap column occupies a fixed 30 ms of audio; each character
+ * is 8 columns (5 data + 3 spacing) = 240 ms.  The spectrogram text
+ * signal is scaled to SPECTEXT_AMP (0.02) after generation.
+ *
+ * Bit layout: identical to LSB (32-bit header + payload).
+ * ----------------------------------------------------------------------- */
+
+#define SPECTEXT_FREQ_LO   18000.0   /**< Bottom of visual band (Hz). */
+#define SPECTEXT_FREQ_HI   23500.0   /**< Top of visual band (Hz, below Nyquist). */
+#define SPECTEXT_COL_MS    30.0      /**< Column duration (ms). */
+#define SPECTEXT_COLS_PER_CHAR 8     /**< Bitmap columns per character. */
+#define SPECTEXT_TARGET_SR 48000.0   /**< Output sample rate (Hz). */
+#define SPECTEXT_AMP       0.02     /**< Spectrogram art amplitude. */
+#define SPECTEXT_NORM_PEAK 0.9      /**< MD_spectrogram_text peak. */
+
+/** Seconds per character in the spectrogram visual. */
+#define SPECTEXT_SEC_PER_CHAR \
+    (SPECTEXT_COL_MS / 1000.0 * SPECTEXT_COLS_PER_CHAR)
+
+/** Maximum number of visually displayable characters for a given duration. */
+static unsigned spectext_vis_capacity(double duration_sec)
+{
+    if (duration_sec <= 0.0) return 0;
+    return (unsigned)(duration_sec / SPECTEXT_SEC_PER_CHAR);
+}
+
+/** Compute the output signal length at 48 kHz for a given input. */
+static unsigned spectext_output_len(unsigned signal_len, double sample_rate)
+{
+    if (sample_rate >= SPECTEXT_TARGET_SR)
+        return signal_len;
+    return MD_resample_output_len(signal_len, sample_rate, SPECTEXT_TARGET_SR);
+}
+
+static unsigned spectext_capacity(unsigned signal_len, double sample_rate)
+{
+    double duration_sec = (double)signal_len / sample_rate;
+    unsigned vis_cap = spectext_vis_capacity(duration_sec);
+    unsigned out_len = spectext_output_len(signal_len, sample_rate);
+    unsigned lsb_cap = lsb_capacity(out_len);
+    return (vis_cap < lsb_cap) ? vis_cap : lsb_cap;
+}
+
+static unsigned spectext_encode(const double *host, double *output,
+                                unsigned signal_len, double sample_rate,
+                                const unsigned char *data, unsigned data_len,
+                                unsigned flags)
+{
+    double duration_sec = (double)signal_len / sample_rate;
+    unsigned out_len = spectext_output_len(signal_len, sample_rate);
+
+    /* Step 1: Upsample host to 48 kHz if needed.
+     * We need a mutable copy at 48 kHz to mix spectrogram art into
+     * BEFORE LSB encoding (LSB must be the last step, because adding
+     * any signal afterwards would disturb the LSB bits). */
+    double *mixed = malloc(out_len * sizeof(double));
+    assert(mixed != NULL);
+
+    if (sample_rate < SPECTEXT_TARGET_SR) {
+        MD_resample(host, signal_len, mixed, out_len,
+                    sample_rate, SPECTEXT_TARGET_SR, 32, 10.0);
+    } else {
+        memcpy(mixed, host, out_len * sizeof(double));
+    }
+
+    /* Step 2: Generate spectrogram text art and mix into host
+     * (before LSB so the LSB bits remain undisturbed). */
+    unsigned vis_chars = spectext_vis_capacity(duration_sec);
+    if (vis_chars > 0) {
+        /* For text payloads, show the message.
+         * For binary payloads, show "[BIN <N>B]". */
+        char vis_label[64];
+        const char *vis_text;
+
+        if (flags & PAYLOAD_TYPE_BIT) {
+            snprintf(vis_label, sizeof(vis_label), "[BIN %uB]", data_len);
+            vis_text = vis_label;
+        } else {
+            vis_text = (const char *)data;
+        }
+
+        unsigned text_len = (unsigned)strlen(vis_text);
+        if (text_len > vis_chars)
+            text_len = vis_chars;
+
+        /* Build a null-terminated substring if truncated. */
+        char *vis_substr = malloc(text_len + 1);
+        assert(vis_substr != NULL);
+        memcpy(vis_substr, vis_text, text_len);
+        vis_substr[text_len] = '\0';
+
+        double vis_duration = (double)text_len * SPECTEXT_SEC_PER_CHAR;
+
+        double *specbuf = calloc(out_len, sizeof(double));
+        assert(specbuf != NULL);
+
+        MD_spectrogram_text(specbuf, out_len, vis_substr,
+                            SPECTEXT_FREQ_LO, SPECTEXT_FREQ_HI,
+                            vis_duration, SPECTEXT_TARGET_SR);
+
+        /* Scale to steganographic amplitude and mix into host. */
+        double scale = SPECTEXT_AMP / SPECTEXT_NORM_PEAK;
+        unsigned spec_samples = (unsigned)(vis_duration * SPECTEXT_TARGET_SR);
+        if (spec_samples > out_len)
+            spec_samples = out_len;
+        for (unsigned i = 0; i < spec_samples; i++)
+            mixed[i] += specbuf[i] * scale;
+
+        free(specbuf);
+        free(vis_substr);
+    }
+
+    /* Step 3: LSB-encode the full message (last step — must not
+     * add any signal afterwards or the LSB bits get disturbed). */
+    unsigned encoded = lsb_encode(mixed, output, out_len,
+                                   data, data_len, flags);
+    free(mixed);
+
+    return encoded;
+}
+
+/** Probe for ultrasonic energy in the 18-24 kHz band.
+ *  Computes RMS of the signal bandpass-filtered to that range using
+ *  a simple DFT bin summation approach. */
+static double spectext_ultrasonic_rms(const double *signal,
+                                       unsigned signal_len,
+                                       double sample_rate)
+{
+    /* Use a short window from the signal to check for ultrasonic energy.
+     * We compute a DFT and sum energy in the 18-24 kHz bins. */
+    unsigned fft_len = 4096;
+    if (fft_len > signal_len)
+        fft_len = signal_len;
+
+    /* Compute magnitude spectrum (3-arg: signal, N, mag_out). */
+    unsigned spec_len = fft_len / 2 + 1;
+    double *mag = malloc(spec_len * sizeof(double));
+    assert(mag != NULL);
+
+    /* Use a segment from the middle of the signal. */
+    unsigned offset = 0;
+    if (signal_len > fft_len)
+        offset = (signal_len - fft_len) / 2;
+
+    double *windowed = malloc(fft_len * sizeof(double));
+    double *win = malloc(fft_len * sizeof(double));
+    assert(windowed != NULL && win != NULL);
+    MD_Gen_Hann_Win(win, fft_len);
+    for (unsigned i = 0; i < fft_len; i++)
+        windowed[i] = signal[offset + i] * win[i];
+    free(win);
+
+    MD_magnitude_spectrum(windowed, fft_len, mag);
+
+    /* Sum energy in the 18-24 kHz range. */
+    double bin_hz = sample_rate / (double)fft_len;
+    unsigned bin_lo = (unsigned)(SPECTEXT_FREQ_LO / bin_hz);
+    unsigned bin_hi = (unsigned)(SPECTEXT_FREQ_HI / bin_hz);
+    if (bin_hi >= spec_len)
+        bin_hi = spec_len - 1;
+
+    double energy = 0.0;
+    unsigned count = 0;
+    for (unsigned k = bin_lo; k <= bin_hi; k++) {
+        energy += mag[k] * mag[k];
+        count++;
+    }
+
+    free(windowed);
+    free(mag);
+
+    if (count == 0) return 0.0;
+    return sqrt(energy / (double)count);
+}
+
+/* -----------------------------------------------------------------------
  * Public API
  * ----------------------------------------------------------------------- */
 
@@ -373,10 +560,13 @@ unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method)
 {
     assert(signal_len > 0);
     assert(sample_rate > 0.0);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
+    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
+           method == MD_STEG_SPECTEXT);
 
     if (method == MD_STEG_LSB)
         return lsb_capacity(signal_len);
+    else if (method == MD_STEG_SPECTEXT)
+        return spectext_capacity(signal_len, sample_rate);
     else
         return freq_capacity(signal_len, sample_rate);
 }
@@ -392,7 +582,8 @@ static unsigned encode_common(const double *host, double *output,
     assert(signal_len > 0);
     assert(sample_rate > 0.0);
     assert(data != NULL);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
+    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
+           method == MD_STEG_SPECTEXT);
 
     if (method == MD_STEG_FREQ_BAND)
         assert(sample_rate >= 40000.0 &&
@@ -400,6 +591,9 @@ static unsigned encode_common(const double *host, double *output,
 
     if (method == MD_STEG_LSB)
         return lsb_encode(host, output, signal_len, data, data_len, flags);
+    else if (method == MD_STEG_SPECTEXT)
+        return spectext_encode(host, output, signal_len, sample_rate,
+                               data, data_len, flags);
     else
         return freq_encode(host, output, signal_len, sample_rate,
                            data, data_len, flags);
@@ -424,9 +618,10 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
     assert(sample_rate > 0.0);
     assert(data_out != NULL);
     assert(max_len > 0);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND);
+    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
+           method == MD_STEG_SPECTEXT);
 
-    if (method == MD_STEG_LSB)
+    if (method == MD_STEG_LSB || method == MD_STEG_SPECTEXT)
         return lsb_decode(stego, signal_len, data_out, max_len);
     else
         return freq_decode(stego, signal_len, sample_rate,
@@ -499,15 +694,28 @@ int MD_steg_detect(const double *signal, unsigned signal_len,
         }
     }
 
-    /* --- LSB probe --- */
+    /* --- LSB probe (also covers spectext, which uses LSB + ultrasonic art) --- */
     if (found_method < 0 && signal_len > HEADER_BITS) {
         unsigned raw_header = lsb_read_header(signal);
         unsigned msg_len = raw_header & LENGTH_MASK;
         unsigned capacity = lsb_capacity(signal_len);
 
         if (msg_len > 0 && msg_len <= capacity) {
-            found_method = MD_STEG_LSB;
-            found_header = raw_header;
+            /* Check for ultrasonic energy to distinguish spectext from LSB. */
+            if (sample_rate >= SPECTEXT_TARGET_SR) {
+                double ultra_rms = spectext_ultrasonic_rms(signal, signal_len,
+                                                           sample_rate);
+                if (ultra_rms > 1e-4) {
+                    found_method = MD_STEG_SPECTEXT;
+                    found_header = raw_header;
+                } else {
+                    found_method = MD_STEG_LSB;
+                    found_header = raw_header;
+                }
+            } else {
+                found_method = MD_STEG_LSB;
+                found_header = raw_header;
+            }
         }
     }
 

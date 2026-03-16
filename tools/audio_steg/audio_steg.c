@@ -92,14 +92,25 @@ static int write_double_as_wav(const char *path, const double *signal,
 
 static int parse_method(const char *str)
 {
-    if (strcmp(str, "lsb") == 0)  return MD_STEG_LSB;
-    if (strcmp(str, "freq") == 0) return MD_STEG_FREQ_BAND;
+    if (strcmp(str, "lsb") == 0)      return MD_STEG_LSB;
+    if (strcmp(str, "freq") == 0)     return MD_STEG_FREQ_BAND;
+    if (strcmp(str, "spectext") == 0) return MD_STEG_SPECTEXT;
     return -1;
 }
 
 static const char *method_name(int method)
 {
-    return (method == MD_STEG_LSB) ? "LSB" : "frequency-band";
+    if (method == MD_STEG_LSB)       return "LSB";
+    if (method == MD_STEG_SPECTEXT)  return "spectext";
+    return "frequency-band";
+}
+
+/** Return the CLI method string for --decode-image suggestions. */
+static const char *method_cli_name(int method)
+{
+    if (method == MD_STEG_LSB)       return "lsb";
+    if (method == MD_STEG_SPECTEXT)  return "spectext";
+    return "freq";
 }
 
 /* --------------------------------------------------------------------- */
@@ -150,17 +161,28 @@ static int encode_wav(int method, const char *message,
         return 1;
     }
 
-    double *stego = malloc(signal_len * sizeof(double));
+    /* Spectext outputs at 48 kHz — allocate for the larger signal. */
+    unsigned out_len = signal_len;
+    unsigned out_sr  = samprate;
+    if (method == MD_STEG_SPECTEXT) {
+        if (samprate < 48000) {
+            out_len = MD_resample_output_len(signal_len, (double)samprate,
+                                              48000.0);
+        }
+        out_sr = 48000;
+    }
+
+    double *stego = malloc(out_len * sizeof(double));
     if (!stego) { free(host); return 1; }
 
     unsigned encoded = MD_steg_encode(host, stego, signal_len,
                                       (double)samprate, message, method);
 
-    int ret = write_double_as_wav(outfile, stego, signal_len, samprate);
+    int ret = write_double_as_wav(outfile, stego, out_len, out_sr);
     if (ret == 0)
-        printf("Encoded %u bytes -> %s  (%u samples, %.3f s)\n",
-               encoded, outfile, signal_len,
-               (double)signal_len / (double)samprate);
+        printf("Encoded %u bytes -> %s  (%u samples, %.3f s, %u Hz)\n",
+               encoded, outfile, out_len,
+               (double)out_len / (double)out_sr, out_sr);
     else
         fprintf(stderr, "Error writing %s\n", outfile);
 
@@ -285,18 +307,29 @@ static int encode_image_wav(int method, const char *image_path,
         return 1;
     }
 
-    double *stego = malloc(signal_len * sizeof(double));
+    /* Spectext outputs at 48 kHz — allocate for the larger signal. */
+    unsigned out_len = signal_len;
+    unsigned out_sr  = samprate;
+    if (method == MD_STEG_SPECTEXT) {
+        if (samprate < 48000) {
+            out_len = MD_resample_output_len(signal_len, (double)samprate,
+                                              48000.0);
+        }
+        out_sr = 48000;
+    }
+
+    double *stego = malloc(out_len * sizeof(double));
     if (!stego) { free(host); free(data); return 1; }
 
     unsigned encoded = MD_steg_encode_bytes(host, stego, signal_len,
                                             (double)samprate,
                                             data, data_len, method);
 
-    int ret = write_double_as_wav(outfile, stego, signal_len, samprate);
+    int ret = write_double_as_wav(outfile, stego, out_len, out_sr);
     if (ret == 0)
-        printf("Encoded %u bytes -> %s  (%u samples, %.3f s)\n",
-               encoded, outfile, signal_len,
-               (double)signal_len / (double)samprate);
+        printf("Encoded %u bytes -> %s  (%u samples, %.3f s, %u Hz)\n",
+               encoded, outfile, out_len,
+               (double)out_len / (double)out_sr, out_sr);
     else
         fprintf(stderr, "Error writing %s\n", outfile);
 
@@ -407,7 +440,7 @@ static int auto_decode_wav(const char *infile)
 
         printf("Binary payload: %u bytes\n", decoded);
         printf("Use --decode-image %s %s -o OUTPUT to extract.\n",
-               method == MD_STEG_LSB ? "lsb" : "freq", infile);
+               method_cli_name(method), infile);
         return 0;
     }
 
@@ -504,8 +537,44 @@ static int self_test(void)
         printf("  Frequency-band PASSED\n");
     }
 
+    /* --- Spectext test (uses 48 kHz output) --- */
+    printf("\n=== Spectrogram text steganography (spectext) ===\n");
+    const char *spec_secret = "miniDSP";
+    printf("  Host: 3 s sine wave at 440 Hz, %.0f Hz sample rate\n", sr);
+    printf("  Capacity: %u chars\n",
+           MD_steg_capacity(N, sr, MD_STEG_SPECTEXT));
+    printf("  Message (%zu bytes): \"%s\"\n", strlen(spec_secret), spec_secret);
+
+    /* Spectext may upsample to 48 kHz — allocate for larger output. */
+    unsigned spec_out_len = MD_resample_output_len(N, sr, 48000.0);
+    double *stego_spec = malloc(spec_out_len * sizeof(double));
+    if (!stego_spec) {
+        fprintf(stderr, "allocation failed\n");
+        free(stego); free(host);
+        return 1;
+    }
+
+    unsigned enc_spec = MD_steg_encode(host, stego_spec, N, sr,
+                                        spec_secret, MD_STEG_SPECTEXT);
+    printf("  Encoded: %u bytes (output: %u samples at 48 kHz)\n",
+           enc_spec, spec_out_len);
+
+    memset(recovered, 0, sizeof(recovered));
+    unsigned dec_spec = MD_steg_decode(stego_spec, spec_out_len, 48000.0,
+                                        recovered, sizeof(recovered),
+                                        MD_STEG_SPECTEXT);
+    printf("  Decoded: %u bytes -> \"%s\"\n", dec_spec, recovered);
+
+    if (dec_spec != enc_spec || strcmp(recovered, spec_secret) != 0) {
+        printf("  Spectext FAILED: decoded message does not match!\n");
+        pass = 0;
+    } else {
+        printf("  Spectext PASSED\n");
+    }
+    free(stego_spec);
+
     if (pass)
-        printf("\nSelf-test PASSED: both methods recovered the message.\n");
+        printf("\nSelf-test PASSED: all methods recovered the message.\n");
     else
         printf("\nSelf-test FAILED.\n");
 
@@ -528,7 +597,7 @@ static void usage(const char *prog)
         "  %s --encode-image METHOD IMAGE [-i HOST] [-o OUT]\n"
         "  %s --decode-image [METHOD] FILE -o IMAGE_OUT\n"
         "\n"
-        "METHOD: \"lsb\" or \"freq\" (optional for decode — auto-detects if omitted)\n"
+        "METHOD: \"lsb\", \"freq\", or \"spectext\" (optional for decode — auto-detects if omitted)\n"
         "\n"
         "Examples:\n"
         "  %s --encode lsb \"secret message\" -o stego.wav\n"
@@ -547,7 +616,7 @@ int main(int argc, char *argv[])
     if (argc >= 4 && strcmp(argv[1], "--encode") == 0) {
         int method = parse_method(argv[2]);
         if (method < 0) {
-            fprintf(stderr, "Unknown method '%s' (use 'lsb' or 'freq')\n",
+            fprintf(stderr, "Unknown method '%s' (use 'lsb', 'freq', or 'spectext')\n",
                     argv[2]);
             return 1;
         }
@@ -576,7 +645,7 @@ int main(int argc, char *argv[])
     if (argc >= 4 && strcmp(argv[1], "--encode-image") == 0) {
         int method = parse_method(argv[2]);
         if (method < 0) {
-            fprintf(stderr, "Unknown method '%s' (use 'lsb' or 'freq')\n",
+            fprintf(stderr, "Unknown method '%s' (use 'lsb', 'freq', or 'spectext')\n",
                     argv[2]);
             return 1;
         }

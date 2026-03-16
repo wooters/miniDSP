@@ -48,6 +48,26 @@ static int write_wav(const char *path, const double *buf, unsigned N)
     return rc;
 }
 
+static int write_wav_sr(const char *path, const double *buf, unsigned N,
+                         unsigned sr)
+{
+    float *fbuf = malloc(N * sizeof(float));
+    if (!fbuf) {
+        fprintf(stderr, "allocation failed for %s\n", path);
+        return -1;
+    }
+    for (unsigned i = 0; i < N; i++)
+        fbuf[i] = (float)clamp_unit(buf[i]);
+
+    int rc = FIO_write_wav(path, fbuf, N, sr);
+    free(fbuf);
+    if (rc != 0)
+        fprintf(stderr, "failed to write %s\n", path);
+    else
+        printf("  %s\n", path);
+    return rc;
+}
+
 int main(void)
 {
     const unsigned N = (unsigned)(SAMPLE_RATE * DURATION);
@@ -222,6 +242,33 @@ int main(void)
 
             free(steg_out);
             free(steg_host);
+        }
+    }
+
+    /* --------------------------------------------------------------------
+     * Spectrogram-text steganography: host with "miniDSP" at 48 kHz
+     * ------------------------------------------------------------------*/
+    {
+        const unsigned host_n = (unsigned)(SAMPLE_RATE * 3.0);
+        double *host48 = malloc(host_n * sizeof(double));
+        if (!host48) {
+            fprintf(stderr, "allocation failed for spectext samples\n");
+        } else {
+            MD_sine_wave(host48, host_n, 0.8, 440.0, (double)SAMPLE_RATE);
+
+            unsigned out_n = MD_resample_output_len(host_n, (double)SAMPLE_RATE,
+                                                     48000.0);
+            double *steg_spec = malloc(out_n * sizeof(double));
+            if (!steg_spec) {
+                fprintf(stderr, "allocation failed for spectext output\n");
+            } else {
+                MD_steg_encode(host48, steg_spec, host_n, (double)SAMPLE_RATE,
+                               "miniDSP", MD_STEG_SPECTEXT);
+                write_wav_sr("guides/audio/steg_spectext.wav",
+                             steg_spec, out_n, 48000);
+                free(steg_spec);
+            }
+            free(host48);
         }
     }
 

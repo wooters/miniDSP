@@ -1683,6 +1683,122 @@ int main(void)
         free(steg_host);
     }
 
+    /* --- Spectext spectrogram: show "miniDSP" in the 18-23.5 kHz band --- */
+    {
+        const double host_sr = 44100.0;
+        const unsigned host_n = (unsigned)(host_sr * 3.0);
+        double *spec_host = malloc(host_n * sizeof(double));
+
+        if (!spec_host) {
+            fprintf(stderr, "allocation failed for spectext spectrogram\n");
+        } else {
+            MD_sine_wave(spec_host, host_n, 0.8, 440.0, host_sr);
+
+            unsigned out_n = MD_resample_output_len(host_n, host_sr, 48000.0);
+            double *spec_stego = malloc(out_n * sizeof(double));
+
+            if (!spec_stego) {
+                fprintf(stderr, "allocation failed for spectext output\n");
+            } else {
+                MD_steg_encode(spec_host, spec_stego, host_n, host_sr,
+                               "miniDSP", MD_STEG_SPECTEXT);
+
+                /* STFT spectrogram at 48 kHz */
+                const double out_sr = 48000.0;
+                const unsigned spec_fft = 2048u;
+                const unsigned spec_hop = 512u;
+                const unsigned spec_bins = spec_fft / 2 + 1;
+                unsigned spec_frames = (out_n >= spec_fft)
+                    ? (out_n - spec_fft) / spec_hop + 1 : 0;
+
+                double *win = malloc(spec_fft * sizeof(double));
+                double *frm = malloc(spec_fft * sizeof(double));
+                double *mag_buf = malloc(spec_bins * sizeof(double));
+                double *all_mag_buf = NULL;
+                if (spec_frames > 0)
+                    all_mag_buf = malloc(spec_frames * spec_bins * sizeof(double));
+
+                if (win && frm && mag_buf && all_mag_buf) {
+                    MD_Gen_Hann_Win(win, spec_fft);
+
+                    for (unsigned f = 0; f < spec_frames; f++) {
+                        unsigned start = f * spec_hop;
+                        for (unsigned i = 0; i < spec_fft; i++)
+                            frm[i] = spec_stego[start + i] * win[i];
+                        MD_magnitude_spectrum(frm, spec_fft, mag_buf);
+                        for (unsigned k = 0; k < spec_bins; k++)
+                            all_mag_buf[f * spec_bins + k] = mag_buf[k];
+                    }
+
+                    FILE *fp = fopen("guides/plots/steg_spectext_spectrogram.html", "w");
+                    if (!fp) {
+                        fprintf(stderr, "cannot open steg_spectext_spectrogram.html\n");
+                    } else {
+                        write_head(fp, "Spectrogram Text Steganography");
+
+                        fprintf(fp, "    const times = [");
+                        for (unsigned f = 0; f < spec_frames; f++) {
+                            fprintf(fp, "%.4f", (double)(f * spec_hop) / out_sr);
+                            if (f + 1 < spec_frames) fprintf(fp, ",");
+                        }
+                        fprintf(fp, "];\n");
+
+                        fprintf(fp, "    const freqs = [");
+                        for (unsigned k = 0; k < spec_bins; k++) {
+                            fprintf(fp, "%.1f", (double)k * out_sr / (double)spec_fft);
+                            if (k + 1 < spec_bins) fprintf(fp, ",");
+                        }
+                        fprintf(fp, "];\n");
+
+                        fprintf(fp, "    const z = [\n");
+                        for (unsigned k = 0; k < spec_bins; k++) {
+                            fprintf(fp, "      [");
+                            for (unsigned f = 0; f < spec_frames; f++) {
+                                double db = 20.0 * log10(fmax(
+                                    all_mag_buf[f * spec_bins + k]
+                                    / (double)spec_fft, 1e-6));
+                                fprintf(fp, "%.1f", db);
+                                if (f + 1 < spec_frames) fprintf(fp, ",");
+                            }
+                            fprintf(fp, "]");
+                            if (k + 1 < spec_bins) fprintf(fp, ",");
+                            fprintf(fp, "\n");
+                        }
+                        fprintf(fp, "    ];\n");
+
+                        fprintf(fp,
+                            "    Plotly.newPlot('plot', [{\n"
+                            "      type: 'heatmap',\n"
+                            "      x: times, y: freqs, z: z,\n"
+                            "      colorscale: 'Viridis',\n"
+                            "      zmin: -80, zmax: 0,\n"
+                            "      colorbar: { title: 'dB', thickness: 12 },\n"
+                            "      hovertemplate: "
+                            "'t: %%{x:.3f} s<br>f: %%{y:.0f} Hz<br>%%{z:.0f} dB<extra></extra>'\n"
+                            "    }], {\n"
+                            "      title: { text: 'Spectext Stego \\u2014 \\\"miniDSP\\\" in 18\\u201323.5 kHz',"
+                            " font: { size: 13 } },\n"
+                            "      xaxis: { title: 'Time (s)' },\n"
+                            "      yaxis: { title: 'Frequency (Hz)' },\n"
+                            "      margin: { t: 35, r: 80, b: 50, l: 60 },\n"
+                            "      height: 360\n"
+                            "    }, { responsive: true });\n");
+
+                        write_foot(fp);
+                        fclose(fp);
+                        printf("  guides/plots/steg_spectext_spectrogram.html\n");
+                    }
+                }
+                free(all_mag_buf);
+                free(mag_buf);
+                free(frm);
+                free(win);
+                free(spec_stego);
+            }
+            free(spec_host);
+        }
+    }
+
     MD_shutdown();
     free(conv_in);
     free(work_b);

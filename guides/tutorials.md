@@ -18,7 +18,7 @@ and shows the resulting plots.
 - \subpage dtmf — [DTMF](https://en.wikipedia.org/wiki/Dual-tone_multi-frequency_signaling) tone detection and generation with ITU-T Q.24 timing.
 - \subpage spectrogram-text — Synthesise audio that displays readable text in a spectrogram.
 - \subpage shepard-tone — Generate the auditory illusion of endlessly rising or falling pitch.
-- \subpage audio-steganography — Hide secret messages inside audio signals using [LSB](https://en.wikipedia.org/wiki/Bit_numbering#LSb_0_bit_numbering) or frequency-band encoding.
+- \subpage audio-steganography — Hide secret messages inside audio signals using [LSB](https://en.wikipedia.org/wiki/Bit_numbering#LSb_0_bit_numbering), frequency-band, or spectrogram-text encoding.
 - \subpage resampling — Convert signals between sample rates using a polyphase sinc resampler.
 
 ## Tools
