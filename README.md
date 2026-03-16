@@ -6,6 +6,7 @@
 [![Language: C](https://img.shields.io/badge/language-C17-orange)](https://en.wikipedia.org/wiki/C17_(C_standard_revision))
 
 A small C library of DSP (Digital Signal Processing) routines for audio applications.
+Builds and runs on **Ubuntu** and **macOS**. Windows is untested — pull requests welcome.
 
 **[Read the full documentation](https://wooters.github.io/miniDSP/)** -- API reference, tutorials, and interactive examples.
 
@@ -103,6 +104,58 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 
 - Record from the microphone and play back to speakers via PortAudio
 - Non-blocking API with callback support
+
+## Build and Test
+
+### Dependencies
+
+Install the following libraries before building:
+
+| Library | Purpose | Debian/Ubuntu | macOS (Homebrew) |
+|---------|---------|--------------|------------------|
+| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
+| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
+| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
+| [Doxygen](https://www.doxygen.nl/) | API docs generation (optional) | `apt install doxygen` | `brew install doxygen` |
+| [Apple container](https://github.com/apple/container) | Linux container testing (optional) | — | Install from [GitHub](https://github.com/apple/container) |
+
+The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
+
+### Compile the library
+
+```sh
+make            # builds libminidsp.a
+```
+
+### Run the test suite
+
+```sh
+make test       # builds and runs all tests
+```
+
+### Test inside an Ubuntu container
+
+To verify the library builds and passes all tests on Linux (Ubuntu 24.04):
+
+```sh
+make container-test   # builds image, then runs make test inside the container
+```
+
+This requires the Apple [container](https://github.com/apple/container) CLI on macOS.
+
+### Generate API documentation
+
+```sh
+make docs       # generates HTML docs in docs/html
+```
+
+### Install git hooks
+
+A pre-push hook is included that runs `make test` and `make container-test` before allowing pushes to `main`:
+
+```sh
+make install-hooks
+```
 
 ## Use in your project
 
@@ -416,58 +469,16 @@ cd /tmp/viz && python3 -m http.server 8000
 The `samples/` directory contains audio files ready to use with mel_viz.
 See the [mel_viz documentation](https://wooters.github.io/miniDSP/mel-viz.html) for details.
 
+### audio_steg -- Audio Steganography Tool
+
+Hide and recover secret messages or binary data (text, images) in WAV files. Supports LSB, frequency-band, and spectrogram-text steganography methods with auto-detection on decode.
+
+```sh
+make tools
+./tools/audio_steg/audio_steg --encode lsb "secret message" -i host.wav -o stego.wav
+./tools/audio_steg/audio_steg --decode stego.wav
+```
+
 ## Python Bindings
 
 Python bindings for miniDSP are available in the [pyminidsp](https://github.com/wooters/pyminidsp) repository.
-
-## Build and Test
-
-### Dependencies
-
-Install the following libraries before building:
-
-| Library | Purpose | Debian/Ubuntu | macOS (Homebrew) |
-|---------|---------|--------------|------------------|
-| [FFTW3](http://www.fftw.org/) | Fast Fourier Transform | `apt install libfftw3-dev` | `brew install fftw` |
-| [PortAudio](http://portaudio.com/) | Live audio I/O | `apt install portaudio19-dev` | `brew install portaudio` |
-| [libsndfile](http://libsndfile.github.io/libsndfile/) | Audio file reading | `apt install libsndfile1-dev` | `brew install libsndfile` |
-| [Doxygen](https://www.doxygen.nl/) | API docs generation (optional) | `apt install doxygen` | `brew install doxygen` |
-| [Apple container](https://github.com/apple/container) | Linux container testing (optional) | — | macOS 26+ built-in |
-
-The Makefiles auto-detect Homebrew paths on macOS (both Apple Silicon and Intel).
-
-### Compile the library
-
-```sh
-make            # builds libminidsp.a
-```
-
-### Run the test suite
-
-```sh
-make test       # builds and runs all tests
-```
-
-### Test inside an Ubuntu container
-
-To verify the library builds and passes all tests on Linux (Ubuntu 24.04):
-
-```sh
-make container-test   # builds image, then runs make test inside the container
-```
-
-This requires the Apple [container](https://github.com/apple/container) CLI on macOS 26+.
-
-### Generate API documentation
-
-```sh
-make docs       # generates HTML docs in docs/html
-```
-
-### Install git hooks
-
-A pre-push hook is included that runs `make test` and `make container-test` before allowing pushes to `main`:
-
-```sh
-make install-hooks
-```
