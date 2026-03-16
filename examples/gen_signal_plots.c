@@ -25,6 +25,7 @@
 #include <string.h>
 #include <math.h>
 #include "minidsp.h"
+#include "fileio.h"
 #include "plot_html.h"
 
 /* Signal parameters: fs = N_SIGNAL = 8192 gives bin k = k Hz exactly,
@@ -1685,14 +1686,22 @@ int main(void)
 
     /* --- Spectext spectrogram: show "miniDSP" in the 18-23.5 kHz band --- */
     {
-        const double host_sr = 44100.0;
-        const unsigned host_n = (unsigned)(host_sr * 3.0);
-        double *spec_host = malloc(host_n * sizeof(double));
-
-        if (!spec_host) {
-            fprintf(stderr, "allocation failed for spectext spectrogram\n");
+        float *fdata = NULL;
+        size_t datalen = 0;
+        unsigned file_sr = 0;
+        if (FIO_read_audio("samples/sa2.wav", &fdata, &datalen, &file_sr, 1) != 0) {
+            fprintf(stderr, "failed to read samples/sa2.wav for spectext plot\n");
         } else {
-            MD_sine_wave(spec_host, host_n, 0.8, 440.0, host_sr);
+            const double host_sr = (double)file_sr;
+            const unsigned host_n = (unsigned)datalen;
+            double *spec_host = malloc(host_n * sizeof(double));
+            if (!spec_host) {
+                fprintf(stderr, "allocation failed for spectext spectrogram\n");
+                free(fdata);
+            } else {
+            for (unsigned i = 0; i < host_n; i++)
+                spec_host[i] = (double)fdata[i];
+            free(fdata);
 
             unsigned out_n = MD_resample_output_len(host_n, host_sr, 48000.0);
             double *spec_stego = malloc(out_n * sizeof(double));
@@ -1703,10 +1712,10 @@ int main(void)
                 MD_steg_encode(spec_host, spec_stego, host_n, host_sr,
                                "miniDSP", MD_STEG_SPECTEXT);
 
-                /* STFT spectrogram at 48 kHz */
+                /* STFT spectrogram at 48 kHz — tiny hop for sharp text */
                 const double out_sr = 48000.0;
-                const unsigned spec_fft = 2048u;
-                const unsigned spec_hop = 512u;
+                const unsigned spec_fft = 1024u;
+                const unsigned spec_hop = 64u;
                 const unsigned spec_bins = spec_fft / 2 + 1;
                 unsigned spec_frames = (out_n >= spec_fft)
                     ? (out_n - spec_fft) / spec_hop + 1 : 0;
@@ -1796,6 +1805,7 @@ int main(void)
                 free(spec_stego);
             }
             free(spec_host);
+        }
         }
     }
 

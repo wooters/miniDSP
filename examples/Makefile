@@ -34,7 +34,7 @@ gen_audio_samples: gen_audio_samples.c ../libminidsp.a
 	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lsndfile -lm
 
 gen_signal_plots: gen_signal_plots.c ../libminidsp.a
-	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lm
+	$(CC) $(CFLAGS) -o $@ $< -L.. -lminidsp $(LDFLAGS) -lfftw3 -lsndfile -lm
 
 # Run the examples and generate the interactive HTML plots
 .PHONY: plot

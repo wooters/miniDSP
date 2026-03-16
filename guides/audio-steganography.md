@@ -424,9 +424,10 @@ The ultrasonic tones at 18--23.5 kHz are far above the audible range.
 <iframe src="steg_spectext_spectrogram.html" style="width:100%;height:380px;border:1px solid #ddd;border-radius:4px;" frameborder="0"></iframe>
 \endhtmlonly
 
-The 440 Hz host tone is visible at the bottom of the spectrogram.  The text
-"miniDSP" is rendered in the 18--23.5 kHz band near the top, using the 5x7
-bitmap font from `MD_spectrogram_text()`.
+The host audio — a [TIMIT](https://en.wikipedia.org/wiki/TIMIT) sentence
+("Don't ask me to carry an oily rag like that.") — is visible at the bottom
+of the spectrogram.  The text "miniDSP" is rendered in the 18--23.5 kHz band
+near the top, using the 5x7 bitmap font from `MD_spectrogram_text()`.
 
 ### Trade-offs
 

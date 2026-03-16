@@ -246,29 +246,38 @@ int main(void)
     }
 
     /* --------------------------------------------------------------------
-     * Spectrogram-text steganography: host with "miniDSP" at 48 kHz
+     * Spectrogram-text steganography: sa2.wav host with "miniDSP" at 48 kHz
      * ------------------------------------------------------------------*/
     {
-        const unsigned host_n = (unsigned)(SAMPLE_RATE * 3.0);
-        double *host48 = malloc(host_n * sizeof(double));
-        if (!host48) {
-            fprintf(stderr, "allocation failed for spectext samples\n");
+        float *fdata = NULL;
+        size_t datalen = 0;
+        unsigned sr = 0;
+        if (FIO_read_audio("samples/sa2.wav", &fdata, &datalen, &sr, 1) != 0) {
+            fprintf(stderr, "failed to read samples/sa2.wav for spectext\n");
         } else {
-            MD_sine_wave(host48, host_n, 0.8, 440.0, (double)SAMPLE_RATE);
-
-            unsigned out_n = MD_resample_output_len(host_n, (double)SAMPLE_RATE,
-                                                     48000.0);
-            double *steg_spec = malloc(out_n * sizeof(double));
-            if (!steg_spec) {
-                fprintf(stderr, "allocation failed for spectext output\n");
+            unsigned host_n = (unsigned)datalen;
+            double *host = malloc(host_n * sizeof(double));
+            if (!host) {
+                fprintf(stderr, "allocation failed for spectext host\n");
             } else {
-                MD_steg_encode(host48, steg_spec, host_n, (double)SAMPLE_RATE,
-                               "miniDSP", MD_STEG_SPECTEXT);
-                write_wav_sr("guides/audio/steg_spectext.wav",
-                             steg_spec, out_n, 48000);
-                free(steg_spec);
+                for (unsigned i = 0; i < host_n; i++)
+                    host[i] = (double)fdata[i];
+
+                unsigned out_n = MD_resample_output_len(host_n, (double)sr,
+                                                         48000.0);
+                double *steg_spec = malloc(out_n * sizeof(double));
+                if (!steg_spec) {
+                    fprintf(stderr, "allocation failed for spectext output\n");
+                } else {
+                    MD_steg_encode(host, steg_spec, host_n, (double)sr,
+                                   "miniDSP", MD_STEG_SPECTEXT);
+                    write_wav_sr("guides/audio/steg_spectext.wav",
+                                 steg_spec, out_n, 48000);
+                    free(steg_spec);
+                }
+                free(host);
             }
-            free(host48);
+            free(fdata);
         }
     }
 

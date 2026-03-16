@@ -374,17 +374,17 @@ static int test_steg_encode_empty_message(void)
 /** Spectext capacity at 3 seconds / 44.1 kHz is limited by visual. */
 static int test_steg_spectext_capacity(void)
 {
-    /* 3 sec at 44.1 kHz => visual cap = floor(3.0 / 0.24) = 12 */
+    /* 3 sec - 0.25 s pad = 2.75 s available => floor(2.75 / 0.24) = 11 */
     unsigned cap = MD_steg_capacity(132300, 44100.0, MD_STEG_SPECTEXT);
-    return cap == 12;
+    return cap == 11;
 }
 
 /** Spectext capacity at 30 seconds / 48 kHz. */
 static int test_steg_spectext_capacity_long(void)
 {
-    /* 30 sec => visual cap = floor(30.0 / 0.24) = 125 */
+    /* 30 sec - 0.25 s pad = 29.75 s available => floor(29.75 / 0.24) = 123 */
     unsigned cap = MD_steg_capacity(1440000, 48000.0, MD_STEG_SPECTEXT);
-    return cap == 125;
+    return cap == 123;
 }
 
 /** Round-trip encode/decode at 48 kHz (no resampling needed). */

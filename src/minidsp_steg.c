@@ -391,16 +391,19 @@ static unsigned freq_decode(const double *stego, unsigned signal_len,
 #define SPECTEXT_TARGET_SR 48000.0   /**< Output sample rate (Hz). */
 #define SPECTEXT_AMP       0.02     /**< Spectrogram art amplitude. */
 #define SPECTEXT_NORM_PEAK 0.9      /**< MD_spectrogram_text peak. */
+#define SPECTEXT_PAD_SEC   0.25     /**< Silence before spectrogram text (s). */
 
 /** Seconds per character in the spectrogram visual. */
 #define SPECTEXT_SEC_PER_CHAR \
     (SPECTEXT_COL_MS / 1000.0 * SPECTEXT_COLS_PER_CHAR)
 
-/** Maximum number of visually displayable characters for a given duration. */
+/** Maximum number of visually displayable characters for a given duration.
+ *  Subtracts the leading pad from the available time. */
 static unsigned spectext_vis_capacity(double duration_sec)
 {
-    if (duration_sec <= 0.0) return 0;
-    return (unsigned)(duration_sec / SPECTEXT_SEC_PER_CHAR);
+    double available = duration_sec - SPECTEXT_PAD_SEC;
+    if (available <= 0.0) return 0;
+    return (unsigned)(available / SPECTEXT_SEC_PER_CHAR);
 }
 
 /** Compute the output signal length at 48 kHz for a given input. */
@@ -477,13 +480,15 @@ static unsigned spectext_encode(const double *host, double *output,
                             SPECTEXT_FREQ_LO, SPECTEXT_FREQ_HI,
                             vis_duration, SPECTEXT_TARGET_SR);
 
-        /* Scale to steganographic amplitude and mix into host. */
+        /* Scale to steganographic amplitude and mix into host,
+         * offset by the leading pad so text doesn't start at t=0. */
         double scale = SPECTEXT_AMP / SPECTEXT_NORM_PEAK;
+        unsigned pad_samples = (unsigned)(SPECTEXT_PAD_SEC * SPECTEXT_TARGET_SR);
         unsigned spec_samples = (unsigned)(vis_duration * SPECTEXT_TARGET_SR);
-        if (spec_samples > out_len)
-            spec_samples = out_len;
+        if (pad_samples + spec_samples > out_len)
+            spec_samples = (out_len > pad_samples) ? out_len - pad_samples : 0;
         for (unsigned i = 0; i < spec_samples; i++)
-            mixed[i] += specbuf[i] * scale;
+            mixed[pad_samples + i] += specbuf[i] * scale;
 
         free(specbuf);
         free(vis_substr);
