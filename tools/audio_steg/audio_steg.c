@@ -7,14 +7,14 @@
  *   1) No arguments — self-test: generate a host signal, encode a message
  *      using both LSB and frequency-band methods, decode, and verify.
  *
- *   2) --encode METHOD MESSAGE [-i HOST.wav] [-o STEGO.wav]
+ *   2) --encode METHOD MESSAGE [-i AUDIO_HOST.wav] [-o STEGO.wav]
  *      Encode a text message into a host WAV file.
  *
  *   3) --decode [METHOD] FILE
  *      Decode a hidden text message from a stego WAV file.
  *      METHOD is optional — omit it to auto-detect.
  *
- *   4) --encode-image METHOD IMAGE [-i HOST.wav] [-o STEGO.wav]
+ *   4) --encode-image METHOD IMAGE [-i AUDIO_HOST.wav] [-o STEGO.wav]
  *      Encode a binary file (e.g. PNG image) into a host WAV file.
  *
  *   5) --decode-image [METHOD] FILE -o IMAGE_OUT
@@ -592,20 +592,21 @@ static void usage(const char *prog)
         "Usage:\n"
         "  %s                                              (self-test)\n"
         "  %s FILE                                         (auto-detect)\n"
-        "  %s --encode METHOD MSG [-i HOST] [-o OUT]\n"
+        "  %s --encode METHOD MSG [-i AUDIO_HOST] [-o OUT]\n"
         "  %s --decode [METHOD] FILE\n"
-        "  %s --encode-image METHOD IMAGE [-i HOST] [-o OUT]\n"
+        "  %s --encode-image METHOD IMAGE [-i AUDIO_HOST] [-o OUT]\n"
         "  %s --decode-image [METHOD] FILE -o IMAGE_OUT\n"
         "\n"
         "METHOD: \"lsb\", \"freq\", or \"spectext\" (optional for decode — auto-detects if omitted)\n"
         "\n"
         "Examples:\n"
         "  %s --encode lsb \"secret message\" -o stego.wav\n"
+        "  %s --encode lsb \"secret message\" -i host.wav -o stego.wav\n"
         "  %s --decode stego.wav\n"
         "  %s stego.wav\n"
         "  %s --encode-image lsb space_invader.png -o stego.wav\n"
         "  %s --decode-image stego.wav -o recovered.png\n",
-        prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+        prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 int main(int argc, char *argv[])
