@@ -43,20 +43,57 @@ while read local_ref local_sha remote_ref remote_sha; do
             echo ""
             echo "All tests passed -- pushing to main."
 
-            # Remind about version tagging if HEAD is untagged
+            # --- VERSION / TAG STATUS ---
             latest_tag=$(git describe --tags --abbrev=0 2>/dev/null)
             if [ -n "$latest_tag" ]; then
+                version=$(cat VERSION 2>/dev/null)
                 head_tags=$(git tag --points-at HEAD 2>/dev/null)
-                if [ -z "$head_tags" ]; then
-                    count=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null)
-                    version=$(cat VERSION 2>/dev/null)
+                count=$(git rev-list "${latest_tag}..HEAD" --count 2>/dev/null)
+                # Strip leading 'v' from tag for comparison
+                tag_version=$(echo "$latest_tag" | sed 's/^v//')
+
+                echo ""
+                echo "================================================"
+                echo "  VERSION / TAG STATUS"
+                echo "================================================"
+                echo "  Latest tag:     ${latest_tag}"
+                echo "  VERSION file:   ${version:-unknown}"
+                echo "  Commits since:  ${count:-0}"
+                echo "------------------------------------------------"
+
+                if [ -n "$head_tags" ]; then
+                    # State 1: HEAD is already tagged
+                    echo "  STATUS: TAG OK"
+                    echo "  HEAD is tagged: ${head_tags}"
+                    echo "  No action needed."
+                elif [ "${version}" != "${tag_version}" ]; then
+                    # State 2: VERSION was bumped but tag not yet created
+                    echo "  STATUS: READY TO TAG"
+                    echo "  VERSION (${version}) differs from latest tag (${tag_version})."
+                    echo "  Action: create the tag now:"
                     echo ""
-                    echo "================================================"
-                    echo "  VERSION CHECK: ${count} commits since ${latest_tag}"
-                    echo "  VERSION file says: ${version:-unknown}"
-                    echo "  Consider: git tag -a v${version} -m \"v${version}\""
-                    echo "================================================"
+                    echo "    git tag -a v${version} -m \"v${version}\""
+                    echo "    git push --tags"
+                else
+                    # State 3: VERSION matches latest tag but new commits exist
+                    echo "  STATUS: VERSION NOT BUMPED"
+                    echo "  VERSION (${version}) still matches latest tag (${latest_tag})."
+                    echo "  ${count} commit(s) since ${latest_tag}:"
+                    echo ""
+                    if [ "$count" -le 10 ] 2>/dev/null; then
+                        git log --oneline "${latest_tag}..HEAD" | sed 's/^/    /'
+                    else
+                        git log --oneline -10 "${latest_tag}..HEAD" | sed 's/^/    /'
+                        echo "    ... and $((count - 10)) more"
+                    fi
+                    echo ""
+                    echo "  Action: review the commits above and decide on a version bump:"
+                    echo "    1. Edit VERSION file (e.g., patch: $(echo "$version" | awk -F. '{print $1"."$2"."$3+1}'))"
+                    echo "    2. Commit: git add VERSION && git commit -m \"Bump version to \$(cat VERSION)\""
+                    echo "    3. Tag:    git tag -a v\$(cat VERSION) -m \"v\$(cat VERSION)\""
+                    echo "    4. Push:   git push && git push --tags"
                 fi
+                echo "================================================"
             fi
 
             exit 0
