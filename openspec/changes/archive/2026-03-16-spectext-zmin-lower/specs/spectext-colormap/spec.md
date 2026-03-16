@@ -1,3 +1,5 @@
+## MODIFIED Requirements
+
 ### Requirement: Spectext spectrograms use Hot colormap by default
 The spectext spectrogram HTML output (both `gen_signal_plots.c` docs assets and `spectrogram_text.c` example program) SHALL use the Plotly `'Hot'` colorscale instead of `'Viridis'` for spectrogram text art visualizations. The dB range SHALL be `zmin: -100, zmax: 0`.
 
@@ -23,15 +25,8 @@ The `spectrogram_text.c` example program SHALL use a 256-entry `Hot` colormap lo
 - **WHEN** `spectrogram_text --colormap grayscale` is run
 - **THEN** pixels SHALL be colored using linear grayscale with the [-100, 0] dB range
 
-### Requirement: Non-spectext spectrograms are unchanged
-All spectrogram visualizations that are NOT spectrogram text art (DTMF, chirp, resampler, brickwall, etc.) SHALL continue using `colorscale: 'Viridis'`.
-
-#### Scenario: DTMF spectrogram retains Viridis
-- **WHEN** `gen_signal_plots` generates DTMF-related spectrogram HTML
-- **THEN** the Plotly heatmap trace SHALL specify `colorscale: 'Viridis'`
-
 ### Requirement: Docs HTML assets are regenerated
-The tracked HTML files `guides/plots/spectext_hello_spectrogram.html` and `guides/plots/steg_spectext_spectrogram.html` SHALL be regenerated with the new settings after C code changes.
+The tracked HTML files `guides/plots/spectext_hello_spectrogram.html` and `guides/plots/steg_spectext_spectrogram.html` SHALL be regenerated with the new -100 dB floor after the C code changes.
 
 #### Scenario: Regenerated spectext docs assets
 - **WHEN** `make docs` is run after the code changes

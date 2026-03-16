@@ -143,7 +143,7 @@ static int write_html(const char *path, const double *spec_db,
         "      y: freqs,\n"
         "      z: z,\n"
         "      colorscale: 'Hot',\n"
-        "      zmin: -80,\n"
+        "      zmin: -100,\n"
         "      zmax: 0,\n"
         "      colorbar: { title: 'dB', thickness: 15 },\n"
         "      hovertemplate: 't: %%{x:.3f} s<br>f: %%{y:.0f} Hz<br>"
@@ -175,7 +175,7 @@ static int write_png(const char *path, const double *spec_db,
     unsigned char *pixels = malloc(width * height * 3);
     if (!pixels) { fprintf(stderr, "allocation failed\n"); return -1; }
 
-    double db_min = -80.0;
+    double db_min = -100.0;
     double db_max = 0.0;
 
     for (unsigned y = 0; y < height; y++) {
