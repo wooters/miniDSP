@@ -565,6 +565,60 @@ void MD_mel_energies(const double *signal, unsigned N,
     }
 }
 
+/* -----------------------------------------------------------------------
+ * Public API: FFT-based brickwall lowpass filter
+ * -----------------------------------------------------------------------*/
+
+void MD_lowpass_brickwall(double *signal, unsigned len,
+                          double cutoff_hz, double sample_rate)
+{
+    assert(signal != NULL);
+    assert(len > 0);
+    assert(cutoff_hz > 0.0);
+    assert(sample_rate > 0.0);
+    assert(cutoff_hz < sample_rate / 2.0);
+
+    unsigned num_bins = len / 2 + 1;
+
+    /* Allocate buffers for one-off FFT round-trip */
+    double *in_buf = malloc(len * sizeof(double));
+    fftw_complex *freq = fftw_alloc_complex(num_bins);
+    assert(in_buf != NULL);
+    assert(freq != NULL);
+
+    memcpy(in_buf, signal, len * sizeof(double));
+
+    /* Create one-off plans (FFTW_ESTIMATE — no measurement overhead) */
+    fftw_plan fwd = fftw_plan_dft_r2c_1d(
+        (int)len, in_buf, freq, FFTW_ESTIMATE | FFTW_DESTROY_INPUT);
+    fftw_plan inv = fftw_plan_dft_c2r_1d(
+        (int)len, freq, signal, FFTW_ESTIMATE | FFTW_DESTROY_INPUT);
+    assert(fwd != NULL);
+    assert(inv != NULL);
+
+    /* Forward FFT */
+    fftw_execute(fwd);
+
+    /* Zero all bins above the cutoff frequency */
+    unsigned cutoff_bin = (unsigned)(cutoff_hz * (double)len / sample_rate);
+    for (unsigned k = cutoff_bin + 1; k < num_bins; k++) {
+        freq[k] = 0.0;
+    }
+
+    /* Inverse FFT (writes directly into signal buffer) */
+    fftw_execute(inv);
+
+    /* FFTW's c2r is unnormalized — divide by N */
+    for (unsigned i = 0; i < len; i++) {
+        signal[i] /= (double)len;
+    }
+
+    fftw_destroy_plan(inv);
+    fftw_destroy_plan(fwd);
+    fftw_free(freq);
+    free(in_buf);
+}
+
 void MD_mfcc(const double *signal, unsigned N,
              double sample_rate,
              unsigned num_mels, unsigned num_coeffs,

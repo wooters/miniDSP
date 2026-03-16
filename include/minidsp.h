@@ -12,7 +12,7 @@
  *   - Signal generators (sine, white noise, impulse, chirp, square, sawtooth, Shepard tone)
  *   - FIR filtering, convolution, and lowpass FIR design (time-domain and FFT overlap-add)
  *   - Sample rate conversion (polyphase sinc resampler)
- *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, and MFCCs
+ *   - FFT-based magnitude spectrum, power spectral density, STFT, mel filterbanks, MFCCs, and brickwall lowpass filtering
  *   - DTMF tone detection (ITU-T Q.24) and generation
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
@@ -832,6 +832,50 @@ void MD_mfcc(const double *signal, unsigned N,
              unsigned num_mels, unsigned num_coeffs,
              double min_freq_hz, double max_freq_hz,
              double *mfcc_out);
+
+/* -----------------------------------------------------------------------
+ * FFT-based filtering
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Apply a brickwall lowpass filter to a signal in-place.
+ *
+ * Performs an FFT, zeroes all frequency bins above the cutoff frequency,
+ * and inverse-FFTs the result.  This is a "brickwall" filter: it has zero
+ * transition bandwidth, meaning content at or below the cutoff is preserved
+ * exactly and content above the cutoff is eliminated completely.
+ *
+ * The filter operation in the frequency domain:
+ *
+ * \f[
+ *   X'(k) = \begin{cases}
+ *     X(k) & \text{if } k \leq \lfloor f_c \cdot N / f_s \rfloor \\
+ *     0    & \text{otherwise}
+ *   \end{cases}
+ * \f]
+ *
+ * where \f$X(k)\f$ is the DFT of the input, \f$f_c\f$ is the cutoff
+ * frequency, \f$N\f$ is the signal length, and \f$f_s\f$ is the sample rate.
+ *
+ * @note Uses one-off FFTW plans (not the cached spectrum analysis plans).
+ *       Suitable for offline/batch processing.  Gibbs ringing occurs at the
+ *       cutoff frequency; this is negligible when the cutoff is far from any
+ *       frequency band of interest.
+ *
+ * @param signal      Signal buffer, modified in-place (must not be NULL).
+ * @param len         Number of samples (must be > 0).
+ * @param cutoff_hz   Cutoff frequency in Hz (must be in (0, sample_rate/2)).
+ * @param sample_rate Sample rate in Hz (must be > 0).
+ *
+ * @code
+ * // Remove all content above 8 kHz from a 48 kHz signal
+ * double buf[48000];
+ * MD_sine_wave(buf, 48000, 1.0, 440.0, 48000.0);
+ * MD_lowpass_brickwall(buf, 48000, 8000.0, 48000.0);
+ * @endcode
+ */
+void MD_lowpass_brickwall(double *signal, unsigned len,
+                          double cutoff_hz, double sample_rate);
 
 /* -----------------------------------------------------------------------
  * Math utilities

@@ -1256,6 +1256,78 @@ static int test_mfcc_golden_reference(void)
 }
 
 /* -----------------------------------------------------------------------
+ * MD_lowpass_brickwall tests
+ * -----------------------------------------------------------------------*/
+
+/** A tone below the cutoff should be preserved (energy unchanged). */
+static int test_lowpass_brickwall_preserves_low_freq(void)
+{
+    unsigned N = 48000;
+    double sr = 48000.0;
+    double freq = 1000.0;
+    double *sig = malloc(N * sizeof(double));
+    MD_sine_wave(sig, N, 1.0, freq, sr);
+
+    double energy_before = MD_energy(sig, N);
+    MD_lowpass_brickwall(sig, N, 8000.0, sr);
+    double energy_after = MD_energy(sig, N);
+
+    free(sig);
+    /* Within 0.1% */
+    return approx_equal(energy_after, energy_before,
+                        energy_before * 0.001);
+}
+
+/** A tone above the cutoff should be eliminated (energy ~ 0). */
+static int test_lowpass_brickwall_removes_high_freq(void)
+{
+    unsigned N = 48000;
+    double sr = 48000.0;
+    double freq = 20000.0;
+    double *sig = malloc(N * sizeof(double));
+    MD_sine_wave(sig, N, 1.0, freq, sr);
+
+    MD_lowpass_brickwall(sig, N, 8000.0, sr);
+    double energy_after = MD_energy(sig, N);
+
+    free(sig);
+    return (energy_after < 1e-18);
+}
+
+/** Mixed signal: only the low-frequency component should survive. */
+static int test_lowpass_brickwall_mixed_signal(void)
+{
+    unsigned N = 48000;
+    double sr = 48000.0;
+    double *lo = malloc(N * sizeof(double));
+    double *sig = malloc(N * sizeof(double));
+    MD_sine_wave(lo, N, 1.0, 1000.0, sr);
+
+    /* Build mixed signal: 1000 Hz + 20000 Hz */
+    for (unsigned i = 0; i < N; i++)
+        sig[i] = lo[i] + sin(2.0 * M_PI * 20000.0 * (double)i / sr);
+
+    double energy_lo = MD_energy(lo, N);
+    MD_lowpass_brickwall(sig, N, 8000.0, sr);
+    double energy_after = MD_energy(sig, N);
+
+    /* After filtering, energy should match the low-freq component */
+    int ok = approx_equal(energy_after, energy_lo, energy_lo * 0.001);
+
+    /* Verify the high-freq residual is gone by checking difference */
+    double diff_energy = 0.0;
+    for (unsigned i = 0; i < N; i++) {
+        double d = sig[i] - lo[i];
+        diff_energy += d * d;
+    }
+    ok &= (diff_energy < 1e-14);
+
+    free(sig);
+    free(lo);
+    return ok;
+}
+
+/* -----------------------------------------------------------------------
  * Public entry point
  * -----------------------------------------------------------------------*/
 
@@ -1311,4 +1383,9 @@ void run_spectrum_tests(void)
     RUN_TEST(test_mel_frequency_clamp_behavior);
     RUN_TEST(test_mel_filterbank_degenerate_geometry);
     RUN_TEST(test_mfcc_golden_reference);
+
+    printf("\n--- MD_lowpass_brickwall ---\n");
+    RUN_TEST(test_lowpass_brickwall_preserves_low_freq);
+    RUN_TEST(test_lowpass_brickwall_removes_high_freq);
+    RUN_TEST(test_lowpass_brickwall_mixed_signal);
 }

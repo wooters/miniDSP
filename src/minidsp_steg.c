@@ -440,7 +440,11 @@ static unsigned spectext_encode(const double *host, double *output,
 
     if (sample_rate < SPECTEXT_TARGET_SR) {
         MD_resample(host, signal_len, mixed, out_len,
-                    sample_rate, SPECTEXT_TARGET_SR, 32, 10.0);
+                    sample_rate, SPECTEXT_TARGET_SR, 128, 10.0);
+        /* Brickwall lowpass at the original Nyquist to eliminate any
+         * residual spectral images from the resampler transition band. */
+        MD_lowpass_brickwall(mixed, out_len,
+                             sample_rate / 2.0, SPECTEXT_TARGET_SR);
     } else {
         memcpy(mixed, host, out_len * sizeof(double));
     }

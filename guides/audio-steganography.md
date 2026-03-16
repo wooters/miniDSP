@@ -327,8 +327,15 @@ host.wav ──┐
            ▼
     ┌──────────────┐     ┌────────────────────┐
     │ MD_resample()│────▶│  host @ 48 kHz     │
-    │ to 48 kHz    │     │  (if needed)       │
-    └──────────────┘     └────────┬───────────┘
+    │ to 48 kHz    │     └────────┬───────────┘
+    └──────────────┘              │
+                                  ▼
+                     ┌───────────────────────────┐
+                     │ MD_lowpass_brickwall()     │
+                     │ cutoff = original_SR / 2   │
+                     │ (eliminates resampler      │
+                     │  spectral images)          │
+                     └────────────┬──────────────┘
                                   │
 "SECRET" ──┐                      │
            ▼                      │
@@ -351,12 +358,17 @@ host.wav ──┐
 The spectrogram art is mixed into the host **before** LSB encoding, so the
 LSB bits remain undisturbed.  Decode simply reads the LSB channel.
 
-### Automatic upsampling
+### Automatic upsampling and spectral cleanup
 
 The spectrogram art uses the 18--23.5 kHz band, which requires a Nyquist
 frequency of at least 23.5 kHz (sample rate >= 47 kHz).  If the input host
 is below 48 kHz, the encoder automatically upsamples it using
-`MD_resample()`.  The output is always 48 kHz.
+`MD_resample()`.  After upsampling, `MD_lowpass_brickwall()` is applied at
+the original Nyquist frequency to eliminate any residual spectral images
+from the resampler's transition band.  This ensures the 18--23.5 kHz band
+is completely clean before the spectrogram text is mixed in, so the hidden
+message is clearly readable in any spectrogram viewer.  The output is
+always 48 kHz.
 
 ### Fixed column width and capacity
 
