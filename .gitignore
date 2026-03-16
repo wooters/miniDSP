@@ -78,6 +78,10 @@ examples/resampler
 examples/resampler.csv
 examples/resampler.html
 
+examples/brickwall
+examples/brickwall.csv
+examples/brickwall.html
+
 # Generated assets for documentation
 guides/audio/
 guides/plots/

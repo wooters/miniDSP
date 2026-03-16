@@ -116,7 +116,8 @@ HTML_EXTRA_FILES       = doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js 
                          guides/images/steg_recovered_invader.png \
                          guides/images/steg_recovered_qr.png \
                          docs/assets/mel-viz-demo.mp4 \
-                         docs/assets/mel-viz-screenshot.png
+                         docs/assets/mel-viz-screenshot.png \
+                         examples/brickwall.html
 
 HTML_HEADER            = doxygen-custom/header.html
 

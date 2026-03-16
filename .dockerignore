@@ -38,6 +38,9 @@ examples/gen_signal_plots
 examples/resampler
 examples/resampler.csv
 examples/resampler.html
+examples/brickwall
+examples/brickwall.csv
+examples/brickwall.html
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test
