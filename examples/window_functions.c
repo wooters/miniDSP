@@ -19,6 +19,8 @@ static void print_summary(const char *name, const double *w, unsigned n)
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     const unsigned N = 64;
     double hann[N], hamming[N], blackman[N], rect[N], kaiser[N];
 

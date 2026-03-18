@@ -482,6 +482,9 @@ static int assemble_output(const char *argv0, const config_t *cfg,
 int main(int argc, char **argv)
 {
     config_t cfg;
+
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     if (parse_args(argc, argv, &cfg) != 0)
         return 1;
 

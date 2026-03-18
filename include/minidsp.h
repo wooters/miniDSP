@@ -17,6 +17,7 @@
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
  *   - Audio steganography (hide, detect, and recover secret messages or binary data via LSB, frequency-band, or spectrogram-text encoding)
+ *   - Configurable error handling (custom error handler callback, safe defaults on precondition failure)
  *
  * These are the kinds of building blocks you'd use in an audio processing
  * pipeline -- for example, estimating which direction a sound came from
@@ -40,11 +41,68 @@
 #define MINIDSP_VERSION "0.0.0"
 #endif
 
+#include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
+
+/* -----------------------------------------------------------------------
+ * Error handling
+ * -----------------------------------------------------------------------*/
+
+/**
+ * Error codes reported by miniDSP when a precondition is violated.
+ *
+ * These codes are passed to the active error handler.  Zero is reserved
+ * for "no error"; all defined codes are positive.
+ */
+typedef enum {
+    MD_ERR_NULL_POINTER  = 1, /**< A required pointer argument is NULL. */
+    MD_ERR_INVALID_SIZE  = 2, /**< A size or count argument is invalid (e.g. N == 0). */
+    MD_ERR_INVALID_RANGE = 3, /**< A range or bound is invalid (e.g. min >= max). */
+    MD_ERR_ALLOC_FAILED  = 4  /**< A memory allocation failed. */
+} MD_ErrorCode;
+
+/**
+ * Signature for a user-installed error handler.
+ *
+ * @param code      One of the MD_ERR_* error codes.
+ * @param func_name Name of the library function that detected the error.
+ * @param message   Human-readable description of the violation.
+ *
+ * The handler may log, count, or even call @c abort() — the library itself
+ * never terminates the process.
+ */
+typedef void (*MD_ErrorHandler)(MD_ErrorCode code,
+                                const char  *func_name,
+                                const char  *message);
+
+/**
+ * Install a custom error handler.
+ *
+ * When a miniDSP function detects a precondition violation (NULL pointer,
+ * invalid size, etc.) it calls the active handler instead of aborting.
+ * The default handler prints a message to @c stderr.
+ *
+ * Pass @c NULL to restore the default handler.
+ *
+ * @par Thread safety
+ * This function must be called **once, before any other MD_* call**.
+ * It must not be called concurrently with any other miniDSP function.
+ *
+ * @code
+ * // Example: redirect miniDSP errors to an application log
+ * static void my_handler(MD_ErrorCode code, const char *fn, const char *msg) {
+ *     app_log(LOG_WARN, "miniDSP error %d in %s: %s", code, fn, msg);
+ * }
+ * int main(void) {
+ *     MD_set_error_handler(my_handler);
+ *     // ... use miniDSP ...
+ * }
+ * @endcode
+ */
+void MD_set_error_handler(MD_ErrorHandler handler);
 
 /* M_PI is not guaranteed by the C standard.  Define it if the system didn't. */
 #ifndef M_PI

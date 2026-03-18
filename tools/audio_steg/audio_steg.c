@@ -611,6 +611,8 @@ static void usage(const char *prog)
 
 int main(int argc, char *argv[])
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     if (argc == 1)
         return self_test();
 

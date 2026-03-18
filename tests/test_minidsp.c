@@ -41,6 +41,7 @@ void run_spectext_tests(void);
 void run_steg_tests(void);
 void run_fileio_tests(void);
 void run_resample_tests(void);
+void run_error_tests(void);
 
 /* -----------------------------------------------------------------------
  * Main: run all tests
@@ -50,6 +51,7 @@ int main(void)
 {
     printf("=== miniDSP Test Suite ===\n\n");
 
+    run_error_tests();
     run_core_tests();
     run_effects_tests();
     run_fir_tests();

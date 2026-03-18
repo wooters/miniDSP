@@ -70,6 +70,8 @@ static int write_wav_sr(const char *path, const double *buf, unsigned N,
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     const unsigned N = (unsigned)(SAMPLE_RATE * DURATION);
     double *buf = malloc(N * sizeof(double));
     double *fx  = malloc(N * sizeof(double));

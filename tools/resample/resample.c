@@ -48,6 +48,8 @@ int main(int argc, char *argv[])
     unsigned zero_crossings = DEFAULT_ZERO_CROSSINGS;
     double kaiser_beta = DEFAULT_KAISER_BETA;
 
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     /* Parse optional flags */
     int i = 1;
     while (i < argc && argv[i][0] == '-') {

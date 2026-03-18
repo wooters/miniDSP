@@ -667,6 +667,8 @@ static int write_mfcc_html(const char *path, const char *title,
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     double *buf = malloc(N_SIGNAL * sizeof(double));
     double *fx = malloc(N_SIGNAL * sizeof(double));
     if (!buf || !fx) {

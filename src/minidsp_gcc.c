@@ -187,8 +187,8 @@ static void _fftshift(const double *in, double *out, unsigned N)
 static void _max_index(const double *a, unsigned N,
                        double *max, unsigned *maxi)
 {
-    assert(a != NULL);
-    assert(N >= 1);
+    MD_CHECK_VOID(a != NULL, MD_ERR_NULL_POINTER, "a must not be NULL");
+    MD_CHECK_VOID(N >= 1, MD_ERR_INVALID_SIZE, "N must be >= 1");
 
     unsigned best_i = 0;
     double   best_v = a[0];
@@ -242,14 +242,14 @@ void MD_get_multiple_delays(const double **sigs, unsigned M, unsigned N,
         free(t_sig);
 
         hann_win = malloc(N * sizeof(double));
-        assert(hann_win != NULL);
+        MD_CHECK_VOID(hann_win != NULL, MD_ERR_ALLOC_FAILED, "malloc failed");
         MD_Gen_Hann_Win(hann_win, N);
 
         t_ref = malloc(N * sizeof(double));
-        assert(t_ref != NULL);
+        MD_CHECK_VOID(t_ref != NULL, MD_ERR_ALLOC_FAILED, "malloc failed");
 
         t_sig = malloc(N * sizeof(double));
-        assert(t_sig != NULL);
+        MD_CHECK_VOID(t_sig != NULL, MD_ERR_ALLOC_FAILED, "malloc failed");
 
         last_N = N;
     }

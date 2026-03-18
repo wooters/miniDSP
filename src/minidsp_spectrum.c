@@ -163,15 +163,15 @@ static void _mel_setup(unsigned N, double sample_rate, unsigned num_mels,
     unsigned num_bins = N / 2 + 1;
     size_t fb_len = (size_t)num_mels * num_bins;
     _mel_fb = calloc(fb_len, sizeof(double));
-    assert(_mel_fb != NULL);
+    MD_CHECK_VOID(_mel_fb != NULL, MD_ERR_ALLOC_FAILED, "mel filterbank alloc failed");
 
     if (f_hi <= f_lo) return;
 
     unsigned num_points = num_mels + 2;
     double *mel_points = malloc(num_points * sizeof(double));
     double *hz_points = malloc(num_points * sizeof(double));
-    assert(mel_points != NULL);
-    assert(hz_points != NULL);
+    MD_CHECK_VOID(mel_points != NULL, MD_ERR_ALLOC_FAILED, "mel_points alloc failed");
+    MD_CHECK_VOID(hz_points != NULL, MD_ERR_ALLOC_FAILED, "hz_points alloc failed");
 
     double mel_min = md_hz_to_mel(f_lo);
     double mel_max = md_hz_to_mel(f_hi);
@@ -226,7 +226,7 @@ static void _stft_setup(unsigned N)
 
     free(_stft_win);
     _stft_win = malloc(N * sizeof(double));
-    assert(_stft_win != NULL);
+    MD_CHECK_VOID(_stft_win != NULL, MD_ERR_ALLOC_FAILED, "STFT window alloc failed");
     MD_Gen_Hann_Win(_stft_win, N);
     _stft_win_N = N;
 }
@@ -276,9 +276,9 @@ void MD_shutdown(void)
  */
 void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out)
 {
-    assert(signal != NULL);
-    assert(mag_out != NULL);
-    assert(N >= 2);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(mag_out != NULL, MD_ERR_NULL_POINTER, "mag_out is NULL");
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
 
     _spec_setup(N);
 
@@ -314,9 +314,9 @@ void MD_magnitude_spectrum(const double *signal, unsigned N, double *mag_out)
  */
 void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out)
 {
-    assert(signal != NULL);
-    assert(psd_out != NULL);
-    assert(N >= 2);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(psd_out != NULL, MD_ERR_NULL_POINTER, "psd_out is NULL");
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
 
     _spec_setup(N);
 
@@ -356,9 +356,9 @@ void MD_power_spectral_density(const double *signal, unsigned N, double *psd_out
  */
 void MD_phase_spectrum(const double *signal, unsigned N, double *phase_out)
 {
-    assert(signal    != NULL);
-    assert(phase_out != NULL);
-    assert(N >= 2);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(phase_out != NULL, MD_ERR_NULL_POINTER, "phase_out is NULL");
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
 
     _spec_setup(N);
 
@@ -380,11 +380,11 @@ double MD_f0_fft(const double *signal, unsigned N,
                  double sample_rate,
                  double min_freq_hz, double max_freq_hz)
 {
-    assert(signal != NULL);
-    assert(N >= 2);
-    assert(sample_rate > 0.0);
-    assert(min_freq_hz > 0.0);
-    assert(max_freq_hz > min_freq_hz);
+    MD_CHECK(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL", 0.0);
+    MD_CHECK(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2", 0.0);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0.0);
+    MD_CHECK(min_freq_hz > 0.0, MD_ERR_INVALID_RANGE, "min_freq_hz must be > 0", 0.0);
+    MD_CHECK(max_freq_hz > min_freq_hz, MD_ERR_INVALID_RANGE, "max_freq_hz must be > min_freq_hz", 0.0);
 
     unsigned k_min = (unsigned)ceil(min_freq_hz * (double)N / sample_rate);
     unsigned k_max = (unsigned)floor(max_freq_hz * (double)N / sample_rate);
@@ -479,10 +479,10 @@ unsigned MD_stft_num_frames(unsigned signal_len, unsigned N, unsigned hop)
 void MD_stft(const double *signal, unsigned signal_len,
              unsigned N, unsigned hop, double *mag_out)
 {
-    assert(signal  != NULL);
-    assert(mag_out != NULL);
-    assert(N   >= 2);
-    assert(hop >= 1);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(mag_out != NULL, MD_ERR_NULL_POINTER, "mag_out is NULL");
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
+    MD_CHECK_VOID(hop >= 1, MD_ERR_INVALID_SIZE, "hop must be >= 1");
 
     unsigned num_frames = MD_stft_num_frames(signal_len, N, hop);
     if (num_frames == 0) return;   /* signal too short for even one frame */
@@ -516,11 +516,11 @@ void MD_mel_filterbank(unsigned N, double sample_rate,
                        double min_freq_hz, double max_freq_hz,
                        double *filterbank_out)
 {
-    assert(N >= 2);
-    assert(sample_rate > 0.0);
-    assert(num_mels > 0);
-    assert(min_freq_hz < max_freq_hz);
-    assert(filterbank_out != NULL);
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(num_mels > 0, MD_ERR_INVALID_SIZE, "num_mels must be > 0");
+    MD_CHECK_VOID(min_freq_hz < max_freq_hz, MD_ERR_INVALID_RANGE, "min_freq_hz must be < max_freq_hz");
+    MD_CHECK_VOID(filterbank_out != NULL, MD_ERR_NULL_POINTER, "filterbank_out is NULL");
 
     _mel_setup(N, sample_rate, num_mels, min_freq_hz, max_freq_hz);
 
@@ -534,12 +534,12 @@ void MD_mel_energies(const double *signal, unsigned N,
                      double min_freq_hz, double max_freq_hz,
                      double *mel_out)
 {
-    assert(signal != NULL);
-    assert(mel_out != NULL);
-    assert(N >= 2);
-    assert(sample_rate > 0.0);
-    assert(num_mels > 0);
-    assert(min_freq_hz < max_freq_hz);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(mel_out != NULL, MD_ERR_NULL_POINTER, "mel_out is NULL");
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(num_mels > 0, MD_ERR_INVALID_SIZE, "num_mels must be > 0");
+    MD_CHECK_VOID(min_freq_hz < max_freq_hz, MD_ERR_INVALID_RANGE, "min_freq_hz must be < max_freq_hz");
 
     _stft_setup(N);
     _mel_setup(N, sample_rate, num_mels, min_freq_hz, max_freq_hz);
@@ -572,19 +572,19 @@ void MD_mel_energies(const double *signal, unsigned N,
 void MD_lowpass_brickwall(double *signal, unsigned len,
                           double cutoff_hz, double sample_rate)
 {
-    assert(signal != NULL);
-    assert(len > 0);
-    assert(cutoff_hz > 0.0);
-    assert(sample_rate > 0.0);
-    assert(cutoff_hz < sample_rate / 2.0);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(len > 0, MD_ERR_INVALID_SIZE, "len must be > 0");
+    MD_CHECK_VOID(cutoff_hz > 0.0, MD_ERR_INVALID_RANGE, "cutoff_hz must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(cutoff_hz < sample_rate / 2.0, MD_ERR_INVALID_RANGE, "cutoff_hz must be < Nyquist");
 
     unsigned num_bins = len / 2 + 1;
 
     /* Allocate buffers for one-off FFT round-trip */
     double *in_buf = malloc(len * sizeof(double));
     fftw_complex *freq = fftw_alloc_complex(num_bins);
-    assert(in_buf != NULL);
-    assert(freq != NULL);
+    MD_CHECK_VOID(in_buf != NULL, MD_ERR_ALLOC_FAILED, "lowpass input buffer alloc failed");
+    MD_CHECK_VOID(freq != NULL, MD_ERR_ALLOC_FAILED, "lowpass freq buffer alloc failed");
 
     memcpy(in_buf, signal, len * sizeof(double));
 
@@ -593,8 +593,8 @@ void MD_lowpass_brickwall(double *signal, unsigned len,
         (int)len, in_buf, freq, FFTW_ESTIMATE | FFTW_DESTROY_INPUT);
     fftw_plan inv = fftw_plan_dft_c2r_1d(
         (int)len, freq, signal, FFTW_ESTIMATE | FFTW_DESTROY_INPUT);
-    assert(fwd != NULL);
-    assert(inv != NULL);
+    MD_CHECK_VOID(fwd != NULL, MD_ERR_ALLOC_FAILED, "lowpass forward plan alloc failed");
+    MD_CHECK_VOID(inv != NULL, MD_ERR_ALLOC_FAILED, "lowpass inverse plan alloc failed");
 
     /* Forward FFT */
     fftw_execute(fwd);
@@ -625,18 +625,18 @@ void MD_mfcc(const double *signal, unsigned N,
              double min_freq_hz, double max_freq_hz,
              double *mfcc_out)
 {
-    assert(signal != NULL);
-    assert(mfcc_out != NULL);
-    assert(N >= 2);
-    assert(sample_rate > 0.0);
-    assert(num_mels > 0);
-    assert(num_coeffs >= 1 && num_coeffs <= num_mels);
-    assert(min_freq_hz < max_freq_hz);
+    MD_CHECK_VOID(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL");
+    MD_CHECK_VOID(mfcc_out != NULL, MD_ERR_NULL_POINTER, "mfcc_out is NULL");
+    MD_CHECK_VOID(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(num_mels > 0, MD_ERR_INVALID_SIZE, "num_mels must be > 0");
+    MD_CHECK_VOID(num_coeffs >= 1 && num_coeffs <= num_mels, MD_ERR_INVALID_RANGE, "num_coeffs must be in [1, num_mels]");
+    MD_CHECK_VOID(min_freq_hz < max_freq_hz, MD_ERR_INVALID_RANGE, "min_freq_hz must be < max_freq_hz");
 
     double *mel = malloc(num_mels * sizeof(double));
     double *log_mel = malloc(num_mels * sizeof(double));
-    assert(mel != NULL);
-    assert(log_mel != NULL);
+    MD_CHECK_VOID(mel != NULL, MD_ERR_ALLOC_FAILED, "mel buffer alloc failed");
+    MD_CHECK_VOID(log_mel != NULL, MD_ERR_ALLOC_FAILED, "log_mel buffer alloc failed");
 
     MD_mel_energies(signal, N, sample_rate, num_mels,
                     min_freq_hz, max_freq_hz, mel);

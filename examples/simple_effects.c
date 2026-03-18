@@ -16,6 +16,8 @@
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     const unsigned N = 4096;
     const double sample_rate = 8000.0;
 

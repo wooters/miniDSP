@@ -4,6 +4,7 @@
  */
 
 #include "minidsp.h"
+#include "minidsp_internal.h"
 
 /** Number of sub-phases in the polyphase filter table. */
 #define RESAMPLE_NUM_PHASES 512
@@ -11,9 +12,9 @@
 unsigned MD_resample_output_len(unsigned input_len,
                                 double in_rate, double out_rate)
 {
-    assert(input_len > 0);
-    assert(in_rate > 0.0);
-    assert(out_rate > 0.0);
+    MD_CHECK(input_len > 0, MD_ERR_INVALID_SIZE, "input_len must be > 0", 0);
+    MD_CHECK(in_rate > 0.0, MD_ERR_INVALID_RANGE, "in_rate must be > 0", 0);
+    MD_CHECK(out_rate > 0.0, MD_ERR_INVALID_RANGE, "out_rate must be > 0", 0);
     return (unsigned)ceil((double)input_len * out_rate / in_rate);
 }
 
@@ -22,15 +23,16 @@ unsigned MD_resample(const double *input, unsigned input_len,
                      double in_rate, double out_rate,
                      unsigned num_zero_crossings, double kaiser_beta)
 {
-    assert(input != NULL);
-    assert(output != NULL);
-    assert(input_len > 0);
-    assert(in_rate > 0.0);
-    assert(out_rate > 0.0);
-    assert(num_zero_crossings > 0);
+    MD_CHECK(input != NULL, MD_ERR_NULL_POINTER, "input must not be NULL", 0);
+    MD_CHECK(output != NULL, MD_ERR_NULL_POINTER, "output must not be NULL", 0);
+    MD_CHECK(input_len > 0, MD_ERR_INVALID_SIZE, "input_len must be > 0", 0);
+    MD_CHECK(in_rate > 0.0, MD_ERR_INVALID_RANGE, "in_rate must be > 0", 0);
+    MD_CHECK(out_rate > 0.0, MD_ERR_INVALID_RANGE, "out_rate must be > 0", 0);
+    MD_CHECK(num_zero_crossings > 0, MD_ERR_INVALID_SIZE, "num_zero_crossings must be > 0", 0);
 
     unsigned expected_len = MD_resample_output_len(input_len, in_rate, out_rate);
-    assert(max_output_len >= expected_len);
+    MD_CHECK(max_output_len >= expected_len, MD_ERR_INVALID_SIZE,
+             "max_output_len too small for expected output", 0);
 
     unsigned num_phases = RESAMPLE_NUM_PHASES;
     unsigned taps_per_phase = 2 * num_zero_crossings;
@@ -42,7 +44,7 @@ unsigned MD_resample(const double *input, unsigned input_len,
      * so linear interpolation between phase[p] and phase[p+1] works
      * at the boundary. */
     double *table = malloc(table_size * sizeof(double));
-    assert(table != NULL);
+    MD_CHECK(table != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
 
     /* Anti-aliasing: scale cutoff for downsampling */
     double ratio = out_rate / in_rate;

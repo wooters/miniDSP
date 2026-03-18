@@ -217,6 +217,8 @@ static int write_png(const char *path, const double *spec_db,
 
 int main(int argc, char *argv[])
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     /* Parse arguments */
     const char *text = "HELLO";
     int use_color = 1;

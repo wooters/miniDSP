@@ -30,6 +30,8 @@ static void print_first(const char *name, const double *x, unsigned n, unsigned 
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     const unsigned N = 1024;
     const double sample_rate = 16000.0;
 

@@ -117,6 +117,8 @@ static double mean_abs_error(const double *est, const double *truth, unsigned N)
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     const double sample_rate = 16000.0;
     const double duration_s  = 2.0;
     const unsigned N = (unsigned)(sample_rate * duration_s);

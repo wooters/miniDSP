@@ -9,6 +9,7 @@
  */
 
 #include "minidsp.h"
+#include "minidsp_internal.h"
 
 /* -----------------------------------------------------------------------
  * DTMF frequency tables
@@ -58,7 +59,10 @@ static void dtmf_char_to_freqs(char ch, double *row_freq, double *col_freq)
     case '#': row = 3; col = 2; break;
     case 'D': case 'd': row = 3; col = 3; break;
     default:
-        assert(0 && "invalid DTMF character");
+        *row_freq = 0.0;
+        *col_freq = 0.0;
+        md_report_error(MD_ERR_INVALID_RANGE, __func__, "invalid DTMF character");
+        return;
     }
     *row_freq = dtmf_row_freqs[row];
     *col_freq = dtmf_col_freqs[col];
@@ -136,11 +140,11 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
                         double sample_rate,
                         MD_DTMFTone *tones_out, unsigned max_tones)
 {
-    assert(signal);
-    assert(tones_out);
-    assert(signal_len > 0);
-    assert(sample_rate >= 4000.0);
-    assert(max_tones > 0);
+    MD_CHECK(signal != NULL, MD_ERR_NULL_POINTER, "signal must not be NULL", 0);
+    MD_CHECK(tones_out != NULL, MD_ERR_NULL_POINTER, "tones_out must not be NULL", 0);
+    MD_CHECK(signal_len > 0, MD_ERR_INVALID_SIZE, "signal_len must be > 0", 0);
+    MD_CHECK(sample_rate >= 4000.0, MD_ERR_INVALID_RANGE, "sample_rate must be >= 4000", 0);
+    MD_CHECK(max_tones > 0, MD_ERR_INVALID_SIZE, "max_tones must be > 0", 0);
 
     /* Pick FFT size: need enough resolution to separate DTMF row
      * pairs (73 Hz minimum gap → need < 37 Hz resolution) but the
@@ -174,7 +178,9 @@ unsigned MD_dtmf_detect(const double *signal, unsigned signal_len,
     double *window = malloc(N * sizeof(double));
     double *frame  = malloc(N * sizeof(double));
     double *mag    = malloc(num_bins * sizeof(double));
-    assert(window && frame && mag);
+    MD_CHECK(window != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
+    MD_CHECK(frame != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
+    MD_CHECK(mag != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
 
     MD_Gen_Hann_Win(window, N);
 
@@ -320,11 +326,11 @@ void MD_dtmf_generate(double *output, const char *digits,
                       double sample_rate,
                       unsigned tone_ms, unsigned pause_ms)
 {
-    assert(output);
-    assert(digits);
-    assert(sample_rate > 0);
-    assert(tone_ms >= 40);
-    assert(pause_ms >= 40);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output must not be NULL");
+    MD_CHECK_VOID(digits != NULL, MD_ERR_NULL_POINTER, "digits must not be NULL");
+    MD_CHECK_VOID(sample_rate > 0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(tone_ms >= 40, MD_ERR_INVALID_RANGE, "tone_ms must be >= 40");
+    MD_CHECK_VOID(pause_ms >= 40, MD_ERR_INVALID_RANGE, "pause_ms must be >= 40");
 
     unsigned num_digits   = (unsigned)strlen(digits);
     unsigned tone_samples = (unsigned)(tone_ms * sample_rate / 1000.0);
@@ -337,7 +343,7 @@ void MD_dtmf_generate(double *output, const char *digits,
 
     /* Temporary buffer for the column sinusoid. */
     double *col_tone = malloc(tone_samples * sizeof(double));
-    assert(col_tone);
+    MD_CHECK_VOID(col_tone != NULL, MD_ERR_ALLOC_FAILED, "malloc failed");
 
     unsigned offset = 0;
     for (unsigned d = 0; d < num_digits; d++) {
@@ -361,7 +367,7 @@ void MD_dtmf_generate(double *output, const char *digits,
 unsigned MD_dtmf_signal_length(unsigned num_digits, double sample_rate,
                                unsigned tone_ms, unsigned pause_ms)
 {
-    assert(sample_rate > 0);
+    MD_CHECK(sample_rate > 0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0);
     if (num_digits == 0) return 0;
 
     unsigned tone_samples  = (unsigned)(tone_ms * sample_rate / 1000.0);

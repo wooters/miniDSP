@@ -8,6 +8,7 @@
  */
 
 #include "minidsp.h"
+#include "minidsp_internal.h"
 
 /* -----------------------------------------------------------------------
  * Public API: basic signal measurements
@@ -44,7 +45,7 @@ double MD_dot(const double *a, const double *b, unsigned N)
  */
 double MD_energy(const double *a, unsigned N)
 {
-    assert(a != NULL);
+    MD_CHECK(a != NULL, MD_ERR_NULL_POINTER, "a is NULL", 0.0);
     if (N == 1) return a[0] * a[0];
     return MD_dot(a, a, N);
 }
@@ -59,8 +60,8 @@ double MD_energy(const double *a, unsigned N)
  */
 double MD_power(const double *a, unsigned N)
 {
-    assert(a != NULL);
-    assert(N > 0);
+    MD_CHECK(a != NULL, MD_ERR_NULL_POINTER, "a is NULL", 0.0);
+    MD_CHECK(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0", 0.0);
     return MD_energy(a, N) / (double)N;
 }
 
@@ -75,8 +76,8 @@ double MD_power(const double *a, unsigned N)
  */
 double MD_power_db(const double *a, unsigned N)
 {
-    assert(a != NULL);
-    assert(N > 0);
+    MD_CHECK(a != NULL, MD_ERR_NULL_POINTER, "a is NULL", 0.0);
+    MD_CHECK(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0", 0.0);
     double p = fmax(1.0e-10, MD_power(a, N));
     return 10.0 * log10(p);
 }
@@ -107,10 +108,10 @@ void MD_scale_vec(double *in, double *out, unsigned N,
                   double oldmin, double oldmax,
                   double newmin, double newmax)
 {
-    assert(in != NULL);
-    assert(out != NULL);
-    assert(oldmin < oldmax);
-    assert(newmin < newmax);
+    MD_CHECK_VOID(in != NULL, MD_ERR_NULL_POINTER, "in is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(oldmin < oldmax, MD_ERR_INVALID_RANGE, "oldmin must be < oldmax");
+    MD_CHECK_VOID(newmin < newmax, MD_ERR_INVALID_RANGE, "newmin must be < newmax");
     if (N == 0) return;
 
     double scale = (newmax - newmin) / (oldmax - oldmin);
@@ -129,9 +130,9 @@ void MD_scale_vec(double *in, double *out, unsigned N,
 void MD_fit_within_range(double *in, double *out, unsigned N,
                          double newmin, double newmax)
 {
-    assert(in != NULL);
-    assert(out != NULL);
-    assert(newmin < newmax);
+    MD_CHECK_VOID(in != NULL, MD_ERR_NULL_POINTER, "in is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(newmin < newmax, MD_ERR_INVALID_RANGE, "newmin must be < newmax");
     if (N == 0) return;
 
     /* Find the actual min and max of the input */
@@ -216,7 +217,7 @@ void MD_adjust_dblevel(const double *in, double *out,
  */
 double MD_entropy(const double *a, unsigned N, bool clip)
 {
-    assert(a != NULL);
+    MD_CHECK(a != NULL, MD_ERR_NULL_POINTER, "a is NULL", 0.0);
 
     if (N <= 1) return 0.0;
 
@@ -286,8 +287,8 @@ static double md_parabolic_offset(double y_left, double y_mid, double y_right)
  */
 double MD_rms(const double *a, unsigned N)
 {
-    assert(a != NULL);
-    assert(N > 0);
+    MD_CHECK(a != NULL, MD_ERR_NULL_POINTER, "a is NULL", 0.0);
+    MD_CHECK(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0", 0.0);
     return sqrt(MD_power(a, N));
 }
 
@@ -299,8 +300,8 @@ double MD_rms(const double *a, unsigned N)
  */
 double MD_zero_crossing_rate(const double *a, unsigned N)
 {
-    assert(a != NULL);
-    assert(N > 1);
+    MD_CHECK(a != NULL, MD_ERR_NULL_POINTER, "a is NULL", 0.0);
+    MD_CHECK(N > 1, MD_ERR_INVALID_SIZE, "N must be > 1", 0.0);
     unsigned crossings = 0;
     for (unsigned i = 1; i < N; i++) {
         if ((a[i] < 0.0) != (a[i - 1] < 0.0))
@@ -320,10 +321,10 @@ double MD_zero_crossing_rate(const double *a, unsigned N)
 void MD_autocorrelation(const double *a, unsigned N,
                         double *out, unsigned max_lag)
 {
-    assert(a != NULL);
-    assert(out != NULL);
-    assert(N > 0);
-    assert(max_lag > 0 && max_lag < N);
+    MD_CHECK_VOID(a != NULL, MD_ERR_NULL_POINTER, "a is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(max_lag > 0 && max_lag < N, MD_ERR_INVALID_RANGE, "max_lag must be in (0, N)");
 
     double r0 = MD_energy(a, N);
     if (r0 == 0.0) {
@@ -349,10 +350,10 @@ void MD_peak_detect(const double *a, unsigned N, double threshold,
                     unsigned min_distance, unsigned *peaks_out,
                     unsigned *num_peaks_out)
 {
-    assert(a != NULL);
-    assert(peaks_out != NULL);
-    assert(num_peaks_out != NULL);
-    assert(min_distance >= 1);
+    MD_CHECK_VOID(a != NULL, MD_ERR_NULL_POINTER, "a is NULL");
+    MD_CHECK_VOID(peaks_out != NULL, MD_ERR_NULL_POINTER, "peaks_out is NULL");
+    MD_CHECK_VOID(num_peaks_out != NULL, MD_ERR_NULL_POINTER, "num_peaks_out is NULL");
+    MD_CHECK_VOID(min_distance >= 1, MD_ERR_INVALID_SIZE, "min_distance must be >= 1");
 
     unsigned count = 0;
     unsigned last_peak = 0;
@@ -372,11 +373,11 @@ double MD_f0_autocorrelation(const double *signal, unsigned N,
                              double sample_rate,
                              double min_freq_hz, double max_freq_hz)
 {
-    assert(signal != NULL);
-    assert(N >= 2);
-    assert(sample_rate > 0.0);
-    assert(min_freq_hz > 0.0);
-    assert(max_freq_hz > min_freq_hz);
+    MD_CHECK(signal != NULL, MD_ERR_NULL_POINTER, "signal is NULL", 0.0);
+    MD_CHECK(N >= 2, MD_ERR_INVALID_SIZE, "N must be >= 2", 0.0);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0.0);
+    MD_CHECK(min_freq_hz > 0.0, MD_ERR_INVALID_RANGE, "min_freq_hz must be > 0", 0.0);
+    MD_CHECK(max_freq_hz > min_freq_hz, MD_ERR_INVALID_RANGE, "max_freq_hz must be > min_freq_hz", 0.0);
 
     unsigned lag_min = (unsigned)floor(sample_rate / max_freq_hz);
     unsigned lag_max = (unsigned)ceil(sample_rate / min_freq_hz);
@@ -435,9 +436,9 @@ double MD_f0_autocorrelation(const double *signal, unsigned N,
 void MD_mix(const double *a, const double *b, double *out,
             unsigned N, double w_a, double w_b)
 {
-    assert(a != NULL);
-    assert(b != NULL);
-    assert(out != NULL);
+    MD_CHECK_VOID(a != NULL, MD_ERR_NULL_POINTER, "a is NULL");
+    MD_CHECK_VOID(b != NULL, MD_ERR_NULL_POINTER, "b is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
     for (unsigned i = 0; i < N; i++) {
         out[i] = w_a * a[i] + w_b * b[i];
     }
@@ -451,14 +452,14 @@ void MD_delay_echo(const double *in, double *out, unsigned N,
                    unsigned delay_samples, double feedback,
                    double dry, double wet)
 {
-    assert(in != NULL);
-    assert(out != NULL);
-    assert(N > 0);
-    assert(delay_samples > 0);
-    assert(fabs(feedback) < 1.0);
+    MD_CHECK_VOID(in != NULL, MD_ERR_NULL_POINTER, "in is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(delay_samples > 0, MD_ERR_INVALID_SIZE, "delay_samples must be > 0");
+    MD_CHECK_VOID(fabs(feedback) < 1.0, MD_ERR_INVALID_RANGE, "feedback must be in (-1, 1)");
 
     double *delay = calloc(delay_samples, sizeof(double));
-    assert(delay != NULL);
+    MD_CHECK_VOID(delay != NULL, MD_ERR_ALLOC_FAILED, "calloc failed");
 
     unsigned idx = 0;
     for (unsigned n = 0; n < N; n++) {
@@ -476,12 +477,12 @@ void MD_delay_echo(const double *in, double *out, unsigned N,
 void MD_tremolo(const double *in, double *out, unsigned N,
                 double rate_hz, double depth, double sample_rate)
 {
-    assert(in != NULL);
-    assert(out != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
-    assert(rate_hz >= 0.0);
-    assert(depth >= 0.0 && depth <= 1.0);
+    MD_CHECK_VOID(in != NULL, MD_ERR_NULL_POINTER, "in is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(rate_hz >= 0.0, MD_ERR_INVALID_RANGE, "rate_hz must be >= 0");
+    MD_CHECK_VOID(depth >= 0.0 && depth <= 1.0, MD_ERR_INVALID_RANGE, "depth must be in [0, 1]");
 
     double phase_step = 2.0 * M_PI * rate_hz / sample_rate;
     for (unsigned n = 0; n < N; n++) {
@@ -495,14 +496,14 @@ void MD_comb_reverb(const double *in, double *out, unsigned N,
                     unsigned delay_samples, double feedback,
                     double dry, double wet)
 {
-    assert(in != NULL);
-    assert(out != NULL);
-    assert(N > 0);
-    assert(delay_samples > 0);
-    assert(fabs(feedback) < 1.0);
+    MD_CHECK_VOID(in != NULL, MD_ERR_NULL_POINTER, "in is NULL");
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(delay_samples > 0, MD_ERR_INVALID_SIZE, "delay_samples must be > 0");
+    MD_CHECK_VOID(fabs(feedback) < 1.0, MD_ERR_INVALID_RANGE, "feedback must be in (-1, 1)");
 
     double *comb = calloc(delay_samples, sizeof(double));
-    assert(comb != NULL);
+    MD_CHECK_VOID(comb != NULL, MD_ERR_ALLOC_FAILED, "calloc failed");
 
     unsigned idx = 0;
     for (unsigned n = 0; n < N; n++) {
@@ -572,8 +573,8 @@ double MD_sinc(double x)
  */
 void MD_Gen_Hann_Win(double *out, unsigned n)
 {
-    assert(out != NULL);
-    assert(n > 0);
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(n > 0, MD_ERR_INVALID_SIZE, "n must be > 0");
 
     if (n == 1) {
         out[0] = 1.0;
@@ -593,8 +594,8 @@ void MD_Gen_Hann_Win(double *out, unsigned n)
  */
 void MD_Gen_Hamming_Win(double *out, unsigned n)
 {
-    assert(out != NULL);
-    assert(n > 0);
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(n > 0, MD_ERR_INVALID_SIZE, "n must be > 0");
 
     if (n == 1) {
         out[0] = 1.0;
@@ -617,8 +618,8 @@ void MD_Gen_Hamming_Win(double *out, unsigned n)
  */
 void MD_Gen_Blackman_Win(double *out, unsigned n)
 {
-    assert(out != NULL);
-    assert(n > 0);
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(n > 0, MD_ERR_INVALID_SIZE, "n must be > 0");
 
     if (n == 1) {
         out[0] = 1.0;
@@ -637,8 +638,8 @@ void MD_Gen_Blackman_Win(double *out, unsigned n)
  */
 void MD_Gen_Rect_Win(double *out, unsigned n)
 {
-    assert(out != NULL);
-    assert(n > 0);
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(n > 0, MD_ERR_INVALID_SIZE, "n must be > 0");
     for (unsigned i = 0; i < n; i++) {
         out[i] = 1.0;
     }
@@ -656,8 +657,8 @@ void MD_Gen_Rect_Win(double *out, unsigned n)
  */
 void MD_Gen_Kaiser_Win(double *out, unsigned n, double beta)
 {
-    assert(out != NULL);
-    assert(n > 0);
+    MD_CHECK_VOID(out != NULL, MD_ERR_NULL_POINTER, "out is NULL");
+    MD_CHECK_VOID(n > 0, MD_ERR_INVALID_SIZE, "n must be > 0");
 
     if (n == 1) {
         out[0] = 1.0;

@@ -27,6 +27,7 @@
  */
 
 #include "minidsp.h"
+#include "minidsp_internal.h"
 
 /* -----------------------------------------------------------------------
  * Shared constants
@@ -233,7 +234,8 @@ static void _bfsk_setup(double sample_rate)
     free(_bfsk_sin_hi);
     _bfsk_sin_lo = malloc(cs * sizeof(double));
     _bfsk_sin_hi = malloc(cs * sizeof(double));
-    assert(_bfsk_sin_lo != NULL && _bfsk_sin_hi != NULL);
+    MD_CHECK_VOID(_bfsk_sin_lo != NULL, MD_ERR_ALLOC_FAILED, "malloc failed");
+    MD_CHECK_VOID(_bfsk_sin_hi != NULL, MD_ERR_ALLOC_FAILED, "malloc failed");
     for (unsigned s = 0; s < cs; s++) {
         double t = (double)s / sample_rate;
         _bfsk_sin_lo[s] = sin(2.0 * M_PI * FREQ_LO * t);
@@ -436,7 +438,7 @@ static unsigned spectext_encode(const double *host, double *output,
      * BEFORE LSB encoding (LSB must be the last step, because adding
      * any signal afterwards would disturb the LSB bits). */
     double *mixed = malloc(out_len * sizeof(double));
-    assert(mixed != NULL);
+    MD_CHECK(mixed != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
 
     if (sample_rate < SPECTEXT_TARGET_SR) {
         MD_resample(host, signal_len, mixed, out_len,
@@ -471,14 +473,14 @@ static unsigned spectext_encode(const double *host, double *output,
 
         /* Build a null-terminated substring if truncated. */
         char *vis_substr = malloc(text_len + 1);
-        assert(vis_substr != NULL);
+        MD_CHECK(vis_substr != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
         memcpy(vis_substr, vis_text, text_len);
         vis_substr[text_len] = '\0';
 
         double vis_duration = (double)text_len * SPECTEXT_SEC_PER_CHAR;
 
         double *specbuf = calloc(out_len, sizeof(double));
-        assert(specbuf != NULL);
+        MD_CHECK(specbuf != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0);
 
         MD_spectrogram_text(specbuf, out_len, vis_substr,
                             SPECTEXT_FREQ_LO, SPECTEXT_FREQ_HI,
@@ -523,7 +525,7 @@ static double spectext_ultrasonic_rms(const double *signal,
     /* Compute magnitude spectrum (3-arg: signal, N, mag_out). */
     unsigned spec_len = fft_len / 2 + 1;
     double *mag = malloc(spec_len * sizeof(double));
-    assert(mag != NULL);
+    MD_CHECK(mag != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0.0);
 
     /* Use a segment from the middle of the signal. */
     unsigned offset = 0;
@@ -532,7 +534,8 @@ static double spectext_ultrasonic_rms(const double *signal,
 
     double *windowed = malloc(fft_len * sizeof(double));
     double *win = malloc(fft_len * sizeof(double));
-    assert(windowed != NULL && win != NULL);
+    MD_CHECK(windowed != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0.0);
+    MD_CHECK(win != NULL, MD_ERR_ALLOC_FAILED, "malloc failed", 0.0);
     MD_Gen_Hann_Win(win, fft_len);
     for (unsigned i = 0; i < fft_len; i++)
         windowed[i] = signal[offset + i] * win[i];
@@ -567,10 +570,11 @@ static double spectext_ultrasonic_rms(const double *signal,
 
 unsigned MD_steg_capacity(unsigned signal_len, double sample_rate, int method)
 {
-    assert(signal_len > 0);
-    assert(sample_rate > 0.0);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
-           method == MD_STEG_SPECTEXT);
+    MD_CHECK(signal_len > 0, MD_ERR_INVALID_SIZE, "signal_len must be > 0", 0);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0);
+    MD_CHECK(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
+             method == MD_STEG_SPECTEXT,
+             MD_ERR_INVALID_RANGE, "invalid steganography method", 0);
 
     if (method == MD_STEG_LSB)
         return lsb_capacity(signal_len);
@@ -586,17 +590,18 @@ static unsigned encode_common(const double *host, double *output,
                               const unsigned char *data, unsigned data_len,
                               int method, unsigned flags)
 {
-    assert(host != NULL);
-    assert(output != NULL);
-    assert(signal_len > 0);
-    assert(sample_rate > 0.0);
-    assert(data != NULL);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
-           method == MD_STEG_SPECTEXT);
+    MD_CHECK(host != NULL, MD_ERR_NULL_POINTER, "host must not be NULL", 0);
+    MD_CHECK(output != NULL, MD_ERR_NULL_POINTER, "output must not be NULL", 0);
+    MD_CHECK(signal_len > 0, MD_ERR_INVALID_SIZE, "signal_len must be > 0", 0);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0);
+    MD_CHECK(data != NULL, MD_ERR_NULL_POINTER, "data must not be NULL", 0);
+    MD_CHECK(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
+             method == MD_STEG_SPECTEXT,
+             MD_ERR_INVALID_RANGE, "invalid steganography method", 0);
 
     if (method == MD_STEG_FREQ_BAND)
-        assert(sample_rate >= 40000.0 &&
-               "frequency-band steganography requires sample_rate >= 40 kHz");
+        MD_CHECK(sample_rate >= 40000.0, MD_ERR_INVALID_RANGE,
+                 "frequency-band steganography requires sample_rate >= 40 kHz", 0);
 
     if (method == MD_STEG_LSB)
         return lsb_encode(host, output, signal_len, data, data_len, flags);
@@ -622,13 +627,14 @@ unsigned MD_steg_decode_bytes(const double *stego, unsigned signal_len,
                               unsigned char *data_out, unsigned max_len,
                               int method)
 {
-    assert(stego != NULL);
-    assert(signal_len > 0);
-    assert(sample_rate > 0.0);
-    assert(data_out != NULL);
-    assert(max_len > 0);
-    assert(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
-           method == MD_STEG_SPECTEXT);
+    MD_CHECK(stego != NULL, MD_ERR_NULL_POINTER, "stego must not be NULL", 0);
+    MD_CHECK(signal_len > 0, MD_ERR_INVALID_SIZE, "signal_len must be > 0", 0);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0);
+    MD_CHECK(data_out != NULL, MD_ERR_NULL_POINTER, "data_out must not be NULL", 0);
+    MD_CHECK(max_len > 0, MD_ERR_INVALID_SIZE, "max_len must be > 0", 0);
+    MD_CHECK(method == MD_STEG_LSB || method == MD_STEG_FREQ_BAND ||
+             method == MD_STEG_SPECTEXT,
+             MD_ERR_INVALID_RANGE, "invalid steganography method", 0);
 
     if (method == MD_STEG_LSB || method == MD_STEG_SPECTEXT)
         return lsb_decode(stego, signal_len, data_out, max_len);
@@ -641,7 +647,7 @@ unsigned MD_steg_encode(const double *host, double *output,
                         unsigned signal_len, double sample_rate,
                         const char *message, int method)
 {
-    assert(message != NULL);
+    MD_CHECK(message != NULL, MD_ERR_NULL_POINTER, "message must not be NULL", 0);
     return encode_common(host, output, signal_len, sample_rate,
                          (const unsigned char *)message,
                          (unsigned)strlen(message), method, 0);
@@ -652,8 +658,8 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
                         char *message_out, unsigned max_msg_len,
                         int method)
 {
-    assert(message_out != NULL);
-    assert(max_msg_len > 0);
+    MD_CHECK(message_out != NULL, MD_ERR_NULL_POINTER, "message_out must not be NULL", 0);
+    MD_CHECK(max_msg_len > 0, MD_ERR_INVALID_SIZE, "max_msg_len must be > 0", 0);
     unsigned decoded = MD_steg_decode_bytes(stego, signal_len, sample_rate,
                                             (unsigned char *)message_out,
                                             max_msg_len - 1, method);
@@ -664,9 +670,9 @@ unsigned MD_steg_decode(const double *stego, unsigned signal_len,
 int MD_steg_detect(const double *signal, unsigned signal_len,
                    double sample_rate, int *payload_type_out)
 {
-    assert(signal != NULL);
-    assert(signal_len > 0);
-    assert(sample_rate > 0.0);
+    MD_CHECK(signal != NULL, MD_ERR_NULL_POINTER, "signal must not be NULL", -1);
+    MD_CHECK(signal_len > 0, MD_ERR_INVALID_SIZE, "signal_len must be > 0", -1);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", -1);
 
     int found_method = -1;
     unsigned found_header = 0;

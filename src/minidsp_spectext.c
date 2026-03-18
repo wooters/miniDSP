@@ -10,6 +10,7 @@
  */
 
 #include "minidsp.h"
+#include "minidsp_internal.h"
 
 /* -----------------------------------------------------------------------
  * 5x7 Bitmap Font (printable ASCII 32–126)
@@ -145,14 +146,15 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
                              double freq_lo, double freq_hi,
                              double duration_sec, double sample_rate)
 {
-    assert(output != NULL);
-    assert(text != NULL);
-    assert(text[0] != '\0');
-    assert(freq_lo > 0.0);
-    assert(freq_lo < freq_hi);
-    assert(freq_hi < sample_rate / 2.0);
-    assert(duration_sec > 0.0);
-    assert(sample_rate > 0.0);
+    MD_CHECK(output != NULL, MD_ERR_NULL_POINTER, "output must not be NULL", 0);
+    MD_CHECK(text != NULL, MD_ERR_NULL_POINTER, "text must not be NULL", 0);
+    MD_CHECK(text[0] != '\0', MD_ERR_INVALID_SIZE, "text must not be empty", 0);
+    MD_CHECK(freq_lo > 0.0, MD_ERR_INVALID_RANGE, "freq_lo must be > 0", 0);
+    MD_CHECK(freq_lo < freq_hi, MD_ERR_INVALID_RANGE, "freq_lo must be < freq_hi", 0);
+    MD_CHECK(freq_hi < sample_rate / 2.0, MD_ERR_INVALID_RANGE,
+             "freq_hi must be < Nyquist", 0);
+    MD_CHECK(duration_sec > 0.0, MD_ERR_INVALID_RANGE, "duration_sec must be > 0", 0);
+    MD_CHECK(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0", 0);
 
     unsigned len = (unsigned)strlen(text);
     unsigned grid_cols = len * 8 - 3;  /* 5 data + 3 space per char, minus trailing spaces */
@@ -162,7 +164,8 @@ unsigned MD_spectrogram_text(double *output, unsigned max_len,
     if (col_samples < 1) col_samples = 1;
 
     unsigned total_samples = col_samples * grid_cols;
-    assert(max_len >= total_samples);
+    MD_CHECK(max_len >= total_samples, MD_ERR_INVALID_SIZE,
+             "max_len too small for total samples", 0);
 
     /* Crossfade: 3 ms raised-cosine, clamped to half a column */
     unsigned fade_samples = (unsigned)(0.003 * sample_rate);

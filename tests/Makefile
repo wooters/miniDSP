@@ -21,10 +21,10 @@ GP_OBJ = $(GP)/gnuplot_i.o
 
 # --- Primary test target ---
 
-TEST_SRCS = test_minidsp.c test_core.c test_effects.c test_generators.c \
-            test_spectrum.c test_fir.c test_gcc.c test_biquad.c \
-            test_windows.c test_dtmf.c test_spectext.c test_steg.c \
-            test_fileio.c test_resample.c
+TEST_SRCS = test_minidsp.c test_error.c test_core.c test_effects.c \
+            test_generators.c test_spectrum.c test_fir.c test_gcc.c \
+            test_biquad.c test_windows.c test_dtmf.c test_spectext.c \
+            test_steg.c test_fileio.c test_resample.c
 
 TEST_OBJS = $(TEST_SRCS:.c=.o)
 

@@ -145,6 +145,8 @@ static int write_html(const char *path,
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     /* ------------------------------------------------------------------
      * Signal parameters
      * ----------------------------------------------------------------*/

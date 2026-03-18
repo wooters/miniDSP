@@ -18,6 +18,8 @@
 
 int main(void)
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     /* Generate a 440 Hz sine wave at 44100 Hz (1 second). */
     const unsigned N_in = 44100;
     const double in_rate = 44100.0;

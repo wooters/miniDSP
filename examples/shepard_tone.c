@@ -124,6 +124,8 @@ static int write_html(const char *path, const double *spec_db,
 
 int main(int argc, char *argv[])
 {
+    MD_set_error_handler(NULL);  /* use default stderr handler */
+
     /* Defaults */
     double rate       = 0.5;    /* octaves per second (positive = rising) */
     unsigned num_oct  = 8;

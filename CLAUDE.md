@@ -18,10 +18,11 @@ A small C library for audio DSP: signal measurement, FFT spectrum analysis, biqu
 
 ## API design contract
 
-- **Assertions vs sentinel returns** — Use `assert()` for structural misuse; sentinel returns (e.g. `0.0`) only for valid-but-unresolved runtime outcomes.
-- **Module boundaries** — FFT-dependent APIs belong in `src/minidsp_spectrum.c`; time-domain/stateless analysis belongs in `src/minidsp_core.c`.
+- **Error handling** — The library never calls `abort()` or `assert()`. Precondition violations are reported via a configurable error handler (default: `fprintf(stderr, ...)`), then the function returns a safe default (`0.0` for double, `0` for unsigned, `-1` for int, no-op for void). Use `MD_CHECK(cond, code, msg, retval)` or `MD_CHECK_VOID(cond, code, msg)` macros (defined in `src/minidsp_internal.h`) for all precondition checks. Error codes: `MD_ERR_NULL_POINTER`, `MD_ERR_INVALID_SIZE`, `MD_ERR_INVALID_RANGE`, `MD_ERR_ALLOC_FAILED`.
+- **Sentinel returns** — Sentinel values (e.g. `0.0` from `MD_f0_autocorrelation` when no peak is found) are valid-but-unresolved runtime outcomes, NOT errors — they must not trigger the error handler.
+- **Module boundaries** — FFT-dependent APIs belong in `src/minidsp_spectrum.c`; time-domain/stateless analysis belongs in `src/minidsp_core.c`. Error handler state lives in `src/minidsp_error.c`.
 - **MFCC contract** — HTK mel mapping, one-sided PSD mel energies, natural-log floor at `1e-12`, DCT-II with `sqrt(1/M)` for `C0` and `sqrt(2/M)` for higher coefficients, `C0` returned at index 0.
-- **Spectrum frequency bounds** — Assert structural misuse only; clamp runtime frequency ranges to `[0, Nyquist]`; return finite outputs for valid-but-empty clamped ranges.
+- **Spectrum frequency bounds** — Check structural misuse via `MD_CHECK`; clamp runtime frequency ranges to `[0, Nyquist]`; return finite outputs for valid-but-empty clamped ranges.
 
 ## Documentation conventions
 

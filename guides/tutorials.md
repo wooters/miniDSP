@@ -21,6 +21,7 @@ and shows the resulting plots.
 - \subpage shepard-tone — Generate the auditory illusion of endlessly rising or falling pitch.
 - \subpage audio-steganography — Hide secret messages inside audio signals using [LSB](https://en.wikipedia.org/wiki/Bit_numbering#LSb_0_bit_numbering), frequency-band, or spectrogram-text encoding.
 - \subpage resampling — Convert signals between sample rates using a polyphase sinc resampler.
+- \subpage error-handling — Configurable error handler, error codes, safe defaults, and custom handler installation.
 
 ## Tools
 

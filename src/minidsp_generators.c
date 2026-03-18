@@ -7,6 +7,7 @@
  */
 
 #include "minidsp.h"
+#include "minidsp_internal.h"
 
 /* -----------------------------------------------------------------------
  * Public API: Signal generators
@@ -15,9 +16,9 @@
 void MD_sine_wave(double *output, unsigned N, double amplitude,
                   double freq, double sample_rate)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
     double phase_step = 2.0 * M_PI * freq / sample_rate;
     for (unsigned i = 0; i < N; i++)
         output[i] = amplitude * sin(phase_step * (double)i);
@@ -26,8 +27,8 @@ void MD_sine_wave(double *output, unsigned N, double amplitude,
 void MD_white_noise(double *output, unsigned N, double amplitude,
                     unsigned seed)
 {
-    assert(output != NULL);
-    assert(N > 0);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
 
     /* 64-bit LCG (Knuth MMIX constants) for uniform doubles in (0, 1).
      * Self-contained so we don't need POSIX drand48. */
@@ -67,9 +68,9 @@ void MD_white_noise(double *output, unsigned N, double amplitude,
 
 void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(position < N);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(position < N, MD_ERR_INVALID_RANGE, "position must be < N");
     memset(output, 0, N * sizeof(double));
     output[position] = amplitude;
 }
@@ -77,9 +78,9 @@ void MD_impulse(double *output, unsigned N, double amplitude, unsigned position)
 void MD_chirp_linear(double *output, unsigned N, double amplitude,
                      double f_start, double f_end, double sample_rate)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
 
     if (N == 1) {
         output[0] = 0.0;
@@ -99,12 +100,12 @@ void MD_chirp_linear(double *output, unsigned N, double amplitude,
 void MD_chirp_log(double *output, unsigned N, double amplitude,
                   double f_start, double f_end, double sample_rate)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
-    assert(f_start > 0.0);
-    assert(f_end > 0.0);
-    assert(f_start != f_end);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(f_start > 0.0, MD_ERR_INVALID_RANGE, "f_start must be > 0");
+    MD_CHECK_VOID(f_end > 0.0, MD_ERR_INVALID_RANGE, "f_end must be > 0");
+    MD_CHECK_VOID(f_start != f_end, MD_ERR_INVALID_RANGE, "f_start must != f_end");
 
     if (N == 1) {
         output[0] = 0.0;
@@ -126,9 +127,9 @@ void MD_chirp_log(double *output, unsigned N, double amplitude,
 void MD_square_wave(double *output, unsigned N, double amplitude,
                     double freq, double sample_rate)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
     double phase_step = 2.0 * M_PI * freq / sample_rate;
     for (unsigned i = 0; i < N; i++) {
         double phase = fmod(phase_step * (double)i, 2.0 * M_PI);
@@ -145,9 +146,9 @@ void MD_square_wave(double *output, unsigned N, double amplitude,
 void MD_sawtooth_wave(double *output, unsigned N, double amplitude,
                       double freq, double sample_rate)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
     double phase_step = 2.0 * M_PI * freq / sample_rate;
     for (unsigned i = 0; i < N; i++) {
         double phase = fmod(phase_step * (double)i, 2.0 * M_PI);
@@ -160,11 +161,11 @@ void MD_shepard_tone(double *output, unsigned N, double amplitude,
                      double base_freq, double sample_rate,
                      double rate_octaves_per_sec, unsigned num_octaves)
 {
-    assert(output != NULL);
-    assert(N > 0);
-    assert(sample_rate > 0.0);
-    assert(base_freq > 0.0);
-    assert(num_octaves > 0);
+    MD_CHECK_VOID(output != NULL, MD_ERR_NULL_POINTER, "output is NULL");
+    MD_CHECK_VOID(N > 0, MD_ERR_INVALID_SIZE, "N must be > 0");
+    MD_CHECK_VOID(sample_rate > 0.0, MD_ERR_INVALID_RANGE, "sample_rate must be > 0");
+    MD_CHECK_VOID(base_freq > 0.0, MD_ERR_INVALID_RANGE, "base_freq must be > 0");
+    MD_CHECK_VOID(num_octaves > 0, MD_ERR_INVALID_SIZE, "num_octaves must be > 0");
 
     double rate    = rate_octaves_per_sec;
     double center  = (double)(num_octaves - 1) / 2.0;
@@ -192,7 +193,7 @@ void MD_shepard_tone(double *output, unsigned N, double amplitude,
 
     /* Per-layer phase accumulators (zero-initialised). */
     double *phases = calloc(total_layers, sizeof(double));
-    assert(phases != NULL);
+    MD_CHECK_VOID(phases != NULL, MD_ERR_ALLOC_FAILED, "calloc failed");
     memset(output, 0, N * sizeof(double));
 
     for (unsigned i = 0; i < N; i++) {
