@@ -479,6 +479,23 @@ make tools
 ./tools/audio_steg/audio_steg --decode stego.wav
 ```
 
+### resample -- Sample Rate Converter
+
+Convert a mono audio file to a different sample rate using polyphase sinc interpolation. Reads any format supported by libsndfile; writes WAV (IEEE float).
+
+```sh
+make tools
+./tools/resample/resample input.wav 48000 output.wav
+./tools/resample/resample -z 64 -b 14.0 input.wav 16000 output.wav   # custom quality
+```
+
+Optional flags control the sinc interpolation filter quality:
+
+- **`-z N`** — Number of sinc zero-crossings per side (default: 32). More zero-crossings produce a sharper cutoff and better stopband rejection at the cost of speed.
+- **`-b F`** — Kaiser window beta parameter (default: 10.0). Higher values widen the mainlobe but deepen stopband attenuation (10.0 gives >100 dB rejection).
+
+The defaults work well for most use cases.
+
 ## Python Bindings
 
 Python bindings for miniDSP are available in the [pyminidsp](https://github.com/wooters/pyminidsp) repository.

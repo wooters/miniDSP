@@ -27,3 +27,4 @@ and shows the resulting plots.
 Standalone programs built on the miniDSP library.
 
 - \subpage mel-viz — Mel-spectrum audio visualizer with browser-based radial animation, live mic mode, and configurable color palettes.
+- \subpage resample-tool — Sample rate conversion CLI using polyphase sinc interpolation.

@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
     }
     free(in_float);
 
+    //! [resample-core]
     /* Resample */
     unsigned out_len = MD_resample_output_len(
         (unsigned)in_len, (double)in_rate, (double)target_rate);
@@ -150,6 +151,7 @@ int main(int argc, char *argv[])
                 out_double, out_len,
                 (double)in_rate, (double)target_rate,
                 zero_crossings, kaiser_beta);
+    //! [resample-core]
     free(in_double);
 
     /* Convert double -> float */

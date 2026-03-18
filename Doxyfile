@@ -10,7 +10,7 @@ FILE_PATTERNS          = *.h *.c *.md
 RECURSIVE              = NO
 EXCLUDE                = doxygen-awesome-css tests
 USE_MDFILE_AS_MAINPAGE = README.md
-EXAMPLE_PATH           = examples tools/audio_steg
+EXAMPLE_PATH           = examples tools/audio_steg tools/resample
 IMAGE_PATH             = guides/images
 
 # --- C optimizations ---
