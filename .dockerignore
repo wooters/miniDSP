@@ -55,6 +55,7 @@ doxygen-custom/
 Doxyfile
 *~
 tools/mel_viz/mel_viz
+tools/resample/resample
 samples/
 .claude/
 CLAUDE.md

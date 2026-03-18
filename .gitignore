@@ -97,6 +97,7 @@ docs/*
 tools/mel_viz/mel_viz
 tools/mel_viz/mel_viz_out/
 tools/audio_steg/audio_steg
+tools/resample/resample
 
 # Local Claude Code settings
 .claude/
