@@ -94,7 +94,7 @@ Seven classic audio filter types, all based on Robert Bristow-Johnson's [Audio E
 
 ### File I/O (fileio.h)
 
-- Read audio files in any format supported by libsndfile (WAV, FLAC, AIFF, OGG, etc.)
+- Read audio files in any of the [20+ formats supported by libsndfile](https://libsndfile.github.io/libsndfile/formats.html) (WAV, FLAC, AIFF, OGG, and more)
 - Write audio to WAV (IEEE float for lossless DSP round-trips)
 - Write feature vectors in NumPy `.npy` format (for Python interop)
 - Write feature vectors in safetensors format (for ML pipelines)
