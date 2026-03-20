@@ -73,6 +73,7 @@ docs: libminidsp.a
 	examples/gen_audio_samples
 	examples/gen_signal_plots
 	doxygen Doxyfile
+	python3 scripts/gen_llms_txt.py
 
 PREFIX ?= /usr/local
 HEADERS = $(wildcard include/*.h)
@@ -91,7 +92,7 @@ uninstall:
 .PHONY: clean
 clean:
 	-rm -f src/*.o libminidsp.a
-	-rm -rf docs/html guides/audio guides/plots
+	-rm -rf docs/html docs/xml guides/audio guides/plots
 	$(MAKE) -C tests clean
 	$(MAKE) -C examples clean
 	$(MAKE) -C tools/mel_viz clean
