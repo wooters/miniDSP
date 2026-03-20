@@ -10,6 +10,8 @@ Builds and runs on **Ubuntu** and **macOS**. Windows is untested — pull reques
 
 **[Read the full documentation](https://wooters.github.io/miniDSP/)** -- API reference, tutorials, and interactive examples.
 
+**AI agents:** fetch [`llms-full.txt`](https://wooters.github.io/miniDSP/llms-full.txt) for the complete API reference and tutorials in a single markdown file.
+
 ## What's in the box?
 
 ### Spectral Analysis (minidsp.h)
