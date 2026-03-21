@@ -9,7 +9,7 @@ include ../config.mk
 
 CFLAGS += -O2 -g -I../include
 
-EXAMPLES = magnitude_spectrum power_spectral_density spectrogram phase_spectrum sine_wave white_noise impulse chirp_wave square_sawtooth basic_operations window_functions fir_convolution simple_effects pitch_detection mel_mfcc resampler brickwall
+EXAMPLES = magnitude_spectrum power_spectral_density spectrogram phase_spectrum sine_wave white_noise impulse chirp_wave square_sawtooth basic_operations window_functions fir_convolution simple_effects pitch_detection mel_mfcc resampler brickwall vad
 
 # Examples that need libsndfile (for WAV file I/O)
 SNDFILE_EXAMPLES = dtmf_detector spectrogram_text shepard_tone
@@ -59,6 +59,7 @@ plot: $(ALL_EXAMPLES)
 	./shepard_tone
 	./resampler
 	./brickwall
+	./vad
 
 .PHONY: clean
 clean:

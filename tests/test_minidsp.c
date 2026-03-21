@@ -41,6 +41,7 @@ void run_spectext_tests(void);
 void run_steg_tests(void);
 void run_fileio_tests(void);
 void run_resample_tests(void);
+void run_vad_tests(void);
 void run_error_tests(void);
 
 /* -----------------------------------------------------------------------
@@ -65,6 +66,7 @@ int main(void)
     run_steg_tests();
     run_fileio_tests();
     run_resample_tests();
+    run_vad_tests();
 
     /* Clean up FFTW resources */
     MD_shutdown();

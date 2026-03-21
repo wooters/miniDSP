@@ -17,6 +17,7 @@
  *   - Generalized Cross-Correlation (GCC-PHAT) for delay estimation
  *   - Spectrogram text art (synthesise audio that displays text in a spectrogram)
  *   - Audio steganography (hide, detect, and recover secret messages or binary data via LSB, frequency-band, or spectrogram-text encoding)
+ *   - Voice activity detection (VAD) with adaptive feature normalization and onset/hangover smoothing
  *   - Configurable error handling (custom error handler callback, safe defaults on precondition failure)
  *
  * These are the kinds of building blocks you'd use in an audio processing
@@ -1778,5 +1779,154 @@ unsigned MD_resample(const double *input, unsigned input_len,
                      double *output, unsigned max_output_len,
                      double in_rate, double out_rate,
                      unsigned num_zero_crossings, double kaiser_beta);
+
+/* -----------------------------------------------------------------------
+ * Voice Activity Detection (VAD)
+ * -----------------------------------------------------------------------*/
+
+/** @name VAD feature indices */
+/** @{ */
+#define MD_VAD_FEAT_ENERGY             0  /**< Frame energy */
+#define MD_VAD_FEAT_ZCR                1  /**< Zero-crossing rate */
+#define MD_VAD_FEAT_SPECTRAL_ENTROPY   2  /**< Spectral entropy */
+#define MD_VAD_FEAT_SPECTRAL_FLATNESS  3  /**< Spectral flatness */
+#define MD_VAD_FEAT_BAND_ENERGY_RATIO  4  /**< Band energy ratio */
+#define MD_VAD_NUM_FEATURES            5  /**< Total number of features */
+/** @} */
+
+/**
+ * Parameters for the VAD detector.
+ *
+ * All fields are caller-tunable.  Use MD_vad_default_params() to populate
+ * with sensible defaults before adjusting individual fields.
+ */
+typedef struct {
+    double   weights[MD_VAD_NUM_FEATURES]; /**< Per-feature weights for scoring */
+    double   threshold;        /**< Decision threshold (0.0–1.0) */
+    unsigned onset_frames;     /**< Consecutive above-threshold frames before speech */
+    unsigned hangover_frames;  /**< Extra speech frames after score drops */
+    double   adaptation_rate;  /**< EMA rate for min/max tracking (0.0–1.0) */
+    double   band_low_hz;      /**< Lower bound of speech band (Hz) */
+    double   band_high_hz;     /**< Upper bound of speech band (Hz) */
+} MD_vad_params;
+
+/**
+ * Internal state for the VAD detector.
+ *
+ * Caller-owned, stack-allocatable.  No heap allocations.
+ * Initialize with MD_vad_init() before use.
+ */
+typedef struct {
+    MD_vad_params params;                      /**< Copy of caller params */
+    double   feat_min[MD_VAD_NUM_FEATURES];    /**< EMA-tracked feature minimums */
+    double   feat_max[MD_VAD_NUM_FEATURES];    /**< EMA-tracked feature maximums */
+    unsigned onset_counter;                    /**< Consecutive above-threshold count */
+    unsigned hangover_counter;                 /**< Remaining hangover frames */
+    int      current_decision;                 /**< Current speech decision (0 or 1) */
+    unsigned frames_processed;                 /**< Total frames seen */
+} MD_vad_state;
+
+/**
+ * Populate a VAD params struct with sensible defaults.
+ *
+ * Default values:
+ * - weights: 0.2 each (equal)
+ * - threshold: 0.5
+ * - onset_frames: 3
+ * - hangover_frames: 15
+ * - adaptation_rate: 0.01
+ * - band: 300–3400 Hz
+ *
+ * @param params  Output params struct.  Must not be NULL.
+ *
+ * @code
+ * MD_vad_params p;
+ * MD_vad_default_params(&p);
+ * p.threshold = 0.4;  // lower threshold for noisy environments
+ * @endcode
+ *
+ * @see MD_vad_init(), MD_vad_process_frame()
+ */
+void MD_vad_default_params(MD_vad_params *params);
+
+/**
+ * Initialize VAD state from params.
+ *
+ * If @p params is NULL, default params are used (equivalent to calling
+ * MD_vad_default_params() first).  After initialization the detector is
+ * in the SILENCE state with all counters at zero.
+ *
+ * @param state   Output state struct.  Must not be NULL.
+ * @param params  Parameters to copy, or NULL for defaults.
+ *
+ * @code
+ * MD_vad_state st;
+ * MD_vad_init(&st, NULL);  // use defaults
+ * @endcode
+ *
+ * @see MD_vad_default_params(), MD_vad_process_frame()
+ */
+void MD_vad_init(MD_vad_state *state, const MD_vad_params *params);
+
+/**
+ * Feed a known-silence frame to seed the adaptive normalization.
+ *
+ * Computes all five features and updates the EMA min/max estimates
+ * without running the state machine or producing a decision.
+ * Call this on several silence frames before processing live audio
+ * to improve initial normalization accuracy.
+ *
+ * @param state        VAD state (must be initialized).
+ * @param signal       Frame samples of length @p N.
+ * @param N            Frame length in samples (must be >= 2).
+ * @param sample_rate  Sample rate in Hz (must be > 0).
+ *
+ * @code
+ * // Calibrate on 10 frames of silence
+ * double silence[256] = {0};
+ * for (int i = 0; i < 10; i++)
+ *     MD_vad_calibrate(&st, silence, 256, 16000.0);
+ * @endcode
+ *
+ * @see MD_vad_init(), MD_vad_process_frame()
+ */
+void MD_vad_calibrate(MD_vad_state *state, const double *signal,
+                      unsigned N, double sample_rate);
+
+/**
+ * Process one audio frame and return a binary speech decision.
+ *
+ * Processing pipeline:
+ * 1. Extract five raw features (energy, ZCR, spectral entropy,
+ *    spectral flatness, band energy ratio).
+ * 2. Update adaptive normalization (EMA min/max).
+ * 3. Normalize features to [0.0, 1.0].
+ * 4. Compute weighted score:
+ *    \f[ S = \sum_{i=0}^{4} w_i \cdot \hat{f}_i \f]
+ * 5. Apply onset/hangover state machine.
+ *
+ * @param state         VAD state (must be initialized).
+ * @param signal        Frame samples of length @p N.
+ * @param N             Frame length in samples (must be >= 2).
+ * @param sample_rate   Sample rate in Hz (must be > 0).
+ * @param score_out     If non-NULL, receives the combined score.
+ * @param features_out  If non-NULL, receives MD_VAD_NUM_FEATURES
+ *                      normalized feature values in [0.0, 1.0].
+ * @return              1 if speech detected, 0 if silence.
+ *
+ * @code
+ * double frame[256];
+ * double score;
+ * double feats[MD_VAD_NUM_FEATURES];
+ * // ... fill frame ...
+ * int decision = MD_vad_process_frame(&st, frame, 256, 16000.0,
+ *                                     &score, feats);
+ * @endcode
+ *
+ * @see MD_energy(), MD_zero_crossing_rate(), MD_power_spectral_density()
+ */
+int MD_vad_process_frame(MD_vad_state *state, const double *signal,
+                         unsigned N, double sample_rate,
+                         double *score_out, double *features_out);
 
 #endif /* MINIDSP_H */

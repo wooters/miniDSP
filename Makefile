@@ -22,7 +22,8 @@ CFLAGS += -DMINIDSP_VERSION_MAJOR=$(VERSION_MAJOR) \
 MD_SRCS = src/minidsp_error.c src/minidsp_core.c src/minidsp_generators.c \
           src/minidsp_spectrum.c src/minidsp_fir.c src/minidsp_dtmf.c \
           src/minidsp_spectext.c src/minidsp_steg.c src/minidsp_gcc.c \
-          src/minidsp_resample.c src/biquad.c src/liveio.c src/fileio.c
+          src/minidsp_resample.c src/minidsp_vad.c src/biquad.c \
+          src/liveio.c src/fileio.c
 MD_OBJS = $(MD_SRCS:.c=.o)
 
 default: libminidsp.a

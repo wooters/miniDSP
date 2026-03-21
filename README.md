@@ -34,6 +34,10 @@ Builds and runs on **Ubuntu** and **macOS**. Windows is untested — pull reques
 - **Sawtooth wave generator** -- linear ramp waveform at a given frequency; contains both odd and even harmonics.
 - **Shepard tone generator** -- the [auditory illusion](https://en.wikipedia.org/wiki/Shepard_tone) of endlessly rising or falling pitch, using octave-spaced sine waves with a Gaussian spectral envelope.
 
+### Voice Activity Detection (minidsp.h)
+
+- **Frame-at-a-time VAD** -- combines five normalized audio features (energy, zero-crossing rate, spectral entropy, spectral flatness, band energy ratio) into a weighted score with adaptive EMA normalization, onset gating, and hangover smoothing.
+
 ### Spectrogram Text Art (minidsp.h)
 
 - **Spectrogram text synthesis** -- render a text string as audio whose spectrogram displays the message; uses a built-in 5x7 bitmap font with sine-wave synthesis, raised-cosine crossfade, and peak normalisation.

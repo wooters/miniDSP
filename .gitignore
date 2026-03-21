@@ -82,6 +82,10 @@ examples/brickwall
 examples/brickwall.csv
 examples/brickwall.html
 
+examples/vad
+examples/vad.csv
+examples/vad.html
+
 # Generated assets for documentation
 guides/audio/
 guides/plots/
