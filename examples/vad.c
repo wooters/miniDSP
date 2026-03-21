@@ -54,7 +54,8 @@ static void synthesize_signal(double *signal, unsigned total_samples)
  * Write the interactive HTML visualization
  * -----------------------------------------------------------------------*/
 static int write_html(const char *path,
-                      const double *times, const double *waveform,
+                      const double *times,
+                      const double *signal, unsigned total_samples,
                       const int *decisions, const double *scores,
                       const double *feat_matrix,
                       unsigned num_frames, double threshold)
@@ -83,10 +84,15 @@ static int write_html(const char *path,
     fprintf(fp, "  <script>\n");
 
     plot_html_js_array(fp, "times", times, num_frames, "%.4f");
-
-    /* Waveform: use first sample of each frame */
-    plot_html_js_array(fp, "waveform", waveform, num_frames, "%.6f");
     plot_html_js_array(fp, "scores", scores, num_frames, "%.6f");
+
+    /* Full-resolution waveform */
+    double *wave_times = malloc(total_samples * sizeof(double));
+    for (unsigned i = 0; i < total_samples; i++)
+        wave_times[i] = (double)i / SAMPLE_RATE;
+    plot_html_js_array(fp, "wave_times", wave_times, total_samples, "%.6f");
+    plot_html_js_array(fp, "waveform", signal, total_samples, "%.6f");
+    free(wave_times);
 
     /* Decisions as doubles for plotting */
     fprintf(fp, "    const decisions = [");
@@ -113,7 +119,7 @@ static int write_html(const char *path,
         "\n"
         "    // Waveform plot\n"
         "    Plotly.newPlot('waveform', [{\n"
-        "      x: times, y: waveform, type: 'scatter', mode: 'lines',\n"
+        "      x: wave_times, y: waveform, type: 'scatter', mode: 'lines',\n"
         "      line: {color: '#2563eb', width: 1}, name: 'Waveform'\n"
         "    }], {\n"
         "      title: 'Waveform', height: 200,\n"
@@ -187,7 +193,6 @@ int main(void)
 
     /* Allocate output arrays */
     double *times     = malloc(num_frames * sizeof(double));
-    double *waveform  = malloc(num_frames * sizeof(double));
     int    *decisions = malloc(num_frames * sizeof(int));
     double *scores    = malloc(num_frames * sizeof(double));
     double *feat_matrix = malloc(num_frames * MD_VAD_NUM_FEATURES * sizeof(double));
@@ -227,7 +232,6 @@ int main(void)
 
         double t = (double)(i * FRAME_SIZE) / SAMPLE_RATE;
         times[i] = t;
-        waveform[i] = frame[0];
         decisions[i] = decision;
         scores[i] = score;
         for (int f = 0; f < MD_VAD_NUM_FEATURES; f++)
@@ -255,13 +259,12 @@ int main(void)
     //! [vad-custom-weights]
 
     /* Write HTML visualization */
-    write_html("vad_plot.html", times, waveform, decisions, scores,
-               feat_matrix, num_frames, params.threshold);
+    write_html("vad_plot.html", times, signal, total_samples,
+               decisions, scores, feat_matrix, num_frames, params.threshold);
 
     /* Clean up */
     free(signal);
     free(times);
-    free(waveform);
     free(decisions);
     free(scores);
     free(feat_matrix);
