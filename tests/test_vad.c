@@ -328,10 +328,8 @@ static int test_vad_real_speech(void)
     unsigned sample_rate = 0;
 
     if (FIO_read_audio("../samples/sa2.wav", &audio_f, &num_samples,
-                       &sample_rate, 1) != 0) {
-        printf("(skip: sa2.wav not found) ");
-        return 1;
-    }
+                       &sample_rate, 1) != 0)
+        return 0;
 
     /* Convert float to double for VAD API */
     double *audio = malloc(num_samples * sizeof(double));
@@ -397,10 +395,8 @@ static int test_vad_real_speech_berp(void)
     unsigned sample_rate = 0;
 
     if (FIO_read_audio("../samples/berp_01_1_0001.wav", &audio_f,
-                       &num_samples, &sample_rate, 1) != 0) {
-        printf("(skip: berp not found) ");
-        return 1;
-    }
+                       &num_samples, &sample_rate, 1) != 0)
+        return 0;
 
     double *audio = malloc(num_samples * sizeof(double));
     if (!audio) { free(audio_f); return 0; }
