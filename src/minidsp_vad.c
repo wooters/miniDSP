@@ -21,7 +21,7 @@ static double compute_spectral_entropy(const double *psd, unsigned num_bins)
         total += psd[i];
 
     if (total <= 0.0)
-        return 0.0;
+        return 1.0; /* no energy = maximally unstructured */
 
     double entropy = 0.0;
     for (unsigned i = 0; i < num_bins; i++) {
@@ -54,7 +54,7 @@ static double compute_spectral_flatness(const double *psd, unsigned num_bins)
 
     double arith_mean = arith_sum / (double)num_bins;
     if (arith_mean <= 0.0)
-        return 0.0;
+        return 1.0; /* no energy = maximally flat */
 
     double log_geo_mean = log_sum / (double)num_bins;
     double geo_mean = exp(log_geo_mean);
@@ -147,10 +147,13 @@ static void extract_features(const double *signal, unsigned N,
     double psd[num_bins];
     MD_power_spectral_density(signal, N, psd);
 
+    /* Invert entropy and flatness so that higher = more speech-like.
+     * Both are naturally high for noise (uniform/flat spectrum) and
+     * low for speech (structured harmonics). */
     raw_out[MD_VAD_FEAT_SPECTRAL_ENTROPY] =
-        compute_spectral_entropy(psd, num_bins);
+        1.0 - compute_spectral_entropy(psd, num_bins);
     raw_out[MD_VAD_FEAT_SPECTRAL_FLATNESS] =
-        compute_spectral_flatness(psd, num_bins);
+        1.0 - compute_spectral_flatness(psd, num_bins);
     raw_out[MD_VAD_FEAT_BAND_ENERGY_RATIO] =
         compute_band_energy_ratio(psd, num_bins, sample_rate, N,
                                   band_low_hz, band_high_hz);
