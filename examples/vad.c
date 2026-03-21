@@ -12,7 +12,7 @@
  * Build and run (from the repository root):
  *   make                          # build libminidsp.a first
  *   make -C examples plot         # build example, run it, generate HTML
- *   open examples/vad.html        # interactive VAD timeline
+ *   open examples/vad_plot.html    # interactive VAD timeline
  */
 
 #include <stdio.h>
@@ -255,7 +255,7 @@ int main(void)
     //! [vad-custom-weights]
 
     /* Write HTML visualization */
-    write_html("vad.html", times, waveform, decisions, scores,
+    write_html("vad_plot.html", times, waveform, decisions, scores,
                feat_matrix, num_frames, params.threshold);
 
     /* Clean up */

@@ -84,7 +84,7 @@ examples/brickwall.html
 
 examples/vad
 examples/vad.csv
-examples/vad.html
+examples/vad_plot.html
 
 # Generated assets for documentation
 guides/audio/

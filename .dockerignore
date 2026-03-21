@@ -43,7 +43,7 @@ examples/brickwall.csv
 examples/brickwall.html
 examples/vad
 examples/vad.csv
-examples/vad.html
+examples/vad_plot.html
 tests/test_minidsp
 tests/gcc_phat_test
 tests/gcc_phat_multi_test

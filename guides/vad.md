@@ -9,7 +9,7 @@ Build and run the example from the repository root:
 ```sh
 make -C examples vad
 cd examples && ./vad
-open vad.html
+open vad_plot.html
 ```
 
 ---
@@ -244,7 +244,7 @@ The detector uses an onset + hangover mechanism to smooth the binary decision:
 The interactive plot below shows the VAD processing a synthesized signal with two speech segments (sine bursts at 1000 Hz) separated by silence:
 
 \htmlonly
-<iframe src="vad.html" width="100%" height="850" frameborder="0"
+<iframe src="vad_plot.html" width="100%" height="850" frameborder="0"
         style="border: 1px solid #e2e8f0; border-radius: 6px;"></iframe>
 \endhtmlonly
 

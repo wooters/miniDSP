@@ -34,11 +34,11 @@ The `vad` example SHALL be added to `examples/Makefile` in both the `EXAMPLES` v
 - **THEN** the `vad` example SHALL be built and executed
 
 ### Requirement: Ignore file updates
-`.gitignore` and `.dockerignore` SHALL each include entries for `examples/vad`, `examples/vad.csv`, and `examples/vad.html`.
+`.gitignore` and `.dockerignore` SHALL each include entries for `examples/vad`, `examples/vad.csv`, and `examples/vad_plot.html`.
 
 #### Scenario: Generated files are ignored
 - **WHEN** the vad example is run from the examples directory
-- **THEN** `git status` SHALL NOT show `vad`, `vad.csv`, or `vad.html` as untracked files
+- **THEN** `git status` SHALL NOT show `vad`, `vad.csv`, or `vad_plot.html` as untracked files
 
 ### Requirement: Tutorial guide page
 A tutorial guide `guides/vad.md` SHALL be created following existing guide conventions, containing: introduction, one `##` section per feature with LaTeX formula and "Reading the formula in C:" subsection, sections on adaptive normalization, weighted scoring, state machine (with transition table), interactive visualization iframe, and API summary with snippet embedding.
