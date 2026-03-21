@@ -70,9 +70,11 @@ install-hooks:
 docs: libminidsp.a
 	$(MAKE) -C examples gen_audio_samples
 	$(MAKE) -C examples gen_signal_plots
+	$(MAKE) -C examples vad
 	mkdir -p guides/audio guides/plots
 	examples/gen_audio_samples
 	examples/gen_signal_plots
+	cd examples && ./vad
 	doxygen Doxyfile
 	python3 scripts/gen_llms_txt.py
 
