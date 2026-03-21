@@ -249,7 +249,7 @@ The interactive plot below shows the VAD processing a synthesized signal with tw
 \endhtmlonly
 
 The four panels show:
-1. **Waveform** — the raw audio signal with visible speech and silence regions.
+1. **Waveform** — peak envelope per frame, showing speech and silence regions.
 2. **Normalized features** — all five features mapped to [0, 1], showing how they respond differently to speech vs. silence.
 3. **Combined score** — the weighted sum of features compared against the threshold (dashed red line).
 4. **Decision** — the final binary output after onset gating and hangover smoothing.

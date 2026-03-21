@@ -54,8 +54,7 @@ static void synthesize_signal(double *signal, unsigned total_samples)
  * Write the interactive HTML visualization
  * -----------------------------------------------------------------------*/
 static int write_html(const char *path,
-                      const double *times,
-                      const double *signal, unsigned total_samples,
+                      const double *times, const double *peak_env,
                       const int *decisions, const double *scores,
                       const double *feat_matrix,
                       unsigned num_frames, double threshold)
@@ -85,14 +84,7 @@ static int write_html(const char *path,
 
     plot_html_js_array(fp, "times", times, num_frames, "%.4f");
     plot_html_js_array(fp, "scores", scores, num_frames, "%.6f");
-
-    /* Full-resolution waveform */
-    double *wave_times = malloc(total_samples * sizeof(double));
-    for (unsigned i = 0; i < total_samples; i++)
-        wave_times[i] = (double)i / SAMPLE_RATE;
-    plot_html_js_array(fp, "wave_times", wave_times, total_samples, "%.6f");
-    plot_html_js_array(fp, "waveform", signal, total_samples, "%.6f");
-    free(wave_times);
+    plot_html_js_array(fp, "peak_env", peak_env, num_frames, "%.6f");
 
     /* Decisions as doubles for plotting */
     fprintf(fp, "    const decisions = [");
@@ -117,12 +109,13 @@ static int write_html(const char *path,
     /* Plotly traces */
     fprintf(fp,
         "\n"
-        "    // Waveform plot\n"
+        "    // Peak envelope plot\n"
         "    Plotly.newPlot('waveform', [{\n"
-        "      x: wave_times, y: waveform, type: 'scatter', mode: 'lines',\n"
-        "      line: {color: '#2563eb', width: 1}, name: 'Waveform'\n"
+        "      x: times, y: peak_env, type: 'scatter', mode: 'lines',\n"
+        "      fill: 'tozeroy', line: {color: '#2563eb', width: 1.5},\n"
+        "      fillcolor: 'rgba(37,99,235,0.2)', name: 'Peak Envelope'\n"
         "    }], {\n"
-        "      title: 'Waveform', height: 200,\n"
+        "      title: 'Waveform (peak envelope per frame)', height: 200,\n"
         "      margin: {l:50, r:20, t:40, b:30},\n"
         "      xaxis: {title: ''}, yaxis: {title: 'Amplitude'}\n"
         "    }, {responsive: true});\n\n"
@@ -193,6 +186,7 @@ int main(void)
 
     /* Allocate output arrays */
     double *times     = malloc(num_frames * sizeof(double));
+    double *peak_env  = malloc(num_frames * sizeof(double));
     int    *decisions = malloc(num_frames * sizeof(int));
     double *scores    = malloc(num_frames * sizeof(double));
     double *feat_matrix = malloc(num_frames * MD_VAD_NUM_FEATURES * sizeof(double));
@@ -234,6 +228,14 @@ int main(void)
         times[i] = t;
         decisions[i] = decision;
         scores[i] = score;
+
+        /* Peak absolute amplitude in this frame */
+        double peak = 0.0;
+        for (unsigned s = 0; s < FRAME_SIZE; s++) {
+            double a = fabs(frame[s]);
+            if (a > peak) peak = a;
+        }
+        peak_env[i] = peak;
         for (int f = 0; f < MD_VAD_NUM_FEATURES; f++)
             feat_matrix[i * MD_VAD_NUM_FEATURES + f] = features[f];
 
@@ -259,12 +261,13 @@ int main(void)
     //! [vad-custom-weights]
 
     /* Write HTML visualization */
-    write_html("vad_plot.html", times, signal, total_samples,
+    write_html("vad_plot.html", times, peak_env,
                decisions, scores, feat_matrix, num_frames, params.threshold);
 
     /* Clean up */
     free(signal);
     free(times);
+    free(peak_env);
     free(decisions);
     free(scores);
     free(feat_matrix);
