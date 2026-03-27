@@ -502,6 +502,14 @@ Optional flags control the sinc interpolation filter quality:
 
 The defaults work well for most use cases.
 
+## Optimization
+
+### VAD Hyperparameter Tuning
+
+The `optimize/VAD/` directory contains an [Optuna](https://optuna.org/)-based script that tunes the VAD's feature weights, threshold, onset/hangover frames, and adaptation rate against labeled speech data (LibriVAD or hand-labeled Audacity files). It optimizes for F2 score (recall-biased F-beta) and outputs ready-to-paste C and Python parameter blocks.
+
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/). See [`optimize/VAD/README.md`](optimize/VAD/README.md) for setup and usage.
+
 ## Python Bindings
 
 Python bindings for miniDSP are available in the [pyminidsp](https://github.com/wooters/pyminidsp) repository.
