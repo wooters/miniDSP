@@ -1,0 +1,12 @@
+[project]
+name = "minidsp-optimize-vad"
+version = "0.1.0"
+description = "Hyperparameter optimization for miniDSP VAD"
+requires-python = ">=3.10"
+dependencies = [
+    "pyminidsp",
+    "optuna",
+    "soundfile",
+    "numpy",
+    "scipy",
+]

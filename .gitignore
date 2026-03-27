@@ -103,6 +103,10 @@ tools/mel_viz/mel_viz_out/
 tools/audio_steg/audio_steg
 tools/resample/resample
 
+# Python
+.venv/
+__pycache__/
+
 # Local Claude Code settings
 .claude/
 .DS_Store
