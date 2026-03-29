@@ -8,7 +8,7 @@ The library SHALL define `MD_VAD_FEAT_ENERGY` (0), `MD_VAD_FEAT_ZCR` (1), `MD_VA
 - **THEN** all six `MD_VAD_FEAT_*` and `MD_VAD_NUM_FEATURES` constants SHALL be available as integer preprocessor defines
 
 ### Requirement: VAD params struct with sensible defaults
-The library SHALL provide an `MD_vad_params` struct containing: `weights[MD_VAD_NUM_FEATURES]`, `threshold`, `onset_frames`, `hangover_frames`, `adaptation_rate`, `band_low_hz`, `band_high_hz`. The function `MD_vad_default_params` SHALL populate a params struct with: equal weights (0.2 each), threshold 0.5, onset 3 frames, hangover 15 frames, adaptation rate 0.01, band 300–3400 Hz.
+The library SHALL provide an `MD_vad_params` struct containing: `weights[MD_VAD_NUM_FEATURES]`, `threshold`, `onset_frames`, `hangover_frames`, `adaptation_rate`, `band_low_hz`, `band_high_hz`. The function `MD_vad_default_params` SHALL populate a params struct with the following Optuna-optimized values (300 trials, F2 metric, LibriVAD train-clean-100): energy weight 0.723068, ZCR weight 0.063948, spectral entropy weight 0.005964, spectral flatness weight 0.048865, band energy ratio weight 0.158156, threshold 0.245332, onset 1 frame, hangover 22 frames, adaptation rate 0.012755, band 126.4–2899.3 Hz.
 
 #### Scenario: Default params are populated correctly
 - **WHEN** `MD_vad_default_params` is called with a valid params pointer

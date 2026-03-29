@@ -17,15 +17,17 @@ static int test_vad_default_params(void)
     MD_vad_params p;
     MD_vad_default_params(&p);
 
-    for (int i = 0; i < MD_VAD_NUM_FEATURES; i++) {
-        if (!approx_equal(p.weights[i], 0.2, 1e-12)) return 0;
-    }
-    if (!approx_equal(p.threshold, 0.5, 1e-12)) return 0;
-    if (p.onset_frames != 3) return 0;
-    if (p.hangover_frames != 15) return 0;
-    if (!approx_equal(p.adaptation_rate, 0.01, 1e-12)) return 0;
-    if (!approx_equal(p.band_low_hz, 300.0, 1e-12)) return 0;
-    if (!approx_equal(p.band_high_hz, 3400.0, 1e-12)) return 0;
+    if (!approx_equal(p.weights[MD_VAD_FEAT_ENERGY],            0.723068, 1e-6)) return 0;
+    if (!approx_equal(p.weights[MD_VAD_FEAT_ZCR],               0.063948, 1e-6)) return 0;
+    if (!approx_equal(p.weights[MD_VAD_FEAT_SPECTRAL_ENTROPY],  0.005964, 1e-6)) return 0;
+    if (!approx_equal(p.weights[MD_VAD_FEAT_SPECTRAL_FLATNESS], 0.048865, 1e-6)) return 0;
+    if (!approx_equal(p.weights[MD_VAD_FEAT_BAND_ENERGY_RATIO], 0.158156, 1e-6)) return 0;
+    if (!approx_equal(p.threshold, 0.245332, 1e-6)) return 0;
+    if (p.onset_frames != 1) return 0;
+    if (p.hangover_frames != 22) return 0;
+    if (!approx_equal(p.adaptation_rate, 0.012755, 1e-6)) return 0;
+    if (!approx_equal(p.band_low_hz, 126.4, 1e-6)) return 0;
+    if (!approx_equal(p.band_high_hz, 2899.3, 1e-6)) return 0;
 
     return 1;
 }
@@ -264,6 +266,10 @@ static int test_vad_feature_directionality(void)
 {
     MD_vad_params p;
     MD_vad_default_params(&p);
+    /* Use equal weights so the test checks feature directionality
+     * independent of the optimized default weight distribution. */
+    for (int i = 0; i < MD_VAD_NUM_FEATURES; i++)
+        p.weights[i] = 0.2;
     p.adaptation_rate = 0.5; /* fast adaptation so min/max converges */
 
     MD_vad_state st;
@@ -410,6 +416,10 @@ static int test_vad_real_speech_berp(void)
 
     MD_vad_params p;
     MD_vad_default_params(&p);
+    /* Use equal weights and a threshold tuned for them, so this test
+     * is independent of the optimized default weight distribution. */
+    for (int i = 0; i < MD_VAD_NUM_FEATURES; i++)
+        p.weights[i] = 0.2;
     p.onset_frames = 3;
     p.hangover_frames = 3;
     p.threshold = 0.6; /* above noise baseline (~0.5 after calibration) */

@@ -167,15 +167,21 @@ void MD_vad_default_params(MD_vad_params *params)
 {
     MD_CHECK_VOID(params != NULL, MD_ERR_NULL_POINTER, "params is NULL");
 
-    for (int i = 0; i < MD_VAD_NUM_FEATURES; i++)
-        params->weights[i] = 0.2;
+    /* Optimized VAD parameters (F2-optimized, recall-biased).
+     * Source: 300-trial Optuna search on LibriVAD train-clean-100,
+     * all noise types, all SNRs.  F2 improved from 0.837 to 0.933. */
+    params->weights[MD_VAD_FEAT_ENERGY]            = 0.723068;
+    params->weights[MD_VAD_FEAT_ZCR]               = 0.063948;
+    params->weights[MD_VAD_FEAT_SPECTRAL_ENTROPY]  = 0.005964;
+    params->weights[MD_VAD_FEAT_SPECTRAL_FLATNESS] = 0.048865;
+    params->weights[MD_VAD_FEAT_BAND_ENERGY_RATIO] = 0.158156;
 
-    params->threshold       = 0.5;
-    params->onset_frames    = 3;
-    params->hangover_frames = 15;
-    params->adaptation_rate = 0.01;
-    params->band_low_hz     = 300.0;
-    params->band_high_hz    = 3400.0;
+    params->threshold       = 0.245332;
+    params->onset_frames    = 1;
+    params->hangover_frames = 22;
+    params->adaptation_rate = 0.012755;
+    params->band_low_hz     = 126.4;
+    params->band_high_hz    = 2899.3;
 }
 
 void MD_vad_init(MD_vad_state *state, const MD_vad_params *params)

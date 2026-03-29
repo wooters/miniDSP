@@ -256,6 +256,103 @@ The four panels show:
 
 ---
 
+## Default parameter optimization
+
+The default parameters returned by `MD_vad_default_params()` are not hand-picked
+— they were found by systematic hyperparameter optimization.
+
+### Motivation
+
+The initial defaults used equal feature weights (0.2 each), a threshold of 0.5,
+and conservative onset/hangover settings.  These worked in clean conditions but
+degraded significantly in noise, yielding an F2 score of only 0.837 on a
+standardized benchmark.
+
+### Dataset
+
+The optimization used the [LibriVAD](https://github.com/reazon-research/LibriVAD)
+corpus, specifically the **train-clean-100** split:
+
+- **7 560 files** across 9 noise types (babble, city, domestic, nature, office,
+  public, SSN, street, transport) and 6 SNR levels (-5, 0, 5, 10, 15, 20 dB).
+- **242 197 seconds** of audio with frame-level speech/non-speech labels.
+- **66.4%** of frames are speech.
+
+### Methodology
+
+The search used [Optuna](https://optuna.org/) with the TPE (Tree-structured
+Parzen Estimator) sampler:
+
+- **300 trials**, each evaluating all 7 560 files.
+- **10 parallel workers** for evaluation.
+- **Objective**: maximize F2 (beta=2), which weights recall twice as heavily as
+  precision — appropriate for VAD where missing speech is costlier than false
+  alarms.
+- **Search space**: all 11 parameters in `MD_vad_params` (5 weights, threshold,
+  onset frames, hangover frames, adaptation rate, band low/high Hz).
+
+### Results
+
+| Metric    | Baseline | Optimized | Change  |
+|-----------|----------|-----------|---------|
+| **F2**    | 0.837    | **0.933** | +0.096  |
+| Precision | 0.835    | 0.782     | -0.053  |
+| Recall    | 0.838    | **0.981** | +0.143  |
+
+The optimizer traded some precision for a large recall gain — the system now
+catches 98% of speech frames.
+
+### Key observations
+
+- **Energy dominates** — weight 0.723 (72% of the score).  This is expected:
+  frame energy is the most reliable single feature for speech detection.
+- **Band energy ratio is second** — weight 0.158.  Speech concentrates energy
+  in the 126–2899 Hz band more than most noise types.
+- **Spectral entropy contributes little** — weight 0.006.  Its discriminative
+  power is largely redundant with energy and flatness.
+- **Low threshold + long hangover** — the combination of threshold 0.245 and
+  22-frame hangover biases toward recall: speech is detected aggressively and
+  held through brief pauses.
+- **Onset of 1 frame** — minimal onset gating, consistent with the recall bias.
+
+### Per-condition performance
+
+The optimized parameters are robust across noise types and SNR levels:
+
+| Condition       | F2 range (across SNRs)  | Worst SNR |
+|-----------------|-------------------------|-----------|
+| Babble noise    | 0.907 – 0.955           | -5 dB     |
+| City noise      | 0.907 – 0.957           | -5 dB     |
+| Domestic noise  | 0.906 – 0.957           | -5 dB     |
+| Nature noise    | 0.906 – 0.958           | -5 dB     |
+| Office noise    | 0.891 – 0.957           | -5 dB     |
+| Public noise    | 0.904 – 0.957           | -5 dB     |
+| SSN noise       | 0.906 – 0.956           | -5 dB     |
+| Street noise    | 0.908 – 0.957           | -5 dB     |
+| Transport noise | 0.907 – 0.958           | -5 dB     |
+
+Even at -5 dB SNR (noise louder than speech), F2 stays above 0.89.  Office noise
+at -5 dB is the hardest condition (F2=0.891), likely because office noise has
+speech-like spectral characteristics.
+
+### Re-tuning for your data
+
+If your domain differs significantly from LibriVAD (e.g., telephony, far-field,
+non-speech audio), you can re-run the optimization on your own data.  The
+optimization script is in `optimize/VAD/`:
+
+```bash
+cd optimize/VAD
+uv run python optimize_vad.py --n-trials 300 --breakdown \
+    --output best_params.json \
+    librivad /path/to/your/LibriVAD --dataset YourDataset --split your-split
+```
+
+See `optimize/VAD/README.md` for full usage, including support for Audacity
+label files.
+
+---
+
 ## API summary
 
 **API:**

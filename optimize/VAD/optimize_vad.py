@@ -33,8 +33,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -400,6 +402,22 @@ def compute_fbeta(
     }
 
 
+def _eval_one(args: tuple) -> tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]:
+    """Worker: run VAD on a single audio file and return (predictions, targets).
+
+    Args:
+        args: Tuple of (audio, sample_rate, targets, vad_kwargs, frame_len_ms).
+
+    Returns:
+        (predictions, targets) arrays.
+    """
+    audio, sample_rate, targets, vad_kwargs, frame_len_ms = args
+    frame_len_samples = int(sample_rate * frame_len_ms / 1000.0)
+    vad = VAD(**vad_kwargs)
+    decisions, _, _ = vad.process(audio, sample_rate, frame_len_samples)
+    return decisions, targets
+
+
 def evaluate_params(
     dataset: list[EvalItem],
     *,
@@ -412,6 +430,7 @@ def evaluate_params(
     band_high_hz: float,
     frame_len_ms: float = 20.0,
     beta: float = 2.0,
+    executor: ProcessPoolExecutor | None = None,
 ) -> dict[str, float]:
     """Run VAD with given params on all items, return aggregate F-beta.
 
@@ -426,32 +445,33 @@ def evaluate_params(
         band_high_hz: Speech band upper bound (Hz).
         frame_len_ms: Frame length in ms.
         beta: F-beta parameter.
+        executor: Process pool for parallel evaluation. Serial if None.
 
     Returns:
         Aggregate metrics dict.
     """
-    all_preds: list[npt.NDArray[np.int32]] = []
-    all_targets: list[npt.NDArray[np.int32]] = []
+    vad_kwargs = dict(
+        weights=weights,
+        threshold=threshold,
+        onset_frames=onset_frames,
+        hangover_frames=hangover_frames,
+        adaptation_rate=adaptation_rate,
+        band_low_hz=band_low_hz,
+        band_high_hz=band_high_hz,
+    )
 
-    for item in dataset:
-        frame_len_samples = int(item.sample_rate * frame_len_ms / 1000.0)
+    work = [
+        (item.audio, item.sample_rate, item.targets, vad_kwargs, frame_len_ms)
+        for item in dataset
+    ]
 
-        vad = VAD(
-            weights=weights,
-            threshold=threshold,
-            onset_frames=onset_frames,
-            hangover_frames=hangover_frames,
-            adaptation_rate=adaptation_rate,
-            band_low_hz=band_low_hz,
-            band_high_hz=band_high_hz,
-        )
+    if executor is not None:
+        results = list(executor.map(_eval_one, work))
+    else:
+        results = [_eval_one(w) for w in work]
 
-        decisions, _, _ = vad.process(item.audio, item.sample_rate, frame_len_samples)
-        all_preds.append(decisions)
-        all_targets.append(item.targets)
-
-    preds = np.concatenate(all_preds)
-    targets = np.concatenate(all_targets)
+    preds = np.concatenate([r[0] for r in results])
+    targets = np.concatenate([r[1] for r in results])
     return compute_fbeta(preds, targets, beta=beta)
 
 
@@ -467,6 +487,7 @@ def evaluate_per_condition(
     band_high_hz: float,
     frame_len_ms: float = 20.0,
     beta: float = 2.0,
+    executor: ProcessPoolExecutor | None = None,
 ) -> dict[str, dict[str, float]]:
     """Evaluate per noise type and SNR, returning a breakdown.
 
@@ -481,6 +502,7 @@ def evaluate_per_condition(
         band_high_hz: Speech band upper bound (Hz).
         frame_len_ms: Frame length in ms.
         beta: F-beta parameter.
+        executor: Process pool for parallel evaluation. Serial if None.
 
     Returns:
         Dict mapping ``"{noise}@{snr}dB"`` to metrics dicts.
@@ -503,6 +525,7 @@ def evaluate_per_condition(
             band_high_hz=band_high_hz,
             frame_len_ms=frame_len_ms,
             beta=beta,
+            executor=executor,
         )
     return results
 
@@ -515,6 +538,7 @@ def make_objective(
     dataset: list[EvalItem],
     frame_len_ms: float = 20.0,
     beta: float = 2.0,
+    executor: ProcessPoolExecutor | None = None,
 ) -> callable:
     """Create an Optuna objective closed over the dataset.
 
@@ -522,6 +546,7 @@ def make_objective(
         dataset: Evaluation dataset.
         frame_len_ms: Frame length in ms.
         beta: F-beta parameter.
+        executor: Process pool for parallel evaluation. Serial if None.
 
     Returns:
         Objective function for Optuna.
@@ -553,6 +578,7 @@ def make_objective(
             band_high_hz=band_high_hz,
             frame_len_ms=frame_len_ms,
             beta=beta,
+            executor=executor,
         )
 
         trial.set_user_attr("precision", metrics["precision"])
@@ -652,6 +678,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--breakdown", action="store_true",
         help="Print per-condition (noise/SNR) results for best params",
     )
+    parser.add_argument(
+        "--workers", type=int, default=None,
+        help="Number of parallel workers for per-file evaluation "
+             "(default: all CPU cores, 0 = serial)",
+    )
 
     sub = parser.add_subparsers(dest="mode", required=True)
 
@@ -692,6 +723,7 @@ def run_baseline(
     dataset: list[EvalItem],
     frame_len_ms: float,
     beta: float,
+    executor: ProcessPoolExecutor | None = None,
 ) -> dict[str, float]:
     """Evaluate the current C library defaults as a baseline.
 
@@ -699,6 +731,7 @@ def run_baseline(
         dataset: Evaluation dataset.
         frame_len_ms: Frame length in ms.
         beta: F-beta parameter.
+        executor: Process pool for parallel evaluation. Serial if None.
 
     Returns:
         Metrics dict for the default params.
@@ -714,6 +747,7 @@ def run_baseline(
         band_high_hz=3400.0,
         frame_len_ms=frame_len_ms,
         beta=beta,
+        executor=executor,
     )
 
 
@@ -750,8 +784,17 @@ def main(argv: list[str] | None = None) -> None:
           f"({total_secs:.1f}s), {speech_frames} speech "
           f"({100*speech_frames/total_frames:.1f}%)")
 
+    # --- Set up parallel executor ---
+    n_workers = args.workers
+    if n_workers is None:
+        n_workers = os.cpu_count() or 1
+    executor = ProcessPoolExecutor(max_workers=n_workers) if n_workers > 0 else None
+    if executor is not None:
+        print(f"\nParallel evaluation: {n_workers} workers")
+
     # --- Baseline ---
-    default_metrics = run_baseline(dataset, args.frame_len_ms, args.beta)
+    default_metrics = run_baseline(dataset, args.frame_len_ms, args.beta,
+                                   executor=executor)
     print(f"\nBaseline (current defaults):")
     print(f"  F{args.beta:.0f}={default_metrics['f_beta']:.4f}  "
           f"P={default_metrics['precision']:.4f}  "
@@ -764,7 +807,8 @@ def main(argv: list[str] | None = None) -> None:
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=42),
     )
-    objective = make_objective(dataset, args.frame_len_ms, args.beta)
+    objective = make_objective(dataset, args.frame_len_ms, args.beta,
+                               executor=executor)
     study.optimize(objective, n_trials=args.n_trials, show_progress_bar=True)
 
     # --- Report ---
@@ -798,6 +842,7 @@ def main(argv: list[str] | None = None) -> None:
             band_high_hz=p["band_high_hz"],
             frame_len_ms=args.frame_len_ms,
             beta=args.beta,
+            executor=executor,
         )
         print(f"\n--- Per-condition breakdown (best params) ---")
         print(f"{'Condition':<30s} {'F'+str(int(args.beta)):>6s} {'Prec':>6s} {'Rec':>6s}")
@@ -821,6 +866,9 @@ def main(argv: list[str] | None = None) -> None:
         with open(args.output, "w") as f:
             json.dump(result, f, indent=2)
         print(f"\nResults saved to {args.output}")
+
+    if executor is not None:
+        executor.shutdown()
 
 
 if __name__ == "__main__":

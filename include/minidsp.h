@@ -1827,22 +1827,35 @@ typedef struct {
 } MD_vad_state;
 
 /**
- * Populate a VAD params struct with sensible defaults.
+ * Populate a VAD params struct with optimized defaults.
  *
- * Default values:
- * - weights: 0.2 each (equal)
- * - threshold: 0.5
- * - onset_frames: 3
- * - hangover_frames: 15
- * - adaptation_rate: 0.01
- * - band: 300–3400 Hz
+ * Default values (F2-optimized, recall-biased):
+ * | Parameter          | Value    |
+ * |--------------------|----------|
+ * | weight (energy)    | 0.723068 |
+ * | weight (zcr)       | 0.063948 |
+ * | weight (entropy)   | 0.005964 |
+ * | weight (flatness)  | 0.048865 |
+ * | weight (band ratio)| 0.158156 |
+ * | threshold          | 0.245332 |
+ * | onset_frames       | 1        |
+ * | hangover_frames    | 22       |
+ * | adaptation_rate    | 0.012755 |
+ * | band_low_hz        | 126.4    |
+ * | band_high_hz       | 2899.3   |
+ *
+ * @note These defaults were optimized via a 300-trial Optuna search on
+ *       LibriVAD train-clean-100 (all noise types, all SNRs), maximizing
+ *       F2 (beta=2).  Baseline F2=0.837 improved to F2=0.933
+ *       (P=0.782, R=0.981).  See the @ref vad "VAD tutorial guide" for
+ *       full methodology and per-condition results.
  *
  * @param params  Output params struct.  Must not be NULL.
  *
  * @code
  * MD_vad_params p;
  * MD_vad_default_params(&p);
- * p.threshold = 0.4;  // lower threshold for noisy environments
+ * p.threshold = 0.4;  // raise threshold for more precision
  * @endcode
  *
  * @see MD_vad_init(), MD_vad_process_frame()

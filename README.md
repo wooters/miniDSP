@@ -506,9 +506,17 @@ The defaults work well for most use cases.
 
 ### VAD Hyperparameter Tuning
 
-The `optimize/VAD/` directory contains an [Optuna](https://optuna.org/)-based script that tunes the VAD's feature weights, threshold, onset/hangover frames, and adaptation rate against labeled speech data (LibriVAD or hand-labeled Audacity files). It optimizes for F2 score (recall-biased F-beta) and outputs ready-to-paste C and Python parameter blocks.
+The VAD default parameters shipped by `MD_vad_default_params()` were optimized via a **300-trial Optuna search** on [LibriVAD](https://github.com/reazon-research/LibriVAD) train-clean-100 (7 560 files, 9 noise types, 6 SNR levels), maximizing F2 (beta=2):
 
-Requires [uv](https://docs.astral.sh/uv/getting-started/installation/). See [`optimize/VAD/README.md`](optimize/VAD/README.md) for setup and usage.
+| Metric    | Baseline | Optimized |
+|-----------|----------|-----------|
+| **F2**    | 0.837    | **0.933** |
+| Precision | 0.835    | 0.782     |
+| Recall    | 0.838    | **0.981** |
+
+The optimizer uses a **TPE (Tree-structured Parzen Estimator)** sampler — a Bayesian algorithm that builds a probabilistic model of which parameters produce good results, making each successive trial smarter than random search.
+
+See the [VAD tutorial guide](guides/vad.md) for full methodology, per-condition results, and parameter analysis. To re-tune on your own data, see [`optimize/VAD/README.md`](optimize/VAD/README.md). Requires [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
 ## Python Bindings
 
