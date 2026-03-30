@@ -51,6 +51,7 @@ HF_REPO_TYPE = "dataset"
 HF_MODEL_PATH = (
     "Eval-ViT-MFCC/small-models/LibriSpeechConcat_vit_MFCC/model_epoch_50.model"
 )
+CACHE_DIR = Path(__file__).resolve().parent / ".model_cache"
 
 # ViT-MFCC model hyperparameters (fixed across all model "sizes")
 VIT_INPUT_RES = [39, 100]
@@ -419,6 +420,7 @@ def download_vit_model() -> Path:
         repo_id=HF_REPO_ID,
         repo_type=HF_REPO_TYPE,
         filename=HF_MODEL_PATH,
+        cache_dir=CACHE_DIR,
     )
     return Path(path)
 

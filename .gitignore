@@ -107,6 +107,9 @@ tools/resample/resample
 .venv/
 __pycache__/
 
+# Cached HuggingFace model for VAD comparison
+compare/VAD/.model_cache/
+
 # Local Claude Code settings
 .claude/
 .DS_Store
