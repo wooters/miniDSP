@@ -24,6 +24,7 @@ Dependencies:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from collections import defaultdict
@@ -40,7 +41,6 @@ from einops import rearrange
 from einops.layers.torch import Rearrange
 
 from pyminidsp import VAD
-
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -376,14 +376,58 @@ def compute_fbeta(
 
 
 # ---------------------------------------------------------------------------
+# Parameter loading
+# ---------------------------------------------------------------------------
+
+def load_vad_params(json_path: str | Path) -> dict:
+    """Read a best_params.json file and return kwargs dict for VAD().
+
+    Args:
+        json_path: Path to a JSON file produced by optimize_vad.py.
+
+    Returns:
+        Dict suitable for ``VAD(**kwargs)``.
+    """
+    path = Path(json_path)
+    if not path.exists():
+        print(f"Error: parameter file not found: {path}", file=sys.stderr)
+        sys.exit(1)
+
+    with open(path) as f:
+        data = json.load(f)
+
+    params = data["params"]
+    return {
+        "weights": data["weights_normalized"],
+        "threshold": params["threshold"],
+        "onset_frames": params["onset_frames"],
+        "hangover_frames": params["hangover_frames"],
+        "adaptation_rate": params["adaptation_rate"],
+        "band_low_hz": params["band_low_hz"],
+        "band_high_hz": params["band_high_hz"],
+    }
+
+
+# ---------------------------------------------------------------------------
 # miniDSP VAD evaluation
 # ---------------------------------------------------------------------------
 
 def eval_minidsp(
     items: list[EvalItem],
     frame_len_ms: float = MINIDSP_FRAME_MS,
+    vad_kwargs: dict | None = None,
 ) -> list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]]:
-    """Run miniDSP VAD on all items, return (predictions, targets, scores) per item."""
+    """Run miniDSP VAD on all items, return (predictions, targets, scores) per item.
+
+    Args:
+        items: List of EvalItem objects.
+        frame_len_ms: Frame length in milliseconds.
+        vad_kwargs: Optional dict of keyword arguments for VAD() constructor.
+            When None, uses library defaults.
+    """
+    if vad_kwargs is None:
+        vad_kwargs = {}
+
     results = []
     for item in items:
         audio, sr = sf.read(str(item.wav_path), dtype="float64")
@@ -401,7 +445,7 @@ def eval_minidsp(
         num_frames = len(targets)
         audio = audio[: num_frames * frame_len_samples]
 
-        vad = VAD()
+        vad = VAD(**vad_kwargs)
         decisions, scores, _ = vad.process(audio, sr, frame_len_samples)
         results.append((decisions, targets, scores))
 
@@ -554,24 +598,36 @@ def _fmt_auc(val: float | None) -> str:
 
 
 def print_overall(
-    minidsp_metrics: dict[str, float | None],
+    minidsp_configs: list[tuple[str, dict[str, float | None], float]],
     vit_metrics: dict[str, float | None],
     n_files: int,
     beta: float,
-    minidsp_elapsed: float = 0.0,
     vit_elapsed: float = 0.0,
 ) -> None:
-    """Print overall comparison table."""
+    """Print overall comparison table.
+
+    Args:
+        minidsp_configs: List of (label, metrics, elapsed) for each miniDSP config.
+        vit_metrics: Aggregated metrics for ViT-MFCC.
+        n_files: Number of files evaluated.
+        beta: F-beta parameter.
+        vit_elapsed: Wall-clock time for ViT-MFCC evaluation.
+    """
     label = f"F{beta:g}"
+    # Determine column width from longest system name
+    names = [c[0] for c in minidsp_configs] + ["ViT-MFCC (small)"]
+    name_width = max(len(n) for n in names) + 2
+
     print(f"\nOverall ({n_files} files):")
-    print(f"  {'System':<20s} {label:>8s}  {'Precision':>9s}  {'Recall':>6s}  {'AUC(m)':>8s}  {'AUC(p)':>8s}  {'Time':>8s}")
-    print(f"  {'─' * 20} {'─' * 8}  {'─' * 9}  {'─' * 6}  {'─' * 8}  {'─' * 8}  {'─' * 8}")
-    for name, m, elapsed in [
-        ("miniDSP VAD", minidsp_metrics, minidsp_elapsed),
-        ("ViT-MFCC (small)", vit_metrics, vit_elapsed),
-    ]:
+    print(f"  {'System':<{name_width}s} {label:>8s}  {'Precision':>9s}  {'Recall':>6s}  {'AUC(m)':>8s}  {'AUC(p)':>8s}  {'Time':>8s}")
+    print(f"  {'─' * name_width} {'─' * 8}  {'─' * 9}  {'─' * 6}  {'─' * 8}  {'─' * 8}  {'─' * 8}")
+
+    rows = [(name, m, elapsed) for name, m, elapsed in minidsp_configs]
+    rows.append(("ViT-MFCC (small)", vit_metrics, vit_elapsed))
+
+    for name, m, elapsed in rows:
         print(
-            f"  {name:<20s} {m['f_beta']:8.4f}  {m['precision']:9.4f}  {m['recall']:6.4f}"
+            f"  {name:<{name_width}s} {m['f_beta']:8.4f}  {m['precision']:9.4f}  {m['recall']:6.4f}"
             f"  {_fmt_auc(m.get('auc_macro')):>8s}  {_fmt_auc(m.get('auc_pooled')):>8s}  {elapsed:7.1f}s"
         )
     print(f"  AUC(m)=macro-averaged per file; AUC(p)=pooled across all frames")
@@ -592,40 +648,88 @@ def _print_bucket_table(
     label_header: str,
     label_width: int,
     buckets: dict[str, list[int]],
-    minidsp_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
+    minidsp_configs: list[tuple[str, list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]]]],
     vit_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
     beta: float,
     format_label: callable,
 ) -> None:
-    """Print a breakdown table grouped by the given buckets."""
+    """Print a breakdown table grouped by the given buckets.
+
+    Args:
+        title: Table title.
+        label_header: Header for the row label column.
+        label_width: Width of the row label column.
+        buckets: Mapping of bucket label to list of item indices.
+        minidsp_configs: List of (config_label, results) for each miniDSP config.
+        vit_results: Per-item results for ViT-MFCC.
+        beta: F-beta parameter.
+        format_label: Callable to format bucket keys for display.
+    """
     f_label = f"F{beta:g}"
+    col_width = 12
+
+    # Build header: one F-beta + AUC column per miniDSP config, then ViT
+    header_parts = [f"  {label_header:<{label_width}s}"]
+    sep_parts = [f"  {'─' * label_width}"]
+    f_suffix = " " + f_label  # e.g. " F2"
+    a_suffix = " AUC"
+    for cfg_label, _ in minidsp_configs:
+        short = cfg_label[:col_width - len(f_suffix)]
+        header_parts.append(f" {short + f_suffix:>{col_width}s}")
+        sep_parts.append(f" {'─' * col_width}")
+    header_parts.append(f" {'ViT' + f_suffix:>{col_width}s}")
+    sep_parts.append(f" {'─' * col_width}")
+    for cfg_label, _ in minidsp_configs:
+        short = cfg_label[:col_width - len(a_suffix)]
+        header_parts.append(f" {short + a_suffix:>{col_width}s}")
+        sep_parts.append(f" {'─' * col_width}")
+    header_parts.append(f" {'ViT' + a_suffix:>{col_width}s}")
+    sep_parts.append(f" {'─' * col_width}")
+
     print(f"\n{title}:")
-    print(f"  {label_header:<{label_width}s} {'miniDSP ' + f_label:>12s}  {'ViT ' + f_label:>12s}  {'miniDSP AUC':>12s}  {'ViT AUC':>12s}")
-    print(f"  {'─' * label_width} {'─' * 12}  {'─' * 12}  {'─' * 12}  {'─' * 12}")
+    print("".join(header_parts))
+    print("".join(sep_parts))
+
     for key in sorted(buckets):
         indices = buckets[key]
-        md_m = aggregate_metrics([minidsp_results[i] for i in indices], beta)
+        parts = [f"  {format_label(key):<{label_width}s}"]
+        cfg_metrics = []
+        for _, results in minidsp_configs:
+            m = aggregate_metrics([results[i] for i in indices], beta)
+            cfg_metrics.append(m)
+            parts.append(f" {m['f_beta']:{col_width}.4f}")
         vt_m = aggregate_metrics([vit_results[i] for i in indices], beta)
-        print(f"  {format_label(key):<{label_width}s} {md_m['f_beta']:12.4f}  {vt_m['f_beta']:12.4f}  {_fmt_auc(md_m.get('auc_macro')):>12s}  {_fmt_auc(vt_m.get('auc_macro')):>12s}")
+        parts.append(f" {vt_m['f_beta']:{col_width}.4f}")
+        for m in cfg_metrics:
+            parts.append(f" {_fmt_auc(m.get('auc_macro')):>{col_width}s}")
+        parts.append(f" {_fmt_auc(vt_m.get('auc_macro')):>{col_width}s}")
+        print("".join(parts))
     print(f"  AUC = macro-averaged per file")
 
 
 def print_breakdown(
     items: list[EvalItem],
-    minidsp_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
+    minidsp_configs: list[tuple[str, list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]]]],
     vit_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
     beta: float,
 ) -> None:
-    """Print per-noise and per-SNR breakdown tables."""
+    """Print per-noise and per-SNR breakdown tables.
+
+    Args:
+        items: Evaluation items (for bucket grouping).
+        minidsp_configs: List of (label, results) for each miniDSP configuration.
+        vit_results: Per-item results for ViT-MFCC.
+        beta: F-beta parameter.
+    """
     by_noise, by_snr = _bucket_items(items)
 
     _print_bucket_table(
         "Per Noise Type", "Noise", 20, by_noise,
-        minidsp_results, vit_results, beta, str,
+        minidsp_configs, vit_results, beta, str,
     )
     _print_bucket_table(
         "Per SNR", "SNR (dB)", 10, by_snr,
-        minidsp_results, vit_results, beta, str,
+        minidsp_configs, vit_results, beta, str,
     )
 
 
@@ -666,7 +770,33 @@ def parse_args() -> argparse.Namespace:
         "--breakdown", action="store_true",
         help="Print per-condition (noise/SNR) breakdown",
     )
+    p.add_argument(
+        "--params", action="append", default=None, metavar="LABEL=PATH",
+        help="Named miniDSP parameter set in label=path format "
+             "(repeatable; omit for library defaults)",
+    )
     return p.parse_args()
+
+
+def parse_param_specs(
+    raw: list[str] | None,
+) -> list[tuple[str, dict | None]]:
+    """Parse --params arguments into (label, vad_kwargs) pairs.
+
+    Returns a list of (label, kwargs) where kwargs is None for library defaults.
+    When *raw* is None (no --params given), returns a single entry using defaults.
+    """
+    if raw is None:
+        return [("miniDSP VAD", None)]
+
+    specs: list[tuple[str, dict | None]] = []
+    for entry in raw:
+        if "=" not in entry:
+            print(f"Error: --params must be label=path, got: {entry!r}", file=sys.stderr)
+            sys.exit(1)
+        label, path_str = entry.split("=", 1)
+        specs.append((label.strip(), load_vad_params(path_str.strip())))
+    return specs
 
 
 def main() -> None:
@@ -681,8 +811,12 @@ def main() -> None:
         sys.exit(1)
     sys.path.insert(0, str(vit_code_dir))
 
+    # --- Parse parameter sets ---
+    param_specs = parse_param_specs(args.params)
+
     print(f"=== VAD Comparison: {args.split} ({args.dataset}) ===")
     print(f"    beta={args.beta}")
+    print(f"    miniDSP configs: {', '.join(label for label, _ in param_specs)}")
 
     # --- Discover files ---
     print("\nDiscovering files...")
@@ -702,18 +836,26 @@ def main() -> None:
     print("Loading ViT-MFCC model...")
     model = load_vit_model(checkpoint_path, device)
 
-    # --- Evaluate miniDSP ---
-    print(f"\nEvaluating miniDSP VAD ({MINIDSP_FRAME_MS}ms frames)...")
-    t0 = time.perf_counter()
-    minidsp_results = eval_minidsp(items)
-    minidsp_elapsed = time.perf_counter() - t0
-    minidsp_overall = aggregate_metrics(minidsp_results, args.beta)
-    print(f"  F{args.beta:g}={minidsp_overall['f_beta']:.4f}  "
-          f"P={minidsp_overall['precision']:.4f}  "
-          f"R={minidsp_overall['recall']:.4f}  "
-          f"AUC(m)={_fmt_auc(minidsp_overall.get('auc_macro'))}  "
-          f"AUC(p)={_fmt_auc(minidsp_overall.get('auc_pooled'))}  "
-          f"({minidsp_elapsed:.1f}s)")
+    # --- Evaluate each miniDSP configuration ---
+    # Collects (label, metrics, elapsed) for print_overall and
+    # (label, results) for print_breakdown
+    minidsp_overall_configs: list[tuple[str, dict[str, float | None], float]] = []
+    minidsp_breakdown_configs: list[tuple[str, list]] = []
+
+    for label, vad_kwargs in param_specs:
+        print(f"\nEvaluating miniDSP VAD [{label}] ({MINIDSP_FRAME_MS}ms frames)...")
+        t0 = time.perf_counter()
+        results = eval_minidsp(items, vad_kwargs=vad_kwargs)
+        elapsed = time.perf_counter() - t0
+        overall = aggregate_metrics(results, args.beta)
+        print(f"  F{args.beta:g}={overall['f_beta']:.4f}  "
+              f"P={overall['precision']:.4f}  "
+              f"R={overall['recall']:.4f}  "
+              f"AUC(m)={_fmt_auc(overall.get('auc_macro'))}  "
+              f"AUC(p)={_fmt_auc(overall.get('auc_pooled'))}  "
+              f"({elapsed:.1f}s)")
+        minidsp_overall_configs.append((label, overall, elapsed))
+        minidsp_breakdown_configs.append((label, results))
 
     # --- Evaluate ViT-MFCC ---
     print(f"\nEvaluating ViT-MFCC ({MFCC_OVRLEN * 1000:.0f}ms frames)...")
@@ -729,11 +871,11 @@ def main() -> None:
           f"({vit_elapsed:.1f}s)")
 
     # --- Results ---
-    print_overall(minidsp_overall, vit_overall, len(items), args.beta,
-                  minidsp_elapsed, vit_elapsed)
+    print_overall(minidsp_overall_configs, vit_overall, len(items), args.beta,
+                  vit_elapsed)
 
     if args.breakdown:
-        print_breakdown(items, minidsp_results, vit_results, args.beta)
+        print_breakdown(items, minidsp_breakdown_configs, vit_results, args.beta)
 
 
 if __name__ == "__main__":

@@ -78,10 +78,77 @@ scores are most calibrated for that category, while babble and SSN -- where
 F2 is strongest -- have relatively low AUC (0.60-0.62), indicating the good
 F2 relies heavily on threshold tuning rather than score quality.
 
+## Dataset-Specific Optimization Experiment
+
+The overall results above use the library's default parameters (optimized on
+train-clean-100 and baked into the C library). Here we compare three sets of
+Optuna-optimized parameters, each tuned on a different data split, to
+understand how much performance varies by optimization dataset and what the
+upper bound of threshold/weight tuning alone can achieve.
+
+| Parameter Set | Optimized On | F2 | Precision | Recall | AUC (macro) | AUC (pooled) | Wall time |
+|---------------|-------------|---:|----------:|-------:|------------:|-------------:|----------:|
+| train-clean-100 | train-clean-100 | 0.9340 | 0.7687 | 0.9870 | 0.7715 | 0.7699 | 3.7 s |
+| dev-clean | dev-clean | 0.9347 | 0.7704 | 0.9873 | 0.7532 | 0.7517 | 3.7 s |
+| test-clean (cheat) | test-clean | 0.9348 | 0.7779 | 0.9844 | 0.7426 | 0.7444 | 3.7 s |
+| ViT-MFCC (small) | LibriSpeechConcat | 0.9614 | 0.9390 | 0.9672 | 0.9712 | 0.9819 | 77.2 s |
+
+All three miniDSP parameter sets were evaluated on **test-clean** (the same
+data as the overall results above). The "test-clean (cheat)" set was optimized
+directly on the evaluation data, representing the best possible tuning.
+
+### Per SNR Breakdown (Optimized Parameters)
+
+| SNR (dB) | train-clean-100 F2 | dev-clean F2 | test-clean (cheat) F2 | ViT F2 |
+|---------:|-------------------:|-------------:|----------------------:|-------:|
+| -5 | 0.9063 | 0.8978 | 0.9002 | 0.9321 |
+| 0 | 0.9151 | 0.9178 | 0.9184 | 0.9523 |
+| 5 | 0.9264 | 0.9331 | 0.9339 | 0.9606 |
+| 10 | 0.9439 | 0.9479 | 0.9468 | 0.9685 |
+| 15 | 0.9555 | 0.9560 | 0.9543 | 0.9752 |
+| 20 | 0.9596 | 0.9576 | 0.9571 | 0.9801 |
+
+### Per Noise Type Breakdown (Optimized Parameters)
+
+| Noise Type | train-clean-100 F2 | dev-clean F2 | test-clean (cheat) F2 | ViT F2 |
+|------------|-------------------:|-------------:|----------------------:|-------:|
+| Babble_noise | 0.9247 | 0.9281 | 0.9252 | 0.9289 |
+| City_noise | 0.9339 | 0.9323 | 0.9340 | 0.9523 |
+| Domestic_noise | 0.9390 | 0.9358 | 0.9379 | 0.9710 |
+| Nature_noise | 0.9375 | 0.9410 | 0.9417 | 0.9761 |
+| Office_noise | 0.9368 | 0.9299 | 0.9330 | 0.9760 |
+| Public_noise | 0.9341 | 0.9373 | 0.9370 | 0.9485 |
+| SSN_noise | 0.9330 | 0.9386 | 0.9371 | 0.9623 |
+| Street_noise | 0.9328 | 0.9355 | 0.9351 | 0.9618 |
+| Transport_noise | 0.9343 | 0.9335 | 0.9320 | 0.9773 |
+
+### Observations
+
+1. **train-clean-100 parameters generalize well.** All three parameter sets
+   produce nearly identical F2 on test-clean (0.934–0.935). Even "cheating"
+   by optimizing directly on the evaluation data provides only +0.001 F2
+   over the train-clean-100 parameters.
+
+2. **The F2 ceiling from threshold/weight tuning alone is ~0.935.** The
+   test-clean (cheat) result represents the best that hyperparameter tuning
+   can achieve with the current feature set. The remaining gap to ViT
+   (0.935 → 0.961) requires richer features or a learned model.
+
+3. **AUC does not improve with parameter tuning.** All three optimized sets
+   have macro AUC around 0.74–0.77, far below ViT's 0.97. This confirms
+   that the miniDSP's continuous scores have limited discriminative power
+   regardless of threshold/weight tuning — the good F2 comes from operating
+   point selection, not intrinsic score quality.
+
+4. **Babble noise is where miniDSP comes closest to ViT.** With optimized
+   params, the F2 gap on babble noise is only 0.004 (0.925 vs 0.929),
+   while transport noise has the widest gap at 0.043.
+
 ## Key Takeaways
 
-1. **miniDSP VAD achieves 88% of the ViT's F2 score** (0.844 / 0.961) with
-   zero trainable parameters, pure C implementation, and 19x faster inference.
+1. **miniDSP VAD achieves 97% of the ViT's F2 score** (0.934 / 0.961) with
+   Optuna-tuned parameters, zero trainable parameters, pure C implementation,
+   and 21x faster inference.
 
 2. **AUC reveals a larger quality gap than F2**: miniDSP macro-averaged AUC
    is 0.652 vs ViT's 0.971 -- a +0.319 gap compared to +0.117 for F2. This
@@ -95,9 +162,11 @@ F2 relies heavily on threshold tuning rather than score quality.
    The miniDSP VAD is designed for real-time embedded use; the ViT requires
    a GPU (or Apple MPS) for practical throughput.
 
-4. **The miniDSP recall drops on test-clean** compared to train-clean-100
-   (0.848 vs 0.981), suggesting the Optuna optimization overfit somewhat to
-   the training conditions. The ViT generalizes better from its training data.
+4. **The optimized parameters generalize well across splits.** miniDSP
+   achieves F2=0.934 on test-clean with train-clean-100-optimized parameters
+   — nearly identical to the 0.933 obtained on the optimization set itself.
+   Even the "cheating" test-clean-optimized params provide only +0.001 F2,
+   confirming there is no meaningful overfitting to the training split.
 
 5. **Noise-type sensitivity differs**: miniDSP struggles most with transport
    and office noise (spectral overlap with speech), while the ViT is more
