@@ -368,12 +368,14 @@ methodology from the [LibriVAD paper](https://arxiv.org/abs/2512.17281).
 | Language | C (via pyminidsp CFFI bindings) | Python / PyTorch |
 | Trainable parameters | 0 (10 tuned hyperparameters) | ~3.5 M |
 | Frame rate | 20 ms | 10 ms |
-| Training data | Optuna optimization on train-clean-100 | Supervised training on LibriSpeechConcat (small) |
+| Training data | Optuna optimization on train-clean-100 (small) | Supervised training on LibriSpeechConcat (small) |
 
-Ground-truth labels are downsampled independently to each system's native frame
-rate via majority voting.  F2 (beta=2) weights recall twice as heavily as
-precision.  The ViT uses a fixed 0.5 decision threshold; the miniDSP VAD uses
-the Optuna-optimized defaults from the C library.
+Both systems used the same-sized **small** training split, so the comparison
+isolates the modeling approach (hand-crafted features vs learned ViT) rather
+than data scale.  Ground-truth labels are downsampled independently to each
+system's native frame rate via majority voting.  F2 (beta=2) weights recall
+twice as heavily as precision.  The ViT uses a fixed 0.5 decision threshold;
+the miniDSP VAD uses the Optuna-optimized defaults from the C library.
 
 ### Overall results
 
@@ -424,7 +426,7 @@ test-clean:
 
 | Parameter set | F2 | Precision | Recall |
 |---------------|---:|----------:|-------:|
-| train-clean-100 | 0.9340 | 0.7687 | 0.9870 |
+| train-clean-100 (small) | 0.9340 | 0.7687 | 0.9870 |
 | dev-clean | 0.9347 | 0.7704 | 0.9873 |
 | test-clean (cheat) | 0.9348 | 0.7779 | 0.9844 |
 | ViT-MFCC (small) | 0.9614 | 0.9390 | 0.9672 |

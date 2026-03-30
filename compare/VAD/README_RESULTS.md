@@ -14,7 +14,7 @@ LibriVAD **test-clean** split (LibriSpeechConcat dataset).
 | Language | C (via pyminidsp CFFI bindings) | Python / PyTorch |
 | Trainable parameters | 0 (10 tuned hyperparameters) | ~3.5M |
 | Frame rate | 20 ms | 10 ms |
-| Training data | Optuna optimization on train-clean-100 | Supervised training on LibriSpeechConcat (small) |
+| Training data | Optuna optimization on train-clean-100 (small) | Supervised training on LibriSpeechConcat (small) |
 | Threshold | 0.245 (optimized) | 0.5 (argmax, designed operating point) |
 | Features | Energy, ZCR, spectral entropy, spectral flatness, band energy ratio | 39-dim MFCCs (12 + energy + delta + delta-delta) |
 
@@ -88,7 +88,7 @@ upper bound of threshold/weight tuning alone can achieve.
 
 | Parameter Set | Optimized On | F2 | Precision | Recall | AUC (macro) | AUC (pooled) | Wall time |
 |---------------|-------------|---:|----------:|-------:|------------:|-------------:|----------:|
-| train-clean-100 | train-clean-100 | 0.9340 | 0.7687 | 0.9870 | 0.7715 | 0.7699 | 3.7 s |
+| train-clean-100 (small) | train-clean-100 (small) | 0.9340 | 0.7687 | 0.9870 | 0.7715 | 0.7699 | 3.7 s |
 | dev-clean | dev-clean | 0.9347 | 0.7704 | 0.9873 | 0.7532 | 0.7517 | 3.7 s |
 | test-clean (cheat) | test-clean | 0.9348 | 0.7779 | 0.9844 | 0.7426 | 0.7444 | 3.7 s |
 | ViT-MFCC (small) | LibriSpeechConcat | 0.9614 | 0.9390 | 0.9672 | 0.9712 | 0.9819 | 77.2 s |
