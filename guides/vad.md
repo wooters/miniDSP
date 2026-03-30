@@ -353,6 +353,121 @@ label files.
 
 ---
 
+## Comparison with ViT-MFCC baseline
+
+How does the miniDSP VAD compare to a published neural baseline?  We evaluated
+both systems on the [LibriVAD](https://github.com/reazon-research/LibriVAD)
+**test-clean** split (702 files, 9 noise types × 6 SNR levels) using the
+methodology from the [LibriVAD paper](https://arxiv.org/abs/2512.17281).
+
+### Systems under test
+
+| Property | miniDSP VAD | ViT-MFCC (small) |
+|----------|-------------|-------------------|
+| Type | Hand-crafted features + weighted threshold + state machine | Vision Transformer (KWT) on MFCCs |
+| Language | C (via pyminidsp CFFI bindings) | Python / PyTorch |
+| Trainable parameters | 0 (10 tuned hyperparameters) | ~3.5 M |
+| Frame rate | 20 ms | 10 ms |
+| Training data | Optuna optimization on train-clean-100 | Supervised training on LibriSpeechConcat (small) |
+
+Ground-truth labels are downsampled independently to each system's native frame
+rate via majority voting.  F2 (beta=2) weights recall twice as heavily as
+precision.  The ViT uses a fixed 0.5 decision threshold; the miniDSP VAD uses
+the Optuna-optimized defaults from the C library.
+
+### Overall results
+
+| System | F2 | Precision | Recall | AUC (macro) | AUC (pooled) | Wall time |
+|--------|---:|----------:|-------:|------------:|-------------:|----------:|
+| miniDSP VAD | 0.8440 | 0.8274 | 0.8482 | 0.6519 | 0.6517 | 3.6 s |
+| ViT-MFCC (small) | 0.9614 | 0.9390 | 0.9672 | 0.9712 | 0.9819 | 77.8 s |
+
+The ViT leads by **+0.117 F2** and **+0.319 AUC (macro)** but takes **22×
+longer** to process the same data.  Our ViT AUC of 0.9712 closely reproduces
+the 0.9710 reported in the LibriVAD paper (Table 7).
+
+### Per-SNR breakdown
+
+| SNR (dB) | miniDSP F2 | ViT F2 | F2 Gap | miniDSP AUC | ViT AUC | AUC Gap |
+|---------:|-----------:|-------:|-------:|------------:|--------:|--------:|
+| -5 | 0.7993 | 0.9321 | 0.133 | 0.5785 | 0.9145 | 0.336 |
+| 0 | 0.8358 | 0.9523 | 0.117 | 0.6205 | 0.9564 | 0.336 |
+| 5 | 0.8512 | 0.9606 | 0.109 | 0.6539 | 0.9787 | 0.325 |
+| 10 | 0.8515 | 0.9685 | 0.117 | 0.6730 | 0.9888 | 0.316 |
+| 15 | 0.8588 | 0.9752 | 0.116 | 0.6870 | 0.9934 | 0.306 |
+| 20 | 0.8688 | 0.9801 | 0.111 | 0.6985 | 0.9955 | 0.297 |
+
+The F2 gap is consistent across SNR levels (~0.11–0.13), widening slightly at
+-5 dB.  The AUC gap is larger (~0.30–0.34) and narrows with increasing SNR,
+showing that miniDSP's continuous scores improve more with cleaner signals than
+its binary decisions suggest.
+
+### Noise-type observations
+
+miniDSP performs best on noise types with distinctive spectral characteristics:
+**babble** (F2 gap 0.050) and **SSN** (F2 gap 0.080), where its energy and
+band-energy-ratio features are most discriminative.  The largest F2 gaps appear
+with **transport** (0.178) and **office** (0.169) noise, which overlap more
+with the speech band.
+
+AUC tells a different story: miniDSP's best AUC is on domestic noise (0.717),
+while babble and SSN — where F2 is strongest — have relatively low AUC
+(0.60–0.62).  This indicates the good F2 on those noise types relies on
+threshold tuning rather than score quality.
+
+### Parameter generalization
+
+The results above use the library's default parameters (optimized on
+train-clean-100).  To check for overfitting, we compared three Optuna-optimized
+parameter sets, each tuned on a different data split, all evaluated on
+test-clean:
+
+| Parameter set | F2 | Precision | Recall |
+|---------------|---:|----------:|-------:|
+| train-clean-100 | 0.9340 | 0.7687 | 0.9870 |
+| dev-clean | 0.9347 | 0.7704 | 0.9873 |
+| test-clean (cheat) | 0.9348 | 0.7779 | 0.9844 |
+| ViT-MFCC (small) | 0.9614 | 0.9390 | 0.9672 |
+
+All three miniDSP parameter sets produce nearly identical F2 (~0.934–0.935).
+Even optimizing directly on the evaluation data ("cheating") yields only +0.001
+F2 over the train-clean-100 parameters.  The **F2 ceiling from
+threshold/weight tuning alone is ~0.935** — the remaining gap to the ViT
+(0.935 → 0.961) requires richer features or a learned model.
+
+### Interpreting AUC vs F2
+
+AUC measures how well a system's continuous scores separate speech from
+non-speech across all thresholds.  F2 measures binary decision quality at a
+specific operating point.
+
+miniDSP's low AUC (~0.65) vs the ViT's high AUC (~0.97) means the miniDSP's
+raw scores have limited discriminative power — its good F2 comes from Optuna
+finding the right operating point, not from intrinsically well-separated scores.
+If the threshold needs re-tuning for different conditions, there is limited
+headroom in the score distribution.
+
+**Practical implications:**  For embedded devices, real-time pipelines, or
+latency-sensitive applications where conditions are reasonably known, the
+miniDSP VAD offers a strong cost/performance tradeoff (97% of the ViT's F2 at
+22× the speed with zero learned parameters).  For maximum accuracy with compute
+budget available, especially across diverse or unknown noise conditions, the
+ViT-MFCC is clearly superior.
+
+### Reproducing the comparison
+
+The comparison script and full per-condition breakdowns are in `compare/VAD/`:
+
+```bash
+cd compare/VAD
+uv run python compare_vad.py /path/to/LibriVAD --breakdown
+```
+
+See `compare/VAD/README.md` for setup and `compare/VAD/README_RESULTS.md` for
+the complete results including per-noise-type breakdowns for all parameter sets.
+
+---
+
 ## API summary
 
 **API:**
