@@ -34,6 +34,7 @@ import numpy as np
 import numpy.typing as npt
 import soundfile as sf
 import torch
+from sklearn.metrics import roc_auc_score
 from torch import nn, einsum
 from einops import rearrange
 from einops.layers.torch import Rearrange
@@ -210,6 +211,10 @@ class EvalItem:
     noise: str = ""
     snr: int = 0
 
+    @property
+    def condition_key(self) -> str:
+        return f"{self.noise}@{self.snr}dB"
+
 
 # ---------------------------------------------------------------------------
 # LibriVAD file discovery and label handling
@@ -330,6 +335,16 @@ def load_eval_items(
 # Metric computation
 # ---------------------------------------------------------------------------
 
+def compute_auc(
+    scores: npt.NDArray[np.float64],
+    targets: npt.NDArray[np.int32],
+) -> float | None:
+    """Compute AUC-ROC, returning None if only one class is present."""
+    if len(targets) == 0 or targets.min() == targets.max():
+        return None
+    return float(roc_auc_score(targets, scores))
+
+
 def compute_fbeta(
     predictions: npt.NDArray[np.int32],
     targets: npt.NDArray[np.int32],
@@ -366,8 +381,8 @@ def compute_fbeta(
 def eval_minidsp(
     items: list[EvalItem],
     frame_len_ms: float = MINIDSP_FRAME_MS,
-) -> list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]]:
-    """Run miniDSP VAD on all items, return (predictions, targets) per item."""
+) -> list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]]:
+    """Run miniDSP VAD on all items, return (predictions, targets, scores) per item."""
     results = []
     for item in items:
         audio, sr = sf.read(str(item.wav_path), dtype="float64")
@@ -386,8 +401,8 @@ def eval_minidsp(
         audio = audio[: num_frames * frame_len_samples]
 
         vad = VAD()
-        decisions, _, _ = vad.process(audio, sr, frame_len_samples)
-        results.append((decisions, targets))
+        decisions, scores, _ = vad.process(audio, sr, frame_len_samples)
+        results.append((decisions, targets, scores))
 
     return results
 
@@ -444,11 +459,12 @@ def vit_infer_file(
     label_path: Path,
     model: torch.nn.Module,
     device: torch.device,
-) -> tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]:
-    """Run ViT-MFCC inference on a single file, return (predictions, targets).
+) -> tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]:
+    """Run ViT-MFCC inference on a single file, return (predictions, targets, scores).
 
     Uses the reference MFCC extraction and sequence splitting from the
-    LibriVAD Eval-ViT-MFCC code.
+    LibriVAD Eval-ViT-MFCC code.  *scores* contains the per-frame speech
+    probability from softmax.
     """
     from mfcc import mfcc, cmvn  # type: ignore[import-not-found]
     from auc_Vit import split_data_into_sequences  # type: ignore[import-not-found]
@@ -469,35 +485,35 @@ def vit_infer_file(
     )
     remainder = num_frames % VIT_SEQUENCE_LENGTH
 
+    chunks = list(X_sequences)
+    if remainder > 0:
+        chunks.append(last_feat)
+
     all_preds = []
+    all_scores = []
     with torch.no_grad():
-        for x_seq in X_sequences:
+        for x_seq in chunks:
             x_t = torch.from_numpy(x_seq).unsqueeze(0).float().to(device)
-            logits = model(x_t)
-            preds = torch.argmax(logits, dim=1).cpu().numpy()
-            all_preds.append(preds)
+            probs = torch.softmax(model(x_t), dim=1)
+            all_preds.append(torch.argmax(probs, dim=1).cpu().numpy())
+            all_scores.append(probs[:, 1].cpu().numpy())
 
-        if remainder > 0:
-            x_t = torch.from_numpy(last_feat).unsqueeze(0).float().to(device)
-            logits = model(x_t)
-            preds = torch.argmax(logits, dim=1).cpu().numpy()[:remainder]
-            all_preds.append(preds)
-
-    predictions = np.concatenate(all_preds).astype(np.int32)
-    targets = labels[:len(predictions)].astype(np.int32)
-    return predictions, targets
+    predictions = np.concatenate(all_preds)[:num_frames].astype(np.int32)
+    scores_arr = np.concatenate(all_scores)[:num_frames].astype(np.float64)
+    targets = labels[:num_frames].astype(np.int32)
+    return predictions, targets, scores_arr
 
 
 def eval_vit(
     items: list[EvalItem],
     model: torch.nn.Module,
     device: torch.device,
-) -> list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]]:
-    """Run ViT-MFCC on all items, return (predictions, targets) per item."""
+) -> list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]]:
+    """Run ViT-MFCC on all items, return (predictions, targets, scores) per item."""
     results = []
     for item in items:
-        preds, targets = vit_infer_file(item.wav_path, item.label_path, model, device)
-        results.append((preds, targets))
+        preds, targets, scores = vit_infer_file(item.wav_path, item.label_path, model, device)
+        results.append((preds, targets, scores))
     return results
 
 
@@ -506,36 +522,38 @@ def eval_vit(
 # ---------------------------------------------------------------------------
 
 def aggregate_metrics(
-    results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]],
+    results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
     beta: float,
-) -> dict[str, float]:
-    """Aggregate per-file results into a single F-beta score."""
+) -> dict[str, float | None]:
+    """Aggregate per-file results into F-beta score and AUC-ROC.
+
+    Reports two AUC variants:
+      - ``auc_pooled``: computed on concatenated frames (micro-average)
+      - ``auc_macro``: mean of per-file AUC values (macro-average, matching
+        the methodology used in the LibriVAD paper Table 7)
+    """
     preds = np.concatenate([r[0] for r in results])
     targets = np.concatenate([r[1] for r in results])
-    return compute_fbeta(preds, targets, beta=beta)
+    scores = np.concatenate([r[2] for r in results])
+    metrics = compute_fbeta(preds, targets, beta=beta)
+    metrics["auc_pooled"] = compute_auc(scores, targets)
+
+    # Macro-averaged AUC: per-file AUC then mean (skipping single-class files)
+    per_file_aucs = [compute_auc(r[2], r[1]) for r in results]
+    valid = [a for a in per_file_aucs if a is not None]
+    metrics["auc_macro"] = float(np.mean(valid)) if valid else None
+    return metrics
 
 
-def per_condition_metrics(
-    items: list[EvalItem],
-    results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]],
-    beta: float,
-) -> dict[str, dict[str, float]]:
-    """Compute metrics per noise@SNR condition."""
-    buckets: dict[str, list[int]] = defaultdict(list)
-    for i, item in enumerate(items):
-        key = f"{item.noise}@{item.snr}dB"
-        buckets[key].append(i)
 
-    out: dict[str, dict[str, float]] = {}
-    for key, indices in sorted(buckets.items()):
-        subset = [results[i] for i in indices]
-        out[key] = aggregate_metrics(subset, beta)
-    return out
+def _fmt_auc(val: float | None) -> str:
+    """Format an AUC value, returning 'N/A' when undefined."""
+    return "N/A" if val is None else f"{val:.4f}"
 
 
 def print_overall(
-    minidsp_metrics: dict[str, float],
-    vit_metrics: dict[str, float],
+    minidsp_metrics: dict[str, float | None],
+    vit_metrics: dict[str, float | None],
     n_files: int,
     beta: float,
     minidsp_elapsed: float = 0.0,
@@ -544,62 +562,69 @@ def print_overall(
     """Print overall comparison table."""
     label = f"F{beta:g}"
     print(f"\nOverall ({n_files} files):")
-    print(f"  {'System':<20s} {label:>8s}  {'Precision':>9s}  {'Recall':>6s}  {'Time':>8s}")
-    print(f"  {'─' * 20} {'─' * 8}  {'─' * 9}  {'─' * 6}  {'─' * 8}")
+    print(f"  {'System':<20s} {label:>8s}  {'Precision':>9s}  {'Recall':>6s}  {'AUC(m)':>8s}  {'AUC(p)':>8s}  {'Time':>8s}")
+    print(f"  {'─' * 20} {'─' * 8}  {'─' * 9}  {'─' * 6}  {'─' * 8}  {'─' * 8}  {'─' * 8}")
     for name, m, elapsed in [
         ("miniDSP VAD", minidsp_metrics, minidsp_elapsed),
         ("ViT-MFCC (small)", vit_metrics, vit_elapsed),
     ]:
-        print(f"  {name:<20s} {m['f_beta']:8.4f}  {m['precision']:9.4f}  {m['recall']:6.4f}  {elapsed:7.1f}s")
+        print(
+            f"  {name:<20s} {m['f_beta']:8.4f}  {m['precision']:9.4f}  {m['recall']:6.4f}"
+            f"  {_fmt_auc(m.get('auc_macro')):>8s}  {_fmt_auc(m.get('auc_pooled')):>8s}  {elapsed:7.1f}s"
+        )
+    print(f"  AUC(m)=macro-averaged per file; AUC(p)=pooled across all frames")
+
+
+def _bucket_items(items: list[EvalItem]) -> tuple[dict[str, list[int]], dict[int, list[int]]]:
+    """Index items by noise type and by SNR level, returning {label: [indices]}."""
+    by_noise: dict[str, list[int]] = defaultdict(list)
+    by_snr: dict[int, list[int]] = defaultdict(list)
+    for i, item in enumerate(items):
+        by_noise[item.noise].append(i)
+        by_snr[item.snr].append(i)
+    return by_noise, by_snr
+
+
+def _print_bucket_table(
+    title: str,
+    label_header: str,
+    label_width: int,
+    buckets: dict[str, list[int]],
+    minidsp_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
+    vit_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
+    beta: float,
+    format_label: callable,
+) -> None:
+    """Print a breakdown table grouped by the given buckets."""
+    f_label = f"F{beta:g}"
+    print(f"\n{title}:")
+    print(f"  {label_header:<{label_width}s} {'miniDSP ' + f_label:>12s}  {'ViT ' + f_label:>12s}  {'miniDSP AUC':>12s}  {'ViT AUC':>12s}")
+    print(f"  {'─' * label_width} {'─' * 12}  {'─' * 12}  {'─' * 12}  {'─' * 12}")
+    for key in sorted(buckets):
+        indices = buckets[key]
+        md_m = aggregate_metrics([minidsp_results[i] for i in indices], beta)
+        vt_m = aggregate_metrics([vit_results[i] for i in indices], beta)
+        print(f"  {format_label(key):<{label_width}s} {md_m['f_beta']:12.4f}  {vt_m['f_beta']:12.4f}  {_fmt_auc(md_m.get('auc_macro')):>12s}  {_fmt_auc(vt_m.get('auc_macro')):>12s}")
+    print(f"  AUC = macro-averaged per file")
 
 
 def print_breakdown(
     items: list[EvalItem],
-    minidsp_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]],
-    vit_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32]]],
+    minidsp_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
+    vit_results: list[tuple[npt.NDArray[np.int32], npt.NDArray[np.int32], npt.NDArray[np.float64]]],
     beta: float,
 ) -> None:
     """Print per-noise and per-SNR breakdown tables."""
-    label = f"F{beta:g}"
-    md = per_condition_metrics(items, minidsp_results, beta)
-    vt = per_condition_metrics(items, vit_results, beta)
+    by_noise, by_snr = _bucket_items(items)
 
-    # Group by noise type
-    noise_buckets: dict[str, list[str]] = defaultdict(list)
-    snr_buckets: dict[int, list[str]] = defaultdict(list)
-    for key in md:
-        noise, snr_str = key.split("@")
-        snr_val = int(snr_str.replace("dB", ""))
-        noise_buckets[noise].append(key)
-        snr_buckets[snr_val].append(key)
-
-    # Per noise type
-    print(f"\nPer Noise Type:")
-    print(f"  {'Noise':<20s} {'miniDSP ' + label:>12s}  {'ViT ' + label:>12s}")
-    print(f"  {'─' * 20} {'─' * 12}  {'─' * 12}")
-    for noise in sorted(noise_buckets):
-        keys = noise_buckets[noise]
-        md_sub = [minidsp_results[i] for k in keys
-                  for i, it in enumerate(items) if f"{it.noise}@{it.snr}dB" == k]
-        vt_sub = [vit_results[i] for k in keys
-                  for i, it in enumerate(items) if f"{it.noise}@{it.snr}dB" == k]
-        md_m = aggregate_metrics(md_sub, beta)
-        vt_m = aggregate_metrics(vt_sub, beta)
-        print(f"  {noise:<20s} {md_m['f_beta']:12.4f}  {vt_m['f_beta']:12.4f}")
-
-    # Per SNR
-    print(f"\nPer SNR:")
-    print(f"  {'SNR (dB)':<10s} {'miniDSP ' + label:>12s}  {'ViT ' + label:>12s}")
-    print(f"  {'─' * 10} {'─' * 12}  {'─' * 12}")
-    for snr_val in sorted(snr_buckets):
-        keys = snr_buckets[snr_val]
-        md_sub = [minidsp_results[i] for k in keys
-                  for i, it in enumerate(items) if f"{it.noise}@{it.snr}dB" == k]
-        vt_sub = [vit_results[i] for k in keys
-                  for i, it in enumerate(items) if f"{it.noise}@{it.snr}dB" == k]
-        md_m = aggregate_metrics(md_sub, beta)
-        vt_m = aggregate_metrics(vt_sub, beta)
-        print(f"  {snr_val:<10d} {md_m['f_beta']:12.4f}  {vt_m['f_beta']:12.4f}")
+    _print_bucket_table(
+        "Per Noise Type", "Noise", 20, by_noise,
+        minidsp_results, vit_results, beta, str,
+    )
+    _print_bucket_table(
+        "Per SNR", "SNR (dB)", 10, by_snr,
+        minidsp_results, vit_results, beta, str,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -684,6 +709,8 @@ def main() -> None:
     print(f"  F{args.beta:g}={minidsp_overall['f_beta']:.4f}  "
           f"P={minidsp_overall['precision']:.4f}  "
           f"R={minidsp_overall['recall']:.4f}  "
+          f"AUC(m)={_fmt_auc(minidsp_overall.get('auc_macro'))}  "
+          f"AUC(p)={_fmt_auc(minidsp_overall.get('auc_pooled'))}  "
           f"({minidsp_elapsed:.1f}s)")
 
     # --- Evaluate ViT-MFCC ---
@@ -695,6 +722,8 @@ def main() -> None:
     print(f"  F{args.beta:g}={vit_overall['f_beta']:.4f}  "
           f"P={vit_overall['precision']:.4f}  "
           f"R={vit_overall['recall']:.4f}  "
+          f"AUC(m)={_fmt_auc(vit_overall.get('auc_macro'))}  "
+          f"AUC(p)={_fmt_auc(vit_overall.get('auc_pooled'))}  "
           f"({vit_elapsed:.1f}s)")
 
     # --- Results ---

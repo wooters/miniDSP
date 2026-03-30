@@ -83,9 +83,28 @@ downsampled to its own frame rate via majority voting. This means:
   detected
 - **F2**: Weighted harmonic mean with beta=2, giving recall twice the weight
   of precision. F2 = 5PR / (4P + R)
+- **AUC (macro)**: Mean of per-file AUC-ROC values. Each file's AUC measures
+  how well continuous scores separate speech from non-speech across all
+  thresholds. Macro-averaging gives equal weight to every file regardless of
+  length, matching the methodology in the LibriVAD paper (Table 7).
+- **AUC (pooled)**: AUC-ROC computed on all frames concatenated across files.
+  Longer files contribute more weight. Tends to be slightly higher than macro.
 
 ### ViT threshold
 
 The ViT uses a fixed 0.5 threshold (argmax of 2-class softmax), which is the
 designed operating point for a cross-entropy-trained classifier. The miniDSP
 threshold was optimized via Optuna (0.245), giving it a tuned operating point.
+
+### AUC vs F2
+
+F2 evaluates each system at its chosen threshold. AUC evaluates the quality
+of the underlying continuous scores across all thresholds. A system with high
+F2 but low AUC has a well-tuned threshold but limited score separability --
+meaning re-tuning for different conditions may not yield good results. The
+miniDSP VAD uses weighted feature scores (0-1); the ViT uses softmax speech
+probabilities.
+
+The script reports both macro-averaged AUC (per-file mean, matching the
+[LibriVAD paper](https://arxiv.org/abs/2512.17281)) and pooled AUC
+(concatenated frames). Breakdown tables show macro AUC only.
