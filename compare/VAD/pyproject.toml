@@ -1,0 +1,17 @@
+[project]
+name = "minidsp-compare-vad"
+version = "0.1.0"
+description = "Compare miniDSP VAD against ViT-MFCC baseline on LibriVAD"
+requires-python = ">=3.10"
+dependencies = [
+    "pyminidsp",
+    "torch",
+    "huggingface_hub",
+    "einops",
+    "scipy",
+    "numpy",
+    "scikit-learn",
+    "soundfile",
+    "matplotlib",
+    "joblib",
+]
